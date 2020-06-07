@@ -1,3 +1,11 @@
+// 병아리 엔진: the seed 모방 프로젝트
+
+const perms = [
+	'admin', 'ipacl', 'suspend_account', 'developer', 'hideip', 'update_thread_document',
+	'update_thread_status', 'update_thread_topic', 'hide_thread_comment', 'grant',
+	'editable_other_user_document', 'no_force_recaptcha', 'disable_two_factor_login'
+];
+
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
 
@@ -27,6 +35,15 @@ function input(p) {
 }
 
 const exec = eval;
+
+const { SHA3 } = require('sha3');
+ 
+const hash = new SHA3(512);
+
+function sha3(p) {
+	hash.update(p);
+	return hash.digest('hex');
+}
 
 // VB6 함수 모방
 function Split(str, del) { return str.split(del); }; const split = Split;
@@ -153,7 +170,9 @@ catch(e) {
 		'stars': ['title', 'username', 'lastedit'],
 		'perms': ['perm', 'username'],
 		'threads': ['title', 'topic', 'status', 'time', 'tnum'],
-		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin']
+		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin'],
+		'useragents': ['username', 'string'],
+		'login_history': ['username', 'ip']
 	};
 	
 	for(var table in tables) {
@@ -174,7 +193,39 @@ catch(e) {
 }
 
 function markdown(content) {
-	return content;
+	// ([^제외]*)
+	
+	ret = content;
+	
+	ret = ret.replace(/[_][_]([^_]*)[_][_]/gi, '<u>$1</u>');
+	
+	ret = ret.replace(/[*][*][*]([^\*]*)[*][*][*]/gi, '<strong><i>$1</i></strong>');
+	ret = ret.replace(/[*][*]([^\*]*)[*][*]/gi, '<strong>$1</strong>');
+	ret = ret.replace(/[*]([^\*]*)[*]/gi, '<i>$1</i>');
+	
+	ret = ret.replace(/^[-]\s[-]\s[-]$/gim, '<hr />');
+	ret = ret.replace(/^[*]\s[*]\s[*]$/gim, '<hr />');
+	ret = ret.replace(/^[*][*][*][*][*]$/gim, '<hr />');
+	ret = ret.replace(/^[*][*][*]$/gim, '<hr />');
+	ret = ret.replace(/^[-]{3,80}$/gim, '<hr />');
+	
+	//ret = ret.replace(/[*]\s([^\*]*)/gim, '<li>$1</li>');
+	//ret = ret.replace(/[-]\s([^[-]]*)/gim, '<li>$1</li>');
+	
+	ret = ret.replace(/^[#][#][#][#][#][#]\s{0,80}([^\n]*)/gim, '<h6 class=wiki-heading>-. $1</h6>');
+	ret = ret.replace(/^[#][#][#][#][#]\s{0,80}([^\n]*)/gim, '<h5 class=wiki-heading>-. $1</h5>');
+	ret = ret.replace(/^[#][#][#][#]\s{0,80}([^\n]*)/gim, '<h4 class=wiki-heading>-. $1</h4>');
+	ret = ret.replace(/^[#][#][#]\s{0,80}([^\n]*)/gim, '<h3 class=wiki-heading>-. $1</h3>');
+	ret = ret.replace(/^[#][#]\s{0,80}([^\n]*)/gim, '<h2 class=wiki-heading>-. $1</h2>');
+	ret = ret.replace(/^[#]\s{0,80}([^\n]*)/gim, '<h1 class=wiki-heading>-. $1</h1>');
+	
+	// ret = ret.replace(/^([^\n]*)(\r|)\n[=]{4,180}/gi, '<h2 class=wiki-heading>-. $1</h1>');
+	// ret = ret.replace(/^([^\n]*)(\r|)\n[-]{4,180}/gi, '<h1 class=wiki-heading>-. $1</h2>');
+	
+	ret = ret.replace(/[`][`][`]([^[`]]*)[`][`][`]/gi, '<pre>$1</pre>');
+	ret = ret.replace(/[`]([^[`]]*)[`]/gi, '<code>$1</code>');
+	
+	return ret;
 }
 
 function islogin(req) {
@@ -182,8 +233,8 @@ function islogin(req) {
 	return false;
 }
 
-function getUsername(req) {
-	if(req.session.username) {
+function getUsername(req, forceIP = 0) {
+	if(!forceIP && req.session.username) {
 		return req.session.username;
 	} else {
 		if(req.headers['x-forwarded-for']) {
@@ -251,6 +302,13 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 	templateVariables['config'] = config;
 	templateVariables['content'] = content;
 	templateVariables['perms'] = perms;
+	templateVariables['url'] = req.path;
+	
+	if(islogin(req)) {
+		templateVariables['member'] = {
+			username: req.session.username
+		}
+	}
 	
 	if(viewname != '') {
 		templateVariables['document'] = title;
@@ -376,6 +434,12 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function dropSkinFile(req, res) {
 	res.sendFile(fn, { root: rootp.replace('/' + fn, '') });
 });
 
+function dropSourceCode(req, res) {
+	res.sendFile('index.js', { root: "./" });
+}
+
+wiki.get('/index.js', dropSourceCode);
+
 wiki.get('/js/:filepath', function dropJS(req, res) {
 	const filepath = req.param('filepath');
 	res.sendFile(filepath, { root: "./js" });
@@ -386,13 +450,13 @@ wiki.get('/css/:filepath', function dropCSS(req, res) {
 	res.sendFile(filepath, { root: "./css" });
 });
 
-wiki.get('/w', function redirectToFrontPage1(req, res) {
+function redirectToFrontPage(req, res) {
 	res.redirect('/w/' + config.getString('frontpage'));
-});
+}
 
-wiki.get('/', function redirectToFrontPage2(req, res) {
-	res.redirect('/w/' + config.getString('frontpage'));
-});
+wiki.get('/w', redirectToFrontPage);
+
+wiki.get('/', redirectToFrontPage);
 
 wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
@@ -417,6 +481,14 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			content = showError('insufficient_privileges_read');
 		} else {
 			content = markdown(rawContent[0]['content']);
+			
+			if(title.startsWith("사용자:") && await getperm('admin', title.replace(/^사용자[:]/, ''))) {
+				content = `
+					<div style="border-width: 5px 1px 1px; border-style: solid; border-color: orange gray gray; padding: 10px; margin-bottom: 10px;" onmouseover="this.style.borderTopColor=\'red\';" onmouseout="this.style.borderTopColor=\'orange\';">
+						<span style="font-size:14pt">이 사용자는 특수 권한을 가지고 있습니다.</span>
+					</div>
+				` + content;
+			}
 			
 			await curs.execute("select time from history where title = ? order by cast(rev as integer) desc limit 1", [title]);
 			lstedt = Number(curs.fetchall()[0]['time']);
@@ -984,7 +1056,15 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 								</div>
 								
 								<div class="r-body${rs['hidden'] == '1' ? ' r-hidden-body' : ''}">
-									${markdown(rs['content'], rs['ismember'])}
+									${
+										rs['hidden'] == '1'
+										? (
+											await getperm('hide_thread_comment', ip_check(req))
+											? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content'], rs['ismember']) + '</div>'
+											: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
+										  )
+										: markdown(rs['content'], rs['ismember'])
+									}
 								</div>
 							</div>
 						</div>
@@ -1057,7 +1137,7 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) values \
 					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0']);
+					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0']);
 					
 	res.redirect('/thread/' + tnum);
 });
@@ -1106,7 +1186,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		<h2 class=wiki-heading style="cursor: pointer;">댓글 달기</h2>
 	`;
 	
-	if(getperm('update_thread_status', ip_check(req))) {
+	if(await getperm('update_thread_status', ip_check(req))) {
 		var sts = '';
 		
 		switch(status) {
@@ -1136,7 +1216,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		`;
 	}
 	
-	if(getperm('update_thread_document', ip_check(req))) {
+	if(await getperm('update_thread_document', ip_check(req))) {
 		content += `
         	<form method="post" id="thread-document-form">
         		[ADMIN] 쓰레드 이동
@@ -1146,7 +1226,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		`;
 	}
 	
-	if(getperm('update_thread_topic', ip_check(req))) {
+	if(await getperm('update_thread_topic', ip_check(req))) {
 		content += `
         	<form method="post" id="thread-topic-form">
         		[ADMIN] 쓰레드 주제 변경
@@ -1162,6 +1242,8 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		<form id=new-thread-form method=post>
 			<textarea class=form-control rows=5 name=text ${['close', 'pause'].includes(status) ? 'disabled' : ''}>${status == 'pause' ? 'pause 상태입니다.' : (status == 'close' ? '닫힌 토론입니다.' : '')}</textarea>
 		
+			<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론에 참여합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>
+			
 			<div class=btns>
 				<button type=submit class="btn btn-primary" style="width: 120px;">전송</button>
 			</div>
@@ -1192,7 +1274,7 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
 					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-						String(lid + 1), req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0'
+						String(lid + 1), req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0'
 					]);
 					
 	curs.execute("update threads set time = ? where tnum = ?", [getTime(), tnum]);
@@ -1234,14 +1316,56 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 					</div>
 					
 					<div class="r-body${rs['hidden'] == '1' ? ' r-hidden-body' : ''}">
-						${markdown(rs['content'], rs['ismember'])}
+						${
+							rs['hidden'] == '1'
+							? (
+								await getperm('hide_thread_comment', ip_check(req))
+								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content'], rs['ismember']) + '</div>'
+								: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
+							  )
+							: markdown(rs['content'], rs['ismember'])
+						}
 					</div>
+				</div>`;
+		if(await getperm('hide_thread_comment', ip_check(req))) {
+			content += `
+				<div class="combo admin-menu">
+					<a class="btn btn-danger btn-sm" href="/admin/thread/${tnum}/${rs['id']}/${rs['hidden'] == '1' ? 'show' : 'hide'}">[ADMIN] 숨기기${rs['hidden'] == '1' ? ' 해제' : ''}</a>
 				</div>
+			`;
+		}
+		content += `
 			</div>
 		`;
 	}
 	
 	res.send(content);
+});
+
+wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, res) {
+	const tnum = req.param("tnum");
+	const tid = req.param("id");
+	
+	if(!await getperm('hide_thread_comment', ip_check(req))) {
+		res.send(showError(req, 'insufficient_privileges'));
+	}
+	
+	curs.execute("update res set hidden = '0' and hider = '' where tnum = ? and id = ?", [tnum, tid]);
+	
+	res.redirect('/thread/' + tnum);
+});
+
+wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
+	const tnum = req.param("tnum");
+	const tid = req.param("id");
+	
+	if(!await getperm('hide_thread_comment', ip_check(req))) {
+		res.send(showError(req, 'insufficient_privileges'));
+	}
+	
+	curs.execute("update res set hidden = '1' and hider = ? where tnum = ? and id = ?", [ip_check(req), tnum, tid]);
+	
+	res.redirect('/thread/' + tnum);
 });
 
 wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
@@ -1261,56 +1385,407 @@ wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
 	});
 });
 
-wiki.use(function(req, res, next) {
-    return res.status(404).send(
-		`
-			<html>
-				<head>
-					<meta charset="utf-8">
-					<meta name="viewport" content="width=1240">
-					<title>Page is not found!</title>
-					<style>
-						section {
-							position: fixed;
-							top: 0;
-							right: 0;
-							bottom: 0;
-							left: 0;
-							padding: 80px 0 0;
-							background-color:#EFEFEF;
-							font-family: "Open Sans", sans-serif;
-							text-align: center;
-						}
-						
-						h1 {
-							margin: 0 0 19px;
-							font-size: 40px;
-							font-weight: normal;
-							color: #E02B2B;
-							line-height: 40px;
-						}
-						
-						p {
-							margin: 0 0 57px;
-							font-size: 16px;
-							color:#444;
-							line-height: 23px;
-						}
-					</style>
-				</head>
+wiki.get('/member/login', async function loginScreen(req, res) {
+	var desturl = req.query['redirect'];
+	if(!desturl) desturl = '/';
+	
+	if(islogin(req)) res.redirect(desturl);
+	
+	res.send(render(req, '로그인', `
+		<form class=login-form method=post>
+			<div class=form-group>
+				<label>Username</label><br>
+				<input class=form-control name="username" type="text">
+			</div>
+
+			<div class=form-group>
+				<label>Password</label><br>
+				<input class=form-control name="password" type="password">
+			</div>
+			
+			<div class="checkbox" style="display: inline-block;">
+				<label>
+					<input type="checkbox" name="autologin">
+					<span>자동 로그인</span>
+				</label>
+			</div>
+			
+			<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
+			
+			<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
+		</form>
+	`, {}));
+});
+
+wiki.post('/member/login', async function authUser(req, res) {
+	var desturl = req.query['redirect'];
+	if(!desturl) desturl = '/';
+	
+	if(islogin(req)) res.redirect(desturl);
+	
+	var   id = req.body['username'];
+	const pw = req.body['password'];
+	
+	if(!id.length) {
+		res.send(render(req, '로그인', `
+			<form class=login-form method=post>
+				<div class=form-group>
+					<label>Username</label><br>
+					<input class=form-control name="username" type="text">
+					<p class=error-desc>사용자 이름의 값은 필수입니다.</p>
+				</div>
+
+				<div class=form-group>
+					<label>Password</label><br>
+					<input class=form-control name="password" type="password">
+				</div>
 				
-				<body>
-					<section>
-						<h1>404</h1>
-						
-						<p>
-							Page is not found!<br>
-							<a href="/">Back to home</a>
-						</p>
-					</section>
-				</body>
-			</html>`
-	);
+				<div class="checkbox" style="display: inline-block;">
+					<label>
+						<input type="checkbox" name="autologin">
+						<span>자동 로그인</span>
+					</label>
+				</div>
+				
+				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
+				
+				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	if(!pw.length) {
+		res.send(render(req, '로그인', `
+			<form class=login-form method=post>
+				<div class=form-group>
+					<label>Username</label><br>
+					<input class=form-control name="username" type="text" value="${html.escape(id)}">
+				</div>
+
+				<div class=form-group>
+					<label>Password</label><br>
+					<input class=form-control name="password" type="password">
+					<p class=error-desc>암호의 값은 필수입니다.</p>
+				</div>
+				
+				<div class="checkbox" style="display: inline-block;">
+					<label>
+						<input type="checkbox" name="autologin">
+						<span>자동 로그인</span>
+					</label>
+				</div>
+				
+				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
+				
+				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
+	if(!curs.fetchall().length) {
+		res.send(render(req, '로그인', `
+			<form class=login-form method=post>
+				<div class=form-group>
+					<label>Username</label><br>
+					<input class=form-control name="username" type="text" value="${html.escape(id)}">
+					<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>
+				</div>
+
+				<div class=form-group>
+					<label>Password</label><br>
+					<input class=form-control name="password" type="password">
+				</div>
+				
+				<div class="checkbox" style="display: inline-block;">
+					<label>
+						<input type="checkbox" name="autologin">
+						<span>자동 로그인</span>
+					</label>
+				</div>
+				
+				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
+				
+				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	id = curs.fetchall()[0]['username'];
+	
+	curs.execute("select username, password from users where username = ? and password = ?", [id, sha3(pw)]);
+	if(!curs.fetchall().length) {
+		res.send(render(req, '로그인', `
+			<form class=login-form method=post>
+				<div class=form-group>
+					<label>Username</label><br>
+					<input class=form-control name="username" type="text" value="${html.escape(id)}">
+				</div>
+
+				<div class=form-group>
+					<label>Password</label><br>
+					<input class=form-control name="password" type="password">
+					<p class=error-desc>암호가 올바르지 않습니다.</p>
+				</div>
+				
+				<div class="checkbox" style="display: inline-block;">
+					<label>
+						<input type="checkbox" name="autologin">
+						<span>자동 로그인</span>
+					</label>
+				</div>
+				
+				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
+				
+				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+	
+	req.session.username = id;
+	
+	await curs.execute("delete from useragents where username = ?", [id]);
+	await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+	
+	res.redirect(desturl);
+});
+
+wiki.get('/member/signup', function signupScreen(req, res) {
+	var desturl = req.query['redirect'];
+	if(!desturl) desturl = '/';
+	
+	if(islogin(req)) res.redirect(desturl);
+	
+	res.send(render(req, '계정 만들기', `
+		<form class=signup-form method=post>
+			<div class=form-group>
+				<label>사용자 ID</label><br>
+				<input class=form-control name="username" type="text">
+			</div>
+
+			<div class=form-group>
+				<label>암호</label><br>
+				<input class=form-control name="password" type="password">
+			</div>
+
+			<div class=form-group>
+				<label>암호 확인</label><br>
+				<input class=form-control name="password_check" type="password">
+			</div>
+			
+			<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
+			
+			<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
+		</form>
+	`, {}));
+});
+
+wiki.post('/member/signup', async function createAccount(req, res) {
+	var desturl = req.query['redirect'];
+	if(!desturl) desturl = '/';
+	
+	if(islogin(req)) res.redirect(desturl);
+	
+	const id = req.body['username'];
+	const pw = req.body['password'];
+	const pw2 = req.body['password_check'];
+	
+	await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
+	if(curs.fetchall().length) {
+		res.send(render(req, '계정 만들기', `
+			<form class=signup-form method=post>
+				<div class=form-group>
+					<label>사용자 ID</label><br>
+					<input class=form-control name="username" type="text">
+					<p class=error-desc>해당 사용자가 이미 존재합니다.</p>
+				</div>
+
+				<div class=form-group>
+					<label>암호</label><br>
+					<input class=form-control name="password" type="password">
+				</div>
+
+				<div class=form-group>
+					<label>암호 확인</label><br>
+					<input class=form-control name="password_check" type="password">
+				</div>
+			
+				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
+				
+				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	if(!id.length) {
+		res.send(render(req, '계정 만들기', `
+			<form class=signup-form method=post>
+				<div class=form-group>
+					<label>사용자 ID</label><br>
+					<input class=form-control name="username" type="text">
+					<p class=error-desc>사용자 이름의 값은 필수입니다.</p>
+				</div>
+
+				<div class=form-group>
+					<label>암호</label><br>
+					<input class=form-control name="password" type="password">
+				</div>
+
+				<div class=form-group>
+					<label>암호 확인</label><br>
+					<input class=form-control name="password_check" type="password">
+				</div>
+			
+				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
+				
+				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	if(!pw.length) {
+		res.send(render(req, '계정 만들기', `
+			<form class=signup-form method=post>
+				<div class=form-group>
+					<label>사용자 ID</label><br>
+					<input class=form-control name="username" type="text">
+				</div>
+
+				<div class=form-group>
+					<label>암호</label><br>
+					<input class=form-control name="password" type="password">
+				</div>
+
+				<div class=form-group>
+					<label>암호 확인</label><br>
+					<input class=form-control name="password_check" type="password">
+					<p class=error-desc>암호의 값은 필수입니다.</p>
+				</div>
+			
+				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
+				
+				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	if(pw != pw2) {
+		res.send(render(req, '계정 만들기', `
+			<form class=signup-form method=post>
+				<div class=form-group>
+					<label>사용자 ID</label><br>
+					<input class=form-control name="username" type="text">
+				</div>
+
+				<div class=form-group>
+					<label>암호</label><br>
+					<input class=form-control name="password" type="password">
+				</div>
+
+				<div class=form-group>
+					<label>암호 확인</label><br>
+					<input class=form-control name="password_check" type="password">
+					<p class=error-desc>암호 확인이 올바르지 않습니다.</p>
+				</div>
+			
+				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
+				
+				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	await curs.execute("select username from users");
+	if(!curs.fetchall().length) {
+		for(perm of perms) {
+			curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
+		}
+	}
+	
+	req.session.username = id;
+	
+	curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
+	
+	curs.execute("insert into documents (title, content) values (?, '')", ["사용자:" + id]);
+	
+	curs.execute("insert into history (title, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
+					values (?, '', '1', ?, ?, '0', '', '0', '', '(새 문서)', 'author')", [
+						'사용자:' + id, getTime(), id
+					]);
+		
+	curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+	curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+	
+	res.send(render(req, '계정 만들기', `
+		<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
+	`, {}));
+});
+
+wiki.use(function(req, res, next) {
+    return res.status(404).send(`
+		<head>
+			<meta charset="utf-8">
+			<meta name="viewport" content="width=1240">
+			<title>Page is not found!</title>
+			<style>
+				section {
+					position: fixed;
+					top: 0;
+					right: 0;
+					bottom: 0;
+					left: 0;
+					padding: 80px 0 0;
+					background-color:#EFEFEF;
+					font-family: "Open Sans", sans-serif;
+					text-align: center;
+				}
+				
+				h1 {
+					margin: 0 0 19px;
+					font-size: 40px;
+					font-weight: normal;
+					color: #E02B2B;
+					line-height: 40px;
+				}
+				
+				p {
+					margin: 0 0 57px;
+					font-size: 16px;
+					color:#444;
+					line-height: 23px;
+				}
+			</style>
+		</head>
+		
+		<body>
+			<section>
+				<h1>404</h1>
+				
+				<p>
+					Page is not found!<br>
+					<a href="/">Back to home</a>
+				</p>
+			</section>
+		</body>
+	`);
 });
 
 (async function setWikiData() {
@@ -1323,7 +1798,7 @@ wiki.use(function(req, res, next) {
 	await curs.execute("select username, perm from perms order by username");
 	
 	for(var prm of curs.fetchall()) {
-		if(typeof(permlist[prm['username']]) == undefined)
+		if(typeof(permlist[prm['username']]) == 'undefined')
 			permlist[prm['username']] = [prm['perm']];
 		else
 			permlist[prm['username']].push(prm['perm']);
