@@ -404,6 +404,8 @@ wiki.get(/^\/w\/(.*)/, async function(req, res) {
 	var viewname = 'wiki';
 	var error = false;
 	
+	var lstedt = undefined;
+	
 	try {
 		if(!await getacl(title, 'read')) {
 			httpstat = 403;
@@ -411,6 +413,9 @@ wiki.get(/^\/w\/(.*)/, async function(req, res) {
 			content = showError('insufficient_privileges_read');
 		} else {
 			content = markdown(rawContent[0]['content']);
+			
+			await curs.execute("select time from history where title = ? order by cast(rev as integer) desc limit 1", [title]);
+			lstedt = Number(curs.fetchall()[0]['time']);
 		}
 	} catch(e) {
 		viewname = 'notfound';
@@ -429,7 +434,8 @@ wiki.get(/^\/w\/(.*)/, async function(req, res) {
 	
 	res.status(httpstat).send(render(req, title, content, {
 		star_count: 0,
-		starred: false
+		starred: false,
+		date: lstedt
 	}, _, error, viewname));
 });
 
@@ -460,8 +466,8 @@ wiki.get(/^\/edit\/(.*)/, async function(req, res) {
 			${alertBalloon('편집 권한이 부족합니다. 대신 <strong><a href="/new_edit_request/' + html.escape(title) + '">편집 요청</a></strong>을 생성하실 수 있습니다.', 'danger', true, 'fade in edit-alert')}
 		
 			<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
-				<input type="hidden" name="token" value="fa9585bd2f508bbd37162ebaccc6018f6609c69ac92e9c0a7e3dc7d2320c60f6">
-				<input type="hidden" name="identifier" value="i:207.241.226.232">
+				<input type="hidden" name="token" value="">
+				<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
 				<input type="hidden" name="baserev" value="${baserev}">
 
 				<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
@@ -487,7 +493,7 @@ wiki.get(/^\/edit\/(.*)/, async function(req, res) {
 		content = `
 			<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
 				<input type="hidden" name="token" value="">
-				<input type="hidden" name="identifier" value="${islogin() ? 'm' : 'i'}:${ip_check(req)}">
+				<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
 				<input type="hidden" name="baserev" value="${baserev}">
 
 				<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
@@ -706,6 +712,71 @@ wiki.get('/RecentChanges', async function(req, res) {
 	res.send(render(req, '최근 변경내역', content, {}));
 });
 
+wiki.get('/RecentDiscuss', async function(req, res) {
+	var logtype = req.query['logtype'];
+	if(!logtype) logtype = 'all';
+	
+	var content = `
+		<ol class="breadcrumb link-nav">
+			<li><a href="?logtype=normal_thread">[열린 토론]</a></li>
+			<li><a href="?logtype=old_thread">[오래된 토론]</a></li>
+			<li><a href="?logtype=closed_thread">[닫힌 토론]</a></li>
+
+			<li><a href="?logtype=open_editrequest">[열린 편집 요청]</a></li>
+			<li><a href="?logtype=accepted_editrequest">[승인된 편집 요청]</a></li>
+			<li><a href="?logtype=closed_editrequest">[닫힌 편집 요청]</a></li>
+		</ol>
+		
+		<table class="table table-hover">
+			<colgroup>
+				<col>
+				<col style="width: 22%; min-width: 100px;">
+			</colgroup>
+			<thead>
+				<tr>
+					<th>항목</th>
+					<th>수정 시간</th>
+				</tr>
+			</thead>
+			
+			<tbody id>
+	`;
+	
+	switch(logtype) {
+		case 'normal_thread':
+			await curs.execute("select title, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
+		break;case 'old_thread':
+			await curs.execute("select title, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) asc limit 120");
+		break;case 'closed_thread':
+			await curs.execute("select title, topic, time, tnum from threads where status = 'close' order by cast(time as integer) desc limit 120");
+		break;default:
+			await curs.execute("select title, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
+	}
+	
+	const trds = curs.fetchall();
+	
+	for(trd of trds) {
+		content += `
+			<tr>
+				<td>
+					<a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a> (<a href="/discuss/${encodeURI(trd['title'])}">${html.escape(trd['title'])}</a>)
+				</td>
+				
+				<td>
+					${generateTime(toDate(trd['time']), timeFormat)}
+				</td>
+			</tr>
+		`;
+	}
+	
+	content += `
+			</tbody>
+		</table>
+	`;
+	
+	res.send(render(req, "최근 토론", content, {}));
+});
+
 wiki.get(/^\/history\/(.*)/, async function(req, res) {
 	const title = req.params[0];
 	const from = req.query['from'];
@@ -869,8 +940,8 @@ wiki.get(/^\/discuss\/(.*)/, async function(req, res) {
 			cnt = 0;
 			for(trd of trdlst) {
 				content += `
-					<h2 class=wiki-heading>
-						${++cnt}. <a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a>
+					<h2 class=wiki-heading id="${++cnt}">
+						${cnt}. <a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a>
 					</h2>
 					
 					<div class=topic-discuss>
