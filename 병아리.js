@@ -58,6 +58,8 @@ const curs = {
 		if(UCase(sql).startsWith("SELECT")) {
 			const retval = await conn.query(sql, params);
 			conn.sd = retval;
+			
+			return retval;
 		} else {
 			conn.run(sql, params, err => { beep(3); });
 		}
@@ -859,8 +861,65 @@ wiki.get(/^\/discuss\/(.*)/, async function(req, res) {
 					
 				<p>
 					<a href="?state=close">[닫힌 토론 목록 보기]</a>
-				</p>
+				</p>`
 				
+			await curs.execute("select topic, tnum from threads where title = ? and status = 'normal' order by cast(time as integer) desc", [title]);
+			trdlst = curs.fetchall();
+			
+			cnt = 0;
+			for(trd of trdlst) {
+				content += `
+					<h2 class=wiki-heading>
+						${++cnt}. <a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a>
+					</h2>
+					
+					<div class=topic-discuss>
+				`;
+				
+				await curs.execute("select id, content, username, time, hidden, hider, status, ismember from res where tnum = ? order by cast(id as integer) asc", [trd['tnum']]);
+				const td = curs.fetchall();
+				await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [trd['tnum']]);
+				const ltid = Number(curs.fetchall()[0]['id']);
+				
+				var ambx = false;
+				
+				await curs.execute("select username from res where tnum = ? and (id = '1')", [trd['tnum']]);
+				const fstusr = curs.fetchall()[0]['username'];
+				
+				for(rs of td) {
+					const crid = Number(rs['id']);
+					if(ltid > 4 && crid != 1 && (crid < ltid - 2)) {
+						if(!ambx) {
+							content += `
+								<div>
+									<a class=more-box href="/thread/${trd['tnum']}">more...</a>
+								</div>
+							`;
+							
+							ambx = true;
+						}
+						continue;
+					}
+					
+					content += `
+						<div class=res-wrapper>
+							<div class="res res-type-${rs['status'] == '1' ? 'status' : 'normal'}">
+								<div class="r-head${rs['username'] == fstusr ? " first-author" : ''}">
+									<span class=num>#${rs['id']}</span> ${ip_pas(rs['username'])} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
+								</div>
+								
+								<div class="r-body${rs['hidden'] == '1' ? ' r-hidden-body' : ''}">
+									${markdown(rs['content'], rs['ismember'])}
+								</div>
+							</div>
+						</div>
+					`;
+				}
+				
+				content += '</div>';
+			}
+				
+			content += `
 				<h3 class="wiki-heading">새 주제 생성</h3>
 				
 				<form method="post" class="new-thread-form" id="topicForm">
