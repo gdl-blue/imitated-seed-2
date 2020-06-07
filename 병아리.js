@@ -387,7 +387,7 @@ function alertBalloon(content, type = 'danger', dismissible = true, classes = ''
 		</div>`;
 }
 
-function showError(code, req) {
+function showError(req, code) {
 	return render(req, "문제가 발생했습니다!", `<h2>${fetchErrorString(code)}</h2>`);
 }
 
@@ -478,7 +478,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		if(!await getacl(title, 'read')) {
 			httpstat = 403;
 			error = true;
-			content = showError('insufficient_privileges_read');
+			content = showError(req, 'insufficient_privileges_read');
 		} else {
 			content = markdown(rawContent[0]['content']);
 			
@@ -1060,7 +1060,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 										rs['hidden'] == '1'
 										? (
 											await getperm('hide_thread_comment', ip_check(req))
-											? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content'], rs['ismember']) + '</div>'
+											? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content'], rs['ismember']) + '</div>'
 											: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 										  )
 										: markdown(rs['content'], rs['ismember'])
@@ -1149,7 +1149,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError("thread_not_found"));
+	if(!rescount) res.send(showError(req, "thread_not_found"));
 	
 	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
 	const title = curs.fetchall()[0]['title'];
@@ -1260,7 +1260,7 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError("thread_not_found"));
+	if(!rescount) res.send(showError(req, "thread_not_found"));
 	
 	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
 	const title = curs.fetchall()[0]['title'];
@@ -1290,7 +1290,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError("thread_not_found"));
+	if(!rescount) res.send(showError(req, "thread_not_found"));
 	
 	await curs.execute("select username from res where tnum = ? and (id = '1')", [tnum]);
 	const fstusr = curs.fetchall()[0]['username'];
@@ -1350,7 +1350,7 @@ wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, r
 		res.send(showError(req, 'insufficient_privileges'));
 	}
 	
-	curs.execute("update res set hidden = '0' and hider = '' where tnum = ? and id = ?", [tnum, tid]);
+	curs.execute("update res set hidden = '0', hider = '' where tnum = ? and id = ?", [tnum, tid]);
 	
 	res.redirect('/thread/' + tnum);
 });
@@ -1363,7 +1363,7 @@ wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
 		res.send(showError(req, 'insufficient_privileges'));
 	}
 	
-	curs.execute("update res set hidden = '1' and hider = ? where tnum = ? and id = ?", [ip_check(req), tnum, tid]);
+	curs.execute("update res set hidden = '1', hider = ? where tnum = ? and id = ?", [ip_check(req), tnum, tid]);
 	
 	res.redirect('/thread/' + tnum);
 });
@@ -1375,7 +1375,7 @@ wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError("thread_not_found"));
+	if(!rescount) res.send(showError(req, "thread_not_found"));
 	
 	await curs.execute("select id from res where tnum = ? order by cast(time as integer) desc limit 1", [tnum]);
 	
