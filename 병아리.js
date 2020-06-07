@@ -396,6 +396,10 @@ function alertBalloon(content, type = 'danger', dismissible = true, classes = ''
 		</div>`;
 }
 
+async function fetchNamespaces() {
+	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', 'wiki', '토론', '휴지통', '투표'];
+}
+
 function showError(req, code) {
 	return render(req, "문제가 발생했습니다!", `<h2>${fetchErrorString(code)}</h2>`);
 }
@@ -2020,6 +2024,64 @@ wiki.post('/member/signup/:key', async function createAccount(req, res) {
 	res.send(render(req, '계정 만들기', `
 		<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
 	`, {}));
+});
+
+wiki.get('/RandomPage', async function randomPage(req, res) {
+	var ns = req.query['namespace'];
+	if(!ns) ns = '문서';
+	
+	if(ns == '문서') {
+		var sql = 'select title from documents where ';
+		
+		const nmsplst = await fetchNamespaces();
+		
+		for(nsp of nmsplst) {
+			if(nsp == '문서') continue;
+			
+			sql += `not title like '${nsp}:%' and `;
+		}
+		
+		sql = sql.replace(/and\s$/, '');
+		
+		sql += 'order by random() limit 20';
+		
+		await curs.execute(sql);
+	} else {
+		await curs.execute("select title from documents where title like ? || ':%' order by random() limit 20", [ns]);
+	}
+	
+	var content = `
+		<fieldset class="recent-option">
+			<form class="form-inline" method=get>
+				<div class="form-group">
+					<label class="control-label">이름공간 :</label>
+					<select class="form-control" id="namespace" name=namespace>
+					
+	`;
+	
+	for(nsp of await fetchNamespaces()) {
+		content += `
+			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', 'Wiki') : nsp}</option>
+		`;
+	}
+	
+	content += `
+					</select>
+				</div>
+				
+				<div class="form-group btns">
+					<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
+				</div>
+			</form>
+		</fieldset>
+		
+		<ul class=wiki-list>
+	`;
+	
+	for(i of curs.fetchall())
+        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + i['title'] + '</a></li>';
+	
+	res.send(render(req, 'RandomPage', content, {}));
 });
 
 wiki.use(function(req, res, next) {
