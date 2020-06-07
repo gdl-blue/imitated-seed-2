@@ -1,9 +1,10 @@
-// 병아리 엔진: the seed 모방 프로젝트
+// 병아리 엔진: 개인 the seed 모방 프로젝트
 
 const perms = [
 	'admin', 'ipacl', 'suspend_account', 'developer', 'hideip', 'update_thread_document',
 	'update_thread_status', 'update_thread_topic', 'hide_thread_comment', 'grant',
-	'editable_other_user_document', 'no_force_recaptcha', 'disable_two_factor_login'
+	'editable_other_user_document', 'no_force_recaptcha', 'disable_two_factor_login',
+	'login_history', 'delete_thread', 'nsacl'
 ];
 
 function print(x) { console.log(x); }
@@ -152,9 +153,16 @@ var permlist = {};
 var hostconfig;
 try { hostconfig = require('./config.json'); }
 catch(e) {
+	print("병아리 엔진: the seed 모방 프로젝트에 오신것을 환영합니다.");
+	print("버전 4.5.5 [디버그] - 테스트 목적으로만 사용됩니다.");
+	print("고의적으로 배포하지 마십시오.");
+	
+	prt('\n');
+	
 	hostconfig = {
 		host: input("호스트 주소: "),
-		port: input("포트 번호: ")
+		port: input("포트 번호: "),
+		skin: input("기본 스킨 이름: ")
 	};
 	
 	const tables = {
@@ -172,7 +180,8 @@ catch(e) {
 		'threads': ['title', 'topic', 'status', 'time', 'tnum'],
 		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin'],
 		'useragents': ['username', 'string'],
-		'login_history': ['username', 'ip']
+		'login_history': ['username', 'ip'],
+		'account_creation': ['key', 'email']
 	};
 	
 	for(var table in tables) {
@@ -180,7 +189,7 @@ catch(e) {
 		sql = `CREATE TABLE ${table} ( `;
 		
 		for(col of tables[table]) {
-			sql += `${col} text default '', `;
+			sql += `${col} TEXT DEFAULT '', `;
 		}
 		
 		sql = sql.replace(/[,]\s$/, '');		
@@ -259,7 +268,7 @@ const config = {
 const _ = undefined;
 
 function getSkin() {
-	return 'buma';
+	return hostconfig['skin'];
 }
 
 async function getperm(perm, username) {
@@ -478,7 +487,9 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		if(!await getacl(title, 'read')) {
 			httpstat = 403;
 			error = true;
-			content = showError(req, 'insufficient_privileges_read');
+			res.status(403).send(showError(req, 'insufficient_privileges_read'));
+			
+			return;
 		} else {
 			content = markdown(rawContent[0]['content']);
 			
@@ -517,6 +528,12 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 
 wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 	const title = req.params[0];
+	
+	if(!await getacl(title, 'read')) {
+		res.status(403).send(showError(req, 'insufficient_privileges_read'));
+		
+		return;
+	}
 	
 	await curs.execute("select content from documents where title = ?", [title]);
 	var rawContent = curs.fetchall();
@@ -638,8 +655,10 @@ wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 wiki.post(/^\/edit\/(.*)/, async function saveDocument(req, res) {
 	const title = req.params[0];
 	
-	if(!getacl(title, 'edit')) {
+	if(!await getacl(title, 'edit') || !await getacl(title, 'read')) {
 		res.send(showError(req, 'insufficient_privileges_edit'));
+		
+		return;
 	}
 	
 	await curs.execute("select content from documents where title = ?", [title]);
@@ -858,6 +877,12 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	const from = req.query['from'];
 	const until = req.query['until'];
 	
+	if(!await getacl(title, 'read')) {
+		res.send(showError('insufficient_privileges_read'));
+		
+		return;
+	}
+	
 	if(from) { // 더시드에서 from이 더 우선임
 		await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 						where title = ? and (cast(rev as integer) <= ? AND cast(rev as integer) > ?) \
@@ -947,6 +972,12 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	
 	var state = req.query['state'];
 	if(!state) state = '';
+	
+	if(!await getacl(title, 'read')) {
+		res.send(showError('insufficient_privileges_read'));
+		
+		return;
+	}
 	
 	var content = '';
 	
@@ -1122,7 +1153,17 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	const title = req.params[0];
 	
-	if(!getacl(title, 'create_thread')) res.send(showError(req, 'insufficient_privileges'));
+	if(!await getacl(title, 'read')) {
+		res.send(showError('insufficient_privileges_read'));
+		
+		return;
+	}
+	
+	if(!await getacl(title, 'create_thread')) {
+		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
+	}
 	
 	var tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
 	
@@ -1149,14 +1190,18 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError(req, "thread_not_found"));
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
 	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
 	const title = curs.fetchall()[0]['title'];
 	const topic = curs.fetchall()[0]['topic'];
 	const status = curs.fetchall()[0]['status'];
 	
-	if(!getacl(title, 'read')) res.send(showError(req, 'insufficient_privileges_read'));
+	if(!await getacl(title, 'read')) {
+		res.send(showError(req, 'insufficient_privileges_read'));
+		
+		return;
+	}
 	
 	var content = `
 		<h2 class=wiki-heading style="cursor: pointer;">${html.escape(topic)}</h2>
@@ -1260,14 +1305,24 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError(req, "thread_not_found"));
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
 	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
 	const title = curs.fetchall()[0]['title'];
 	const topic = curs.fetchall()[0]['topic'];
 	const status = curs.fetchall()[0]['status'];
 	
-	if(!getacl(title, 'write_thread_comment')) res.send(showError(req, 'insufficient_privileges'));
+	if(!await getacl(title, 'read')) {
+		res.send(showError('insufficient_privileges_read'));
+		
+		return;
+	}
+	
+	if(!await getacl(title, 'write_thread_comment')) {
+		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
+	}
 	
 	await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
 	const lid = Number(curs.fetchall()[0]['id']);
@@ -1290,7 +1345,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError(req, "thread_not_found"));
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
 	await curs.execute("select username from res where tnum = ? and (id = '1')", [tnum]);
 	const fstusr = curs.fetchall()[0]['username'];
@@ -1300,7 +1355,11 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	const topic = curs.fetchall()[0]['topic'];
 	const status = curs.fetchall()[0]['status'];
 	
-	if(!getacl(title, 'read')) res.send(showError(req, 'insufficient_privileges_read'));
+	if(!await getacl(title, 'read')) {
+		res.send(showError(req, 'insufficient_privileges_read'));
+		
+		return;
+	}
 	
 	content = ``;
 	
@@ -1312,7 +1371,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 					<div class="r-head${rs['username'] == fstusr ? " first-author" : ''}">
 						<span class=num>
 							<a id="${rs['id']}">#${rs['id']}</a>&nbsp;
-						</span> ${ip_pas(rs['username'])} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
+						</span> ${ip_pas(rs['username'], rs['ismember'])} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
 					</div>
 					
 					<div class="r-body${rs['hidden'] == '1' ? ' r-hidden-body' : ''}">
@@ -1346,8 +1405,16 @@ wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, r
 	const tnum = req.param("tnum");
 	const tid = req.param("id");
 	
+	await curs.execute("select id from res where tnum = ?", [tnum]);
+	
+	const rescount = curs.fetchall().length;
+	
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
+	
 	if(!await getperm('hide_thread_comment', ip_check(req))) {
 		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
 	}
 	
 	curs.execute("update res set hidden = '0', hider = '' where tnum = ? and id = ?", [tnum, tid]);
@@ -1359,13 +1426,138 @@ wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
 	const tnum = req.param("tnum");
 	const tid = req.param("id");
 	
+	await curs.execute("select id from res where tnum = ?", [tnum]);
+	
+	const rescount = curs.fetchall().length;
+	
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
+	
 	if(!await getperm('hide_thread_comment', ip_check(req))) {
 		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
 	}
 	
 	curs.execute("update res set hidden = '1', hider = ? where tnum = ? and id = ?", [ip_check(req), tnum, tid]);
 	
 	res.redirect('/thread/' + tnum);
+});
+
+wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, res) {
+	const tnum = req.param("tnum");
+	
+	await curs.execute("select id from res where tnum = ?", [tnum]);
+	
+	const rescount = curs.fetchall().length;
+	
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
+
+	var newstatus = req.body['status'];
+	if(!['close', 'pause', 'normal'].includes(newstatus)) newstatus = 'normal';
+	
+	if(!await getperm('update_thread_status', ip_check(req))) {
+		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
+	}
+	
+	curs.execute("update threads set status = ? where tnum = ?", [newstatus, tnum]);
+	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
+					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
+						String(rescount + 1), '스레드 상태를 **' + newstatus + '**로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
+					]);
+	
+	res.json({});
+});
+
+wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(req, res) {
+	const tnum = req.param("tnum");
+	
+	await curs.execute("select id from res where tnum = ?", [tnum]);
+	
+	const rescount = curs.fetchall().length;
+	
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
+
+	var newdoc = req.body['document'];
+	if(!newdoc.length) {
+		res.send('');
+		return;
+	}
+	
+	if(!await getperm('update_thread_document', ip_check(req))) {
+		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
+	}
+	
+	curs.execute("update threads set title = ? where tnum = ?", [newdoc, tnum]);
+	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
+					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
+						String(rescount + 1), '스레드를 **' + newdoc + '** 문서로 이동', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
+					]);
+	
+	res.json({});
+});
+
+wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res) {
+	const tnum = req.param("tnum");
+	
+	await curs.execute("select id from res where tnum = ?", [tnum]);
+	
+	const rescount = curs.fetchall().length;
+	
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
+
+	var newtopic = req.body['topic'];
+	if(!newtopic.length) {
+		res.send('');
+		return;
+	}
+	
+	if(!await getperm('update_thread_topic', ip_check(req))) {
+		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
+	}
+	
+	curs.execute("update threads set topic = ? where tnum = ?", [newtopic, tnum]);
+	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
+					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
+						String(rescount + 1), '스레드 주제를 **' + newtopic + '**로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
+					]);
+	
+	res.json({});
+});
+
+wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
+	const tnum = req.param("tnum");
+	
+	await curs.execute("select id from res where tnum = ?", [tnum]);
+	
+	const rescount = curs.fetchall().length;
+	
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
+
+	var newtopic = req.body['topic'];
+	if(!newtopic.length) {
+		res.send('');
+		return;
+	}
+	
+	if(!await getperm('update_thread_topic', ip_check(req))) {
+		res.send(showError(req, 'insufficient_privileges'));
+		
+		return;
+	}
+	
+	curs.execute("update threads set topic = ? where tnum = ?", [newtopic, tnum]);
+	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
+					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
+						String(rescount + 1), '스레드 주제를 **' + newtopic + '**로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
+					]);
+	
+	res.json({});
 });
 
 wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
@@ -1375,7 +1567,7 @@ wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
 	
 	const rescount = curs.fetchall().length;
 	
-	if(!rescount) res.send(showError(req, "thread_not_found"));
+	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
 	await curs.execute("select id from res where tnum = ? order by cast(time as integer) desc limit 1", [tnum]);
 	
@@ -1389,7 +1581,7 @@ wiki.get('/member/login', async function loginScreen(req, res) {
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	
-	if(islogin(req)) res.redirect(desturl);
+	if(islogin(req)) { res.redirect(desturl); return; }
 	
 	res.send(render(req, '로그인', `
 		<form class=login-form method=post>
@@ -1421,7 +1613,7 @@ wiki.post('/member/login', async function authUser(req, res) {
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	
-	if(islogin(req)) res.redirect(desturl);
+	if(islogin(req)) { res.redirect(desturl); return; }
 	
 	var   id = req.body['username'];
 	const pw = req.body['password'];
@@ -1560,11 +1752,94 @@ wiki.post('/member/login', async function authUser(req, res) {
 	res.redirect(desturl);
 });
 
-wiki.get('/member/signup', function signupScreen(req, res) {
+wiki.get('/member/signup', async function signupEmailScreen(req, res) {
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	
-	if(islogin(req)) res.redirect(desturl);
+	if(islogin(req)) { res.redirect(desturl); return; }
+	
+	res.send(render(req, '계정 만들기', `
+		<form method=post class=signup-form>
+			<div class=form-group>
+				<label>전자우편 주소</label><br>
+				<input type=email name=email class=form-control>
+			</div>
+			
+			<p>
+				<strong>가입후 탈퇴는 불가능합니다.</strong>
+			</p>
+		
+			<div class=btns>
+				<button type=reset class="btn btn-secondary">초기화</button>
+				<button type=submit class="btn btn-primary">가입</button>
+			</div>
+		</form>
+	`, {}));
+});
+
+wiki.post('/member/signup', async function emailConfirmationScreen(req, res) {
+	var desturl = req.query['redirect'];
+	if(!desturl) desturl = '/';
+	
+	if(islogin(req)) { res.redirect(desturl); return; }
+	
+	await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
+	if(curs.fetchall().length) {
+		res.send(render(req, '계정 만들기', `
+			<form method=post class=signup-form>
+				<div class=form-group>
+					<label>전자우편 주소</label><br>
+					<input type=email name=email class=form-control>
+					<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>
+				</div>
+				
+				<p>
+					<strong>가입후 탈퇴는 불가능합니다.</strong>
+				</p>
+			
+				<div class=btns>
+					<button type=reset class="btn btn-secondary">초기화</button>
+					<button type=submit class="btn btn-primary">가입</button>
+				</div>
+			</form>
+		`, {}));
+		
+		return;
+	}
+	
+	const key = rndval('abcdef1234567890', 64);
+	
+	curs.execute("insert into account_creation (key, email) values (?, ?)", [key, req.body['email']]);
+	
+	res.send(render(req, '계정 만들기', `
+		<p>
+			이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
+		</p>
+
+		<ul class=wiki-list>
+			<li>간혹 메일이 도착하지 않는 경우가 있습니다. 이 경우, 스팸함을 확인해주시기 바랍니다.</li>
+			<li>인증 메일은 24시간동안 유효합니다.</li>
+		</ul>
+		
+		<p style="font-weight: bold; color: red;">
+			[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
+		</p>
+	`, {}));
+});
+
+wiki.get('/member/signup/:key', async function signupScreen(req, res) {
+	const key = req.param('key');
+	await curs.execute("select key from account_creation where key = ?", [key]);
+	if(!curs.fetchall().length) {
+		res.send(showError(req, 'invalid_signup_key'));
+		
+		return;
+	}
+	
+	var desturl = req.query['redirect'];
+	if(!desturl) desturl = '/';
+	
+	if(islogin(req)) { res.redirect(desturl); return; }
 	
 	res.send(render(req, '계정 만들기', `
 		<form class=signup-form method=post>
@@ -1590,11 +1865,19 @@ wiki.get('/member/signup', function signupScreen(req, res) {
 	`, {}));
 });
 
-wiki.post('/member/signup', async function createAccount(req, res) {
+wiki.post('/member/signup/:key', async function createAccount(req, res) {
+	const key = req.param('key');
+	await curs.execute("select key from account_creation where key = ?", [key]);
+	if(!curs.fetchall().length) {
+		res.send(showError(req, 'invalid_signup_key'));
+		
+		return;
+	}
+	
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	
-	if(islogin(req)) res.redirect(desturl);
+	if(islogin(req)) { res.redirect(desturl); return; }
 	
 	const id = req.body['username'];
 	const pw = req.body['password'];
