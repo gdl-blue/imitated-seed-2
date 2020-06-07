@@ -2079,9 +2079,95 @@ wiki.get('/RandomPage', async function randomPage(req, res) {
 	`;
 	
 	for(i of curs.fetchall())
-        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + i['title'] + '</a></li>';
+        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	
+	content += '</ul>';
 	
 	res.send(render(req, 'RandomPage', content, {}));
+});
+
+wiki.get('/ShortestPages', async function shortestPages(req, res) {
+	var from = req.query['from'];
+	if(!from) ns = '1';
+	
+	var sql = 'select title from documents where ';
+	
+	const nmsplst = await fetchNamespaces();
+	
+	var sql_num = 0;
+    if(from > 0)
+        sql_num = from - 122;
+    else
+        sql_num = 0;
+	
+	for(nsp of nmsplst) {
+		if(nsp == '문서') continue;
+		
+		sql += `not title like '${nsp}:%' and `;
+	}
+	
+	sql = sql.replace(/and\s$/, '');
+	
+	sql += "order by length(content) limit ?, '122'";
+	
+	await curs.execute(sql, [sql_num]);
+	
+	var content = `
+		<p>내용이 짧은 문서 (문서 이름공간, 리다이렉트 제외)</p>
+		
+		${navbtn(0, 0, 0, 0)}
+		
+		<ul class=wiki-list>
+	`;
+	
+	for(i of curs.fetchall())
+        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	
+	content += '</ul>' + navbtn(0, 0, 0, 0);
+	
+	res.send(render(req, '내용이 짧은 문서', content, {}));
+});
+
+wiki.get('/LongestPages', async function longestPages(req, res) {
+	var from = req.query['from'];
+	if(!from) ns = '1';
+	
+	var sql = 'select title from documents where ';
+	
+	const nmsplst = await fetchNamespaces();
+	
+	var sql_num = 0;
+    if(from > 0)
+        sql_num = from - 122;
+    else
+        sql_num = 0;
+	
+	for(nsp of nmsplst) {
+		if(nsp == '문서') continue;
+		
+		sql += `not title like '${nsp}:%' and `;
+	}
+	
+	sql = sql.replace(/and\s$/, '');
+	
+	sql += "order by length(content) desc limit ?, '122'";
+	
+	await curs.execute(sql, [sql_num]);
+	
+	var content = `
+		<p>내용이 긴 문서 (문서 이름공간, 리다이렉트 제외)</p>
+		
+		${navbtn(0, 0, 0, 0)}
+		
+		<ul class=wiki-list>
+	`;
+	
+	for(i of curs.fetchall())
+        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	
+	content += '</ul>' + navbtn(0, 0, 0, 0);
+	
+	res.send(render(req, '내용이 긴 문서', content, {}));
 });
 
 wiki.use(function(req, res, next) {
