@@ -40,7 +40,7 @@ const conn = new sqlite3.Database('./wikidata.db', (err) => {}); // 데이타베
 conn.query = function (sql, params) {
 	var that = this;
 		return new Promise(function (resolve, reject) {
-		that.all(sql, params, function (error, rows) {
+		that.all(sql, params, function asyncSQLRun(error, rows) {
 			if (error)
 				reject(error);
 			else
@@ -54,7 +54,7 @@ conn.commit = function() {};
 conn.sd = [];
 
 const curs = {
-	execute: async function(sql = '', params = []) {
+	execute: async function executeSQL(sql = '', params = []) {
 		if(UCase(sql).startsWith("SELECT")) {
 			const retval = await conn.query(sql, params);
 			conn.sd = retval;
@@ -66,7 +66,7 @@ const curs = {
 		
 		return [];
 	},
-	fetchall: function() {
+	fetchall: function fetchSQLData() {
 		return conn.sd;
 	}
 };
@@ -98,11 +98,11 @@ function generateTime(time, fmt) {
 	return `<time datetime="${d}T${t}.000Z" data-format="${fmt}">${time}</time>`;
 }
 
-swig.setFilter('encode_userdoc', function(input) {
+swig.setFilter('encode_userdoc', function encodeUserdocURL(input) {
 	return encodeURI('사용자:' + input);
 });
 
-swig.setFilter('encode_doc', function(input) {
+swig.setFilter('encode_doc', function encodeDocURL(input) {
 	return encodeURI(input);
 });
 
@@ -360,7 +360,7 @@ const html = {
 	}
 }
 
-wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function(req, res) {
+wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function dropSkinFile(req, res) {
 	const skinname = req.params[0];
 	const filepath = req.params[1];
 	
@@ -376,21 +376,25 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function(req, res) {
 	res.sendFile(fn, { root: rootp.replace('/' + fn, '') });
 });
 
-wiki.get('/js/:filepath', function(req, res) {
+wiki.get('/js/:filepath', function dropJS(req, res) {
 	const filepath = req.param('filepath');
 	res.sendFile(filepath, { root: "./js" });
 });
 
-wiki.get('/css/:filepath', function(req, res) {
+wiki.get('/css/:filepath', function dropCSS(req, res) {
 	const filepath = req.param('filepath');
 	res.sendFile(filepath, { root: "./css" });
 });
 
-wiki.get('/', function(req, res) {
+wiki.get('/w', function redirectToFrontPage1(req, res) {
 	res.redirect('/w/' + config.getString('frontpage'));
 });
 
-wiki.get(/^\/w\/(.*)/, async function(req, res) {
+wiki.get('/', function redirectToFrontPage2(req, res) {
+	res.redirect('/w/' + config.getString('frontpage'));
+});
+
+wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
 	
 	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('frontpage'));
@@ -439,7 +443,7 @@ wiki.get(/^\/w\/(.*)/, async function(req, res) {
 	}, _, error, viewname));
 });
 
-wiki.get(/^\/edit\/(.*)/, async function(req, res) {
+wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 	const title = req.params[0];
 	
 	await curs.execute("select content from documents where title = ?", [title]);
@@ -559,7 +563,7 @@ wiki.get(/^\/edit\/(.*)/, async function(req, res) {
 	res.status(httpstat).send(render(req, title, content, {}, ' (편집)', error, 'edit'));
 });
 
-wiki.post(/^\/edit\/(.*)/, async function(req, res) {
+wiki.post(/^\/edit\/(.*)/, async function saveDocument(req, res) {
 	const title = req.params[0];
 	
 	if(!getacl(title, 'edit')) {
@@ -605,7 +609,7 @@ wiki.post(/^\/edit\/(.*)/, async function(req, res) {
 	res.redirect('/w/' + title);
 });
 
-wiki.get('/RecentChanges', async function(req, res) {
+wiki.get('/RecentChanges', async function recentChanges(req, res) {
 	var flag = req.query['logtype'];
 	if(!flag) flag = 'all';
 	
@@ -712,7 +716,7 @@ wiki.get('/RecentChanges', async function(req, res) {
 	res.send(render(req, '최근 변경내역', content, {}));
 });
 
-wiki.get('/RecentDiscuss', async function(req, res) {
+wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
 	var logtype = req.query['logtype'];
 	if(!logtype) logtype = 'all';
 	
@@ -777,7 +781,7 @@ wiki.get('/RecentDiscuss', async function(req, res) {
 	res.send(render(req, "최근 토론", content, {}));
 });
 
-wiki.get(/^\/history\/(.*)/, async function(req, res) {
+wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	const title = req.params[0];
 	const from = req.query['from'];
 	const until = req.query['until'];
@@ -866,7 +870,7 @@ wiki.get(/^\/history\/(.*)/, async function(req, res) {
 	res.send(render(req, title, content, _, '의 역사', error = false, viewname = 'history'));
 });
 
-wiki.get(/^\/discuss\/(.*)/, async function(req, res) {
+wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	const title = req.params[0];
 	
 	var state = req.query['state'];
@@ -1035,7 +1039,7 @@ wiki.get(/^\/discuss\/(.*)/, async function(req, res) {
 	res.send(render(req, title, content, _, subtitle, false, viewname));
 });
 
-wiki.post(/^\/discuss\/(.*)/, async function(req, res) {
+wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	const title = req.params[0];
 	
 	if(!getacl(title, 'create_thread')) res.send(showError(req, 'insufficient_privileges'));
@@ -1058,7 +1062,7 @@ wiki.post(/^\/discuss\/(.*)/, async function(req, res) {
 	res.redirect('/thread/' + tnum);
 });
 
-wiki.get('/thread/:tnum', async function(req, res) {
+wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	const tnum = req.param("tnum");
 	
 	await curs.execute("select id from res where tnum = ?", [tnum]);
@@ -1167,7 +1171,7 @@ wiki.get('/thread/:tnum', async function(req, res) {
 	res.send(render(req, title, content, {}, ' (토론) - ' + topic, error = false, viewname = 'thread'));
 });
 
-wiki.post('/thread/:tnum', async function(req, res) {
+wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	const tnum = req.param("tnum");
 	
 	await curs.execute("select id from res where tnum = ?", [tnum]);
@@ -1196,7 +1200,7 @@ wiki.post('/thread/:tnum', async function(req, res) {
 	res.json({});
 });
 
-wiki.get('/thread/:tnum/:id', async function(req, res) {
+wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	const tnum = req.param("tnum");
 	const tid = req.param("id");
 	
@@ -1240,7 +1244,7 @@ wiki.get('/thread/:tnum/:id', async function(req, res) {
 	res.send(content);
 });
 
-wiki.post('/notify/thread/:tnum', async function(req, res) {
+wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
 	var tnum = req.param("tnum");
 	
 	await curs.execute("select id from res where tnum = ?", [tnum]);
@@ -1309,7 +1313,7 @@ wiki.use(function(req, res, next) {
 	);
 });
 
-(async function() {
+(async function setWikiData() {
 	await curs.execute("select key, value from config");
 	
 	for(var cfg of curs.fetchall()) {
