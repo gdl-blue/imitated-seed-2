@@ -181,7 +181,7 @@ catch(e) {
 		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin'],
 		'useragents': ['username', 'string'],
 		'login_history': ['username', 'ip'],
-		'account_creation': ['key', 'email']
+		'account_creation': ['key', 'email', 'time']
 	};
 	
 	for(var table in tables) {
@@ -205,6 +205,8 @@ function markdown(content) {
 	// ([^제외]*)
 	
 	ret = content;
+	
+	ret = html.escape(ret);
 	
 	ret = ret.replace(/[_][_]([^_]*)[_][_]/gi, '<u>$1</u>');
 	
@@ -1208,7 +1210,15 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	}
 	
 	var content = `
-		<h2 class=wiki-heading style="cursor: pointer;">${html.escape(topic)}</h2>
+		<h2 class=wiki-heading style="cursor: pointer;">
+			${html.escape(topic)}
+			${
+				await getperm('delete_thread', ip_check(req))
+				? '<span class=pull-right><a onclick="return confirm(\'삭제하시겠습니까?\');" href="/admin/thread/' + tnum + '/delete" class="btn btn-danger btn-sm">[ADMIN] 삭제</a></span>'
+				: ''
+			}
+		</h2>
+		
 		<div class=wiki-heading-content>
 		
 			<div id=res-container>
@@ -1383,10 +1393,14 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 							rs['hidden'] == '1'
 							? (
 								await getperm('hide_thread_comment', ip_check(req))
-								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content'], rs['ismember']) + '</div>'
+								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content']) + '</div>'
 								: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 							  )
-							: markdown(rs['content'], rs['ismember'])
+							: (
+								rs['status'] == 1
+								? rs['content']
+								: markdown(rs['content'])
+							)
 						}
 					</div>
 				</div>`;
@@ -1468,7 +1482,7 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 	curs.execute("update threads set status = ? where tnum = ?", [newstatus, tnum]);
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
-						String(rescount + 1), '스레드 상태를 **' + newstatus + '**로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
+						String(rescount + 1), '스레드 상태를 <strong>' + newstatus + '</strong>로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -1498,7 +1512,7 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 	curs.execute("update threads set title = ? where tnum = ?", [newdoc, tnum]);
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
-						String(rescount + 1), '스레드를 **' + newdoc + '** 문서로 이동', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
+						String(rescount + 1), '스레드를 <strong>' + newdoc + '</strong> 문서로 이동', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -1528,7 +1542,7 @@ wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res
 	curs.execute("update threads set topic = ? where tnum = ?", [newtopic, tnum]);
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
-						String(rescount + 1), '스레드 주제를 **' + newtopic + '**로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
+						String(rescount + 1), '스레드 주제를 <strong>' + newtopic + '</strong>로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -1542,26 +1556,21 @@ wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
 	const rescount = curs.fetchall().length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
-
-	var newtopic = req.body['topic'];
-	if(!newtopic.length) {
-		res.send('');
-		return;
-	}
 	
-	if(!await getperm('update_thread_topic', ip_check(req))) {
+	if(!await getperm('delete_thread', ip_check(req))) {
 		res.send(showError(req, 'insufficient_privileges'));
 		
 		return;
 	}
 	
-	curs.execute("update threads set topic = ? where tnum = ?", [newtopic, tnum]);
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
-					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
-						String(rescount + 1), '스레드 주제를 **' + newtopic + '**로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0' 
-					]);
+	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
+	const title = curs.fetchall()[0]['title'];
+	const topic = curs.fetchall()[0]['topic'];
+	const status = curs.fetchall()[0]['status'];
 	
-	res.json({});
+	curs.execute("delete from threads where tnum = ?", [tnum]);
+	
+	res.redirect('/discuss/' + encodeURI(title));
 });
 
 wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
@@ -1787,6 +1796,8 @@ wiki.post('/member/signup', async function emailConfirmationScreen(req, res) {
 	
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
+	await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
+	
 	await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
 	if(curs.fetchall().length) {
 		res.send(render(req, '계정 만들기', `
@@ -1813,7 +1824,7 @@ wiki.post('/member/signup', async function emailConfirmationScreen(req, res) {
 	
 	const key = rndval('abcdef1234567890', 64);
 	
-	curs.execute("insert into account_creation (key, email) values (?, ?)", [key, req.body['email']]);
+	curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
 	
 	res.send(render(req, '계정 만들기', `
 		<p>
@@ -1832,6 +1843,8 @@ wiki.post('/member/signup', async function emailConfirmationScreen(req, res) {
 });
 
 wiki.get('/member/signup/:key', async function signupScreen(req, res) {
+	await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
+	
 	const key = req.param('key');
 	await curs.execute("select key from account_creation where key = ?", [key]);
 	if(!curs.fetchall().length) {
@@ -1870,6 +1883,8 @@ wiki.get('/member/signup/:key', async function signupScreen(req, res) {
 });
 
 wiki.post('/member/signup/:key', async function createAccount(req, res) {
+	await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
+	
 	const key = req.param('key');
 	await curs.execute("select key from account_creation where key = ?", [key]);
 	if(!curs.fetchall().length) {
