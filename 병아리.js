@@ -713,24 +713,22 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 	switch(flag) {
 		case 'create':
 			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where advance like '(새 문서)' order by cast(rev as integer) desc limit 100");
+						where not title like '사용자:%' and advance like '(새 문서)' order by cast(time as integer) desc limit 100");
 		break;case 'delete':
 			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where advance like '(삭제)' order by cast(rev as integer) desc limit 100");
+						where not title like '사용자:%' and advance like '(삭제)' order by cast(time as integer) desc limit 100");
 		break;case 'move':
 			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where advance like '(%이동)' order by cast(rev as integer) desc limit 100");
+						where not title like '사용자:%' and advance like '(%이동)' order by cast(time as integer) desc limit 100");
 		break;case 'revert':
 			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where advance like '(%되돌림)' order by cast(rev as integer) desc limit 100");
+						where not title like '사용자:%' and advance like '(%되돌림)' order by cast(time as integer) desc limit 100");
 		break;default:
 			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						order by cast(rev as integer) desc limit 100");
+						where not title like '사용자:%' order by cast(time as integer) desc limit 100");
 	}
 	
 	if(!curs.fetchall().length) return showError(req, 'document_dont_exists');
-	
-	const navbtns = navbtn(0, 0, 0, 0);
 	
 	var content = `
 		<ol class="breadcrumb link-nav">
@@ -796,7 +794,7 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 				</tr>
 		`;
 		
-		if(row['log'].length > 0) {
+		if(row['log'].length > 0 || row['advance'].length > 0) {
 			content += `
 				<td colspan="3" style="padding-left: 1.5rem;">
 					${row['log']} <i>${row['advance']}</i>
@@ -811,6 +809,98 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 	`;
 	
 	res.send(render(req, '최근 변경내역', content, {}));
+});
+
+wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function documentContributionList(req, res) {
+	const ismember = req.params[0];
+	const username = req.params[1];
+	
+	await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
+					Number(getTime()) - 2592000000, ismember, username
+				]);
+	
+//			<li><a href="/contribution/${ismember}/${username}/document">[문서]</a></li>
+//			<li><a href="/contribution/${ismember}/${username}/discuss">[토론]</a></li>
+	
+	var content = `
+		<p>최근 30일동안의 기여 목록 입니다.</p>
+	
+		<ol class="breadcrumb link-nav">
+			<li><strong>[문서]</strong></li>
+			<li><a href="/contribution/${ismember}/${username}/discuss">[토론]</a></li>
+		</ol>
+		
+		<table class="table table-hover">
+			<colgroup>
+				<col>
+				<col style="width: 25%;">
+				<col style="width: 22%;">
+			</colgroup>
+			
+			<thead id>
+				<tr>
+					<th>문서</th>
+					<th>수정자</th>
+					<th>수정 시간</th>
+				</tr>
+			</thead>
+			
+			<tbody id>
+	`;
+	
+	for(row of curs.fetchall()) {
+		content += `
+				<tr${(row['log'].length > 0 || row['advance'].length > 0 ? ' class=no-line' : '')}>
+					<td>
+						<a href="/w/${encodeURI(row['title'])}">${html.escape(row['title'])}</a> 
+						<a href="/history/${encodeURI(row['title'])}">[역사]</a> 
+						${
+								Number(row['rev']) > 1
+								? '<a \href="/diff/' + encodeURI(row['title']) + '?rev=' + row['rev'] + '&oldrev=' + String(Number(row['rev']) - 1) + '">[비교]</a>'
+								: ''
+						} 
+						<a href="/discuss/${encodeURI(row['title'])}">[토론]</a> 
+						
+						(<span style="color: ${
+							(
+								Number(row['changes']) > 0
+								? 'green'
+								: (
+									Number(row['changes']) < 0
+									? 'red'
+									: 'gray'
+								)
+							)
+							
+						};">${row['changes']}</span>)
+					</td>
+					
+					<td>
+						${ip_pas(row['username'], row['ismember'])}
+					</td>
+					
+					<td>
+						${generateTime(toDate(row['time']), timeFormat)}
+					</td>
+				</tr>
+		`;
+		
+		if(row['log'].length > 0 || row['advance'].length > 0) {
+			content += `
+				<td colspan="3" style="padding-left: 1.5rem;">
+					${row['log']} <i>${row['advance']}</i>
+				</td>
+			`;
+		}
+	}
+	
+	content += `
+			</tbody>
+		</table>
+	`;
+	
+	res.send(render(req, `"${username}" 기여 목록`, content, {}));
 });
 
 wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
@@ -876,6 +966,75 @@ wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
 	`;
 	
 	res.send(render(req, "최근 토론", content, {}));
+});
+
+wiki.get(/^\/contribution\/(ip|author)\/(.*)\/discuss/, async function discussionLog(req, res) {
+	const ismember = req.params[0];
+	const username = req.params[1];
+	
+	await curs.execute("select id, tnum, time, username, ismember from res \
+				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
+					Number(getTime()) - 2592000000, ismember, username
+				]);
+	
+//			<li><a href="/contribution/${ismember}/${username}/document">[문서]</a></li>
+//			<li><a href="/contribution/${ismember}/${username}/discuss">[토론]</a></li>
+	
+	var content = `
+		<p>최근 30일동안의 기여 목록 입니다.</p>
+	
+		<ol class="breadcrumb link-nav">
+			<li><a href="/contribution/${ismember}/${username}/document">[문서]</a></li>
+			<li><strong>[토론]</strong></li>
+		</ol>
+		
+		<table class="table table-hover">
+			<colgroup>
+				<col>
+				<col style="width: 25%;">
+				<col style="width: 22%;">
+			</colgroup>
+			
+			<thead id>
+				<tr>
+					<th>항목</th>
+					<th>수정자</th>
+					<th>수정 시간</th>
+				</tr>
+			</thead>
+			
+			<tbody id>
+	`;
+	
+	const dd = curs.fetchall();
+	
+	for(row of dd) {
+		await curs.execute("select title, topic from threads where tnum = ?", [row['tnum']]);
+		const td = curs.fetchall()[0];
+		
+		content += `
+				<tr>
+					<td>
+						<a href="/thread/${row['tnum']}">#${row['id']} ${html.escape(td['topic'])}</a> (<a href="/w/${encodeURI(td['title'])}">${html.escape(td['title'])}</a>)
+					</td>
+					
+					<td>
+						${ip_pas(row['username'], row['ismember'])}
+					</td>
+					
+					<td>
+						${generateTime(toDate(row['time']), timeFormat)}
+					</td>
+				</tr>
+		`;
+	}
+	
+	content += `
+			</tbody>
+		</table>
+	`;
+	
+	res.send(render(req, `"${username}" 기여 목록`, content, {}));
 });
 
 wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
@@ -1569,6 +1728,7 @@ wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
 	const status = curs.fetchall()[0]['status'];
 	
 	curs.execute("delete from threads where tnum = ?", [tnum]);
+	curs.execute("delete from res where tnum = ?", [tnum]);
 	
 	res.redirect('/discuss/' + encodeURI(title));
 });
@@ -2252,4 +2412,4 @@ wiki.use(function(req, res, next) {
 })();
 
 const server = wiki.listen(hostconfig['port']); // 서버실행
-print("127.0.0.1:" + String(hostconfig['port']) + "에 실행 중. . .");
+print(String(hostconfig['host']) + ":" + String(hostconfig['port']) + "에 실행 중. . .");
