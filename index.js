@@ -54,35 +54,26 @@ function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
 const sqlite3 = require('sqlite3').verbose(); // SQLite 라이브러리 호출
 const conn = new sqlite3.Database('./wikidata.db', (err) => {}); // 데이타베이스 연결
 
-// https://blog.pagesd.info/2019/10/29/use-sqlite-node-async-await/
-conn.query = function (sql, params) {
-	var that = this;
-		return new Promise(function (resolve, reject) {
-		that.all(sql, params, function asyncSQLRun(error, rows) {
-			if (error)
-				reject(error);
-			else
-				resolve(rows);
-		});
-	});
-};
-
 // 파이선 SQLite 모방
 conn.commit = function() {};
 conn.sd = [];
 
 const curs = {
-	execute: async function executeSQL(sql = '', params = []) {
-		if(UCase(sql).startsWith("SELECT")) {
-			const retval = await conn.query(sql, params);
-			conn.sd = retval;
-			
-			return retval;
-		} else {
-			conn.run(sql, params, err => { beep(3); });
-		}
-		
-		return [];
+	execute: function executeSQL(sql = '', params = []) {
+		return new Promise((resolve, reject) => {
+			if(UCase(sql).startsWith("SELECT")) {
+				conn.all(sql, params, (err, retval) => {
+					if(err) return reject(err);
+					conn.sd = retval;
+					resolve(retval);
+				});
+			} else {
+				conn.run(sql, params, err => {
+					if(err) return reject(err);
+					resolve(0);
+				});
+			}
+		});
 	},
 	fetchall: function fetchSQLData() {
 		return conn.sd;
@@ -149,10 +140,13 @@ const fs = require('fs');
 
 var wikiconfig = {};
 var permlist = {};
+var _ready = 0;
 
 var hostconfig;
-try { hostconfig = require('./config.json'); }
-catch(e) {
+try {
+	hostconfig = require('./config.json'); 
+	_ready = 1; 
+} catch(e) { (async function() {
 	print("병아리 엔진: the seed 모방 프로젝트에 오신것을 환영합니다.");
 	print("버전 4.5.5 [디버그] - 테스트 목적으로만 사용됩니다.");
 	print("고의적으로 배포하지 마십시오.");
@@ -181,7 +175,7 @@ catch(e) {
 		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin'],
 		'useragents': ['username', 'string'],
 		'login_history': ['username', 'ip'],
-		'account_creation': ['key', 'email', 'time']
+		'account_creation': ['key', 'email', 'time'],
 	};
 	
 	for(var table in tables) {
@@ -195,11 +189,14 @@ catch(e) {
 		sql = sql.replace(/[,]\s$/, '');		
 		sql += `)`;
 		
-		curs.execute(sql);
+		await curs.execute(sql);
 	}
 	
-	fs.writeFile('config.json', JSON.stringify(hostconfig), 'utf8', (e) => { beep(2); });
-}
+	fs.writeFileSync('config.json', JSON.stringify(hostconfig), 'utf8');
+	
+	print('엔진을 다시 시작하십시오.');
+	process.exit(0);
+})(); } if(_ready) {
 
 function markdown(content) {
 	// ([^제외]*)
@@ -262,7 +259,11 @@ const config = {
 	getString: function(str, def = '') {
 		str = str.replace(/^wiki[.]/, '');
 		
-		if(typeof(wikiconfig[str]) == 'undefined') return def;
+		if(typeof(wikiconfig[str]) == 'undefined') {
+			curs.execute("insert into config (key, value) values (?, ?)", [str, def]);
+			wikiconfig[str] = def;
+			return def;
+		}
 		return wikiconfig[str];
 	}
 }
@@ -466,11 +467,11 @@ wiki.get('/css/:filepath', function dropCSS(req, res) {
 });
 
 function redirectToFrontPage(req, res) {
-	res.redirect('/w/' + config.getString('frontpage'));
+	res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
 }
 
-wiki.get('/w', redirectToFrontPage);
-
+wiki.get(/^\/w$/, redirectToFrontPage);
+wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
 
 wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
@@ -478,8 +479,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	
 	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('frontpage'));
 	
-	await curs.execute("select content from documents where title = ?", [title]);
-	const rawContent = curs.fetchall();
+	const rawContent = await curs.execute("select content from documents where title = ?", [title]);
 
 	var content = '';
 	
@@ -507,8 +507,8 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				` + content;
 			}
 			
-			await curs.execute("select time from history where title = ? order by cast(rev as integer) desc limit 1", [title]);
-			lstedt = Number(curs.fetchall()[0]['time']);
+			var data = await curs.execute("select time from history where title = ? order by cast(rev as integer) desc limit 1", [title]);
+			lstedt = Number(data[0].time);
 		}
 	} catch(e) {
 		viewname = 'notfound';
@@ -2395,15 +2395,15 @@ wiki.use(function(req, res, next) {
 });
 
 (async function setWikiData() {
-	await curs.execute("select key, value from config");
+	var data = await curs.execute("select key, value from config");
 	
-	for(var cfg of curs.fetchall()) {
+	for(var cfg of data) {
 		wikiconfig[cfg['key']] = cfg['value'];
 	}
 	
-	await curs.execute("select username, perm from perms order by username");
+	var data = await curs.execute("select username, perm from perms order by username");
 	
-	for(var prm of curs.fetchall()) {
+	for(var prm of data) {
 		if(typeof(permlist[prm['username']]) == 'undefined')
 			permlist[prm['username']] = [prm['perm']];
 		else
@@ -2413,3 +2413,5 @@ wiki.use(function(req, res, next) {
 
 const server = wiki.listen(hostconfig['port']); // 서버실행
 print(String(hostconfig['host']) + ":" + String(hostconfig['port']) + "에 실행 중. . .");
+
+}

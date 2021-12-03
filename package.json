@@ -1,0 +1,35 @@
+{
+  "name": "imitated-seed-v2",
+  "version": "4.12.0",
+  "description": "더 시드 엔진 4.12.0 모방 엔진",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.17.1",
+    "express-session": "^1.17.2",
+    "multer": "^1.4.3",
+    "sha3": "^2.1.4",
+    "sqlite3": "^5.0.2",
+    "swig": "^1.4.2",
+    "wait-console-input": "^0.1.7"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gdl-888/imitated-seed-v2.git"
+  },
+  "keywords": [
+    "theseed",
+    "the-seed",
+    "node.js"
+  ],
+  "author": "ㅇ",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/gdl-888/imitated-seed-v2/issues"
+  },
+  "homepage": "https://github.com/gdl-888/imitated-seed-v2#readme"
+}
