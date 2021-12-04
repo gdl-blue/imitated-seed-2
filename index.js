@@ -107,12 +107,14 @@ function generateTime(time, fmt) {
 	return `<time datetime="${d}T${t}.000Z" data-format="${fmt}">${time}</time>`;
 }
 
+generateTime.safe = true;
+
 swig.setFilter('encode_userdoc', function encodeUserdocURL(input) {
-	return encodeURI('사용자:' + input);
+	return encodeURIComponent('사용자:' + input);
 });
 
 swig.setFilter('encode_doc', function encodeDocURL(input) {
-	return encodeURI(input);
+	return encodeURIComponent(input);
 });
 
 swig.setFilter('to_date', toDate);
@@ -160,8 +162,8 @@ try {
 	};
 	
 	const tables = {
-		'documents': ['title', 'content'],
-		'history': ['title', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember'],
+		'documents': ['title', 'content', 'namespace'],
+		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember'],
 		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
 		'users': ['username', 'password'],
 		'user_settings': ['username', 'key', 'value'],
@@ -169,13 +171,15 @@ try {
 		'nsacl': ['namespace', 'no', 'type', 'content', 'action', 'expire'],
 		'config': ['key', 'value'],
 		'email_filters': ['address'],
-		'stars': ['title', 'username', 'lastedit'],
+		'stars': ['title', 'namespace', 'username', 'lastedit'],
 		'perms': ['perm', 'username'],
-		'threads': ['title', 'topic', 'status', 'time', 'tnum'],
+		'threads': ['title', 'namespace', 'topic', 'status', 'time', 'tnum'],
 		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin'],
 		'useragents': ['username', 'string'],
 		'login_history': ['username', 'ip'],
 		'account_creation': ['key', 'email', 'time'],
+		'acl': ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
+		'ipacl': ['cidr', 'al', 'expiration', 'note', 'date'],
 	};
 	
 	for(var table in tables) {
@@ -285,11 +289,11 @@ async function getperm(perm, username) {
 function render(req, title = '', content = '', varlist = {}, subtitle = '', error = false, viewname = '') {
 	const skinInfo = {
 		title: title + subtitle,
-		viewName: viewname
+		viewName: viewname,
 	};
 	
 	const perms = {
-		has: function(perm) {
+		has(perm) {
 			try {
 				return permlist[ip_check(req)].includes(perm)
 			} catch(e) {
@@ -304,7 +308,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 		print(`[오류!] ${e}`);
 		
 		return `
-			<title>` + title + ` (프론트엔드 오류!)</title>
+			<title>` + title + ` (스킨 렌더링 오류!)</title>
 			<meta charset=utf-8>` + content;
 	}
 
@@ -318,12 +322,12 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 	
 	if(islogin(req)) {
 		templateVariables['member'] = {
-			username: req.session.username
+			username: req.session.username,
 		}
 	}
 	
 	if(viewname != '') {
-		templateVariables['document'] = title;
+		// templateVariables['document'] = title;
 	}
 	
 	output = template(templateVariables);
@@ -339,7 +343,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 		<meta name="application-name" content="` + config.getString('wiki.site_name', 'Wiki') + `">
 		<meta name="mobile-web-app-capable" content="yes">
 		<meta name="msapplication-tooltip" content="` + config.getString('wiki.site_name', 'Wiki') + `">
-		<meta name="msapplication-starturl" content="/w/` + encodeURI(config.getString('wiki.frontpage', 'FrontPage')) + `">
+		<meta name="msapplication-starturl" content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', 'FrontPage')) + `">
 		<link rel="search" type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', 'Wiki') + `" href="/opensearch.xml">
 		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 		<link rel="stylesheet" href="/css/diffview.css">
@@ -399,7 +403,7 @@ function alertBalloon(content, type = 'danger', dismissible = true, classes = ''
 		</div>`;
 }
 
-async function fetchNamespaces() {
+function fetchNamespaces() {
 	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', 'wiki', '토론', '휴지통', '투표'];
 }
 
@@ -409,13 +413,13 @@ function showError(req, code) {
 
 function ip_pas(ip = '', ismember = '') {
 	if(ismember == 'author') {
-		return `<strong><a href="/w/사용자:${encodeURI(ip)}">${html.escape(ip)}</a></strong>`;
+		return `<strong><a href="/w/사용자:${encodeURIComponent(ip)}">${html.escape(ip)}</a></strong>`;
 	} else {
-		return `<a href="/contribution/ip/${encodeURI(ip)}/document">${html.escape(ip)}</a>`;
+		return `<a href="/contribution/ip/${encodeURIComponent(ip)}/document">${html.escape(ip)}</a>`;
 	}
 }
 
-async function getacl(title, action) {
+async function getacl(title, type) {
 	return 1;
 }
 
@@ -470,16 +474,83 @@ function redirectToFrontPage(req, res) {
 	res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
 }
 
+function processTitle(d) {
+	const sp = d.split(':');
+	var ns = sp[0];
+	var title = d;
+	var forceShowNamespace = false;
+	var nslist = fetchNamespaces();
+	if(nslist.includes(ns)) {
+		title = d.replace(ns + ':', '');
+		if(sp[2] && ns == '문서' && nslist.includes(ns[1])) {
+			forceShowNamespace = true;
+		}
+	} else {
+		title = d;
+		ns = '문서';
+	}
+
+	return {
+		title, 
+		namespace: ns, 
+		forceShowNamespace,
+		toString() {
+			if(forceShowNamespace || this.namespace != '문서')
+				return this.namespace + ':' + title;
+			else
+				return title;
+		}
+	};
+}
+
+function totitle(t, ns) {
+	const nslist = fetchNamespaces();
+	var forceShowNamespace = false;
+	if(ns == '문서' && nslist.includes(t.split(':')[0]))
+		forceShowNamespace = true;
+	
+	return {
+		title: t, 
+		namespace: ns, 
+		forceShowNamespace,
+		toString() {
+			if(forceShowNamespace || this.namespace != '문서')
+				return this.namespace + ':' + this.title;
+			else
+				return this.title;
+		}
+	};
+}
+
+function edittype(type, ...flags) {
+	var ret = '';
+	
+	switch(type) {
+		case 'create':
+			ret = '새 문서';
+		break; case 'move':
+			ret = flags[0] + '에서 ' + flags[1] + '(으)로 문서 이동';
+		break; case 'delete': 
+			ret = '삭제';
+		break; case 'revert':
+			ret = 'r' + flags[0] + '로 되돌림';
+		break; case 'acl':
+			ret = flags[0] + '으로 ACL 변경';
+	}
+	
+	return ret;
+}
+
 wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
 
 wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
+	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
+	const doc = processTitle(title);
 	
-	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('frontpage'));
-	
-	const rawContent = await curs.execute("select content from documents where title = ?", [title]);
+	const rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 
 	var content = '';
 	
@@ -490,16 +561,14 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	var lstedt = undefined;
 	
 	try {
-		if(!await getacl(title, 'read')) {
+		if(!await getacl(doc.title, doc.namespace, 'read')) {
 			httpstat = 403;
 			error = true;
-			res.status(403).send(showError(req, 'insufficient_privileges_read'));
-			
-			return;
+			return res.status(403).send(showError(req, 'insufficient_privileges_read'));
 		} else {
-			content = markdown(rawContent[0]['content']);
+			content = markdown(rawContent[0].content);
 			
-			if(title.startsWith("사용자:") && await getperm('admin', title.replace(/^사용자[:]/, ''))) {
+			if(doc.namespace == '사용자' && await getperm('admin', doc.title)) {
 				content = `
 					<div style="border-width: 5px 1px 1px; border-style: solid; border-color: orange gray gray; padding: 10px; margin-bottom: 10px;" onmouseover="this.style.borderTopColor=\'red\';" onmouseout="this.style.borderTopColor=\'orange\';">
 						<span style="font-size:14pt">이 사용자는 특수 권한을 가지고 있습니다.</span>
@@ -507,7 +576,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				` + content;
 			}
 			
-			var data = await curs.execute("select time from history where title = ? order by cast(rev as integer) desc limit 1", [title]);
+			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 			lstedt = Number(data[0].time);
 		}
 	} catch(e) {
@@ -520,99 +589,81 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			<p>해당 문서를 찾을 수 없습니다.</p>
 			
 			<p>
-				<a rel="nofollow" href="/edit/` + encodeURI(title) + `">[새 문서 만들기]</a>
+				<a rel="nofollow" href="/edit/` + encodeURIComponent(totitle(doc.title, doc.namespace)) + `">[새 문서 만들기]</a>
 			</p>
 		`;
 	}
 	
-	res.status(httpstat).send(render(req, title, content, {
+	res.status(httpstat).send(render(req, totitle(doc.title, doc.namespace), content, {
 		star_count: 0,
 		starred: false,
-		date: lstedt
+		date: lstedt,
+		document: doc,
 	}, _, error, viewname));
 });
 
 wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 	const title = req.params[0];
+	const doc = processTitle(title);
 	
-	if(!await getacl(title, 'read')) {
-		res.status(403).send(showError(req, 'insufficient_privileges_read'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'read')) {
+		return res.status(403).send(showError(req, 'insufficient_privileges_read'));
 	}
 	
-	await curs.execute("select content from documents where title = ?", [title]);
-	var rawContent = curs.fetchall();
+	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	
 	if(!rawContent[0]) rawContent = '';
-	else rawContent = rawContent[0]['content'];
+	else rawContent = rawContent[0].content;
 	
 	var error = false;
 	var content = '';
 	
 	var baserev;
 	
-	await curs.execute("select rev from history where title = ? order by CAST(rev AS INTEGER) desc limit 1", [title]);
+	var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
 	try {
-		baserev = curs.fetchall()[0]['rev'];
+		baserev = data[0].rev;
 	} catch(e) {
 		baserev = 0;
 	}
 	
-	if(!await getacl(title, 'edit')) {
+	content = `
+		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
+			<input type="hidden" name="token" value="">
+			<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
+			<input type="hidden" name="baserev" value="${baserev}">
+
+			<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
+				<li class="nav-item">
+					<a class="nav-link active" data-toggle="tab" href="#edit" role="tab">편집</a>
+				</li>
+				<li class="nav-item">
+					<a id="previewLink" class="nav-link" data-toggle="tab" href="#preview" role="tab">미리보기</a>
+				</li>
+			</ul>
+
+			<div class="tab-content bordered">
+				<div class="tab-pane active" id="edit" role="tabpanel">
+					<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(rawContent)}</textarea>
+				</div>
+				<div class="tab-pane" id="preview" role="tabpanel">
+					
+				</div>
+			</div>
+	`;
+	
+	var httpstat = 200;
+	
+	if(!await getacl(doc.title, doc.namespace, 'edit')) {
 		error = true;
 		content = `
 			${alertBalloon('편집 권한이 부족합니다. 대신 <strong><a href="/new_edit_request/' + html.escape(title) + '">편집 요청</a></strong>을 생성하실 수 있습니다.', 'danger', true, 'fade in edit-alert')}
-		
-			<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
-				<input type="hidden" name="token" value="">
-				<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
-				<input type="hidden" name="baserev" value="${baserev}">
-
-				<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
-					<li class="nav-item">
-						<a class="nav-link active" data-toggle="tab" href="#edit" role="tab">편집</a>
-					</li>
-					<li class="nav-item">
-						<a id="previewLink" class="nav-link" data-toggle="tab" href="#preview" role="tab">미리보기</a>
-					</li>
-				</ul>
-
-				<div class="tab-content bordered">
-					<div class="tab-pane active" id="edit" role="tabpanel">
-						<textarea id="textInput" name="text" wrap="soft" class="form-control" readonly=readonly>${html.escape(rawContent)}</textarea>
-					</div>
-					<div class="tab-pane" id="preview" role="tabpanel">
-						
-					</div>
-				</div>
+		` + content.replace('<textarea', '<textarea readonly=readonly') + `
 			</form>
 		`;
+		httpstat = 403;
 	} else {
-		content = `
-			<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
-				<input type="hidden" name="token" value="">
-				<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
-				<input type="hidden" name="baserev" value="${baserev}">
-
-				<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
-					<li class="nav-item">
-						<a class="nav-link active" data-toggle="tab" href="#edit" role="tab">편집</a>
-					</li>
-					<li class="nav-item">
-						<a id="previewLink" class="nav-link" data-toggle="tab" href="#preview" role="tab">미리보기</a>
-					</li>
-				</ul>
-
-				<div class="tab-content bordered">
-					<div class="tab-pane active" id="edit" role="tabpanel">
-						<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(rawContent)}</textarea>
-					</div>
-					<div class="tab-pane" id="preview" role="tabpanel">
-						
-					</div>
-				</div>
-
+		content += `
 				<div class="form-group" style="margin-top: 1rem;">
 					<label class="control-label" for="summaryInput">요약</label>
 					<input type="text" class="form-control" id="logInput" name="log" value="">
@@ -620,7 +671,7 @@ wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 
 				<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong></label>
 				
-				<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>
+				${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 				
 				<div class="btns">
 					<button id="editBtn" class="btn btn-primary" style="width: 100px;">저장</button>
@@ -640,7 +691,7 @@ wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 				</div>
 				<script>
 					recaptchaInit('recaptcha', {
-						'sitekey': '6LcUuigTAAAAALyrWQPfwtFdFWFdeUoToQyVnD8Y',
+						'sitekey': '',
 						'size': 'invisible',
 						'badge': 'inline',
 						'callback': function() { $("#editBtn").attr("disabled", true); $("#editForm").submit(); }
@@ -652,83 +703,59 @@ wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 			</form>
 		`;
 	}
-
-	var httpstat = 200;
 	
-	res.status(httpstat).send(render(req, title, content, {}, ' (편집)', error, 'edit'));
+	res.status(httpstat).send(render(req, totitle(doc.title, doc.namespace) + ' (편집)', content, {
+		document: doc,
+	}, '', error, 'edit'));
 });
 
 wiki.post(/^\/edit\/(.*)/, async function saveDocument(req, res) {
 	const title = req.params[0];
+	const doc = processTitle(title);
 	
-	if(!await getacl(title, 'edit') || !await getacl(title, 'read')) {
-		res.send(showError(req, 'insufficient_privileges_edit'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'edit') || !await getacl(doc.title, doc.namespace, 'read')) {
+		return res.send(showError(req, 'insufficient_privileges_edit'));
 	}
 	
-	await curs.execute("select content from documents where title = ?", [title]);
-	var original = curs.fetchall();
+	var original = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	
 	if(!original[0]) original = '';
 	else original = original[0]['content'];
 	
 	const content = req.body['text'];
 	const rawChanges = content.length - original.length;
-	
 	const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
-	
 	const log = req.body['log'];
-	
 	const agree = req.body['agree'];
-	
 	const baserev = req.body['baserev'];
-	
 	const ismember = islogin(req) ? 'author' : 'ip';
+	var advance = 'normal';
 	
-	var advance = '';
-	
-	await curs.execute("select title from documents where title = ?", [title]);
-	
-	if(!curs.fetchall().length) {
-		advance = '(새 문서)';
-		curs.execute("insert into documents (title, content) values (?, ?)", [title, content]);
+	var data = await curs.execute("select title from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+	if(!data.length) {
+		advance = 'create';
+		await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, content]);
 	} else {
-		curs.execute("update documents set content = ? where title = ?", [content, title]);
-		curs.execute("update stars set lastedit = ? where title = ?", [getTime(), title]);
+		await curs.execute("update documents set content = ? where title = ? and namespace = ?", [content, doc.title, doc.namespace]);
+		curs.execute("update stars set lastedit = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 	}
 	
-	curs.execute("insert into history (title, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
-					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-		title, content, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
+	curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
+					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+		doc.title, doc.namespace, content, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
 	]);
 	
-	res.redirect('/w/' + title);
+	res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
 });
 
 wiki.get('/RecentChanges', async function recentChanges(req, res) {
 	var flag = req.query['logtype'];
-	if(!flag) flag = 'all';
+	if(!['all', 'create', 'delete', 'move', 'revert'].includes(flag)) flag = 'all';
+	if(flag == 'all') flag = '%';
 	
-	switch(flag) {
-		case 'create':
-			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where not title like '사용자:%' and advance like '(새 문서)' order by cast(time as integer) desc limit 100");
-		break;case 'delete':
-			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where not title like '사용자:%' and advance like '(삭제)' order by cast(time as integer) desc limit 100");
-		break;case 'move':
-			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where not title like '사용자:%' and advance like '(%이동)' order by cast(time as integer) desc limit 100");
-		break;case 'revert':
-			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where not title like '사용자:%' and advance like '(%되돌림)' order by cast(time as integer) desc limit 100");
-		break;default:
-			await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where not title like '사용자:%' order by cast(time as integer) desc limit 100");
-	}
-	
-	if(!curs.fetchall().length) return showError(req, 'document_dont_exists');
+	var data = await curs.execute("select title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+					where not namespace = '사용자' and advance like ? order by cast(time as integer) desc limit 100", 
+					[flag]);
 	
 	var content = `
 		<ol class="breadcrumb link-nav">
@@ -757,47 +784,49 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 			<tbody id>
 	`;
 	
-	for(row of curs.fetchall()) {
+	for(var row of data) {
+		var title = totitle(row.title, row.namespace) + '';
+		
 		content += `
-				<tr${(row['log'].length > 0 || row['advance'].length > 0 ? ' class=no-line' : '')}>
+				<tr${(row.log.length > 0 || row.advance.length > 0 ? ' class=no-line' : '')}>
 					<td>
-						<a href="/w/${encodeURI(row['title'])}">${html.escape(row['title'])}</a> 
-						<a href="/history/${encodeURI(row['title'])}">[역사]</a> 
+						<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a> 
+						<a href="/history/${encodeURIComponent(title)}">[역사]</a> 
 						${
-								Number(row['rev']) > 1
-								? '<a \href="/diff/' + encodeURI(row['title']) + '?rev=' + row['rev'] + '&oldrev=' + String(Number(row['rev']) - 1) + '">[비교]</a>'
+								Number(row.rev) > 1
+								? '<a \href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">[비교]</a>'
 								: ''
 						} 
-						<a href="/discuss/${encodeURI(row['title'])}">[토론]</a> 
+						<a href="/discuss/${encodeURIComponent(title)}">[토론]</a> 
 						
 						(<span style="color: ${
 							(
-								Number(row['changes']) > 0
+								Number(row.changes) > 0
 								? 'green'
 								: (
-									Number(row['changes']) < 0
+									Number(row.changes) < 0
 									? 'red'
 									: 'gray'
 								)
 							)
 							
-						};">${row['changes']}</span>)
+						};">${row.changes}</span>)
 					</td>
 					
 					<td>
-						${ip_pas(row['username'], row['ismember'])}
+						${ip_pas(row.username, row.ismember)}
 					</td>
 					
 					<td>
-						${generateTime(toDate(row['time']), timeFormat)}
+						${generateTime(toDate(row.time), timeFormat)}
 					</td>
 				</tr>
 		`;
 		
-		if(row['log'].length > 0 || row['advance'].length > 0) {
+		if(row.log.length > 0 || row.advance != 'normal') {
 			content += `
 				<td colspan="3" style="padding-left: 1.5rem;">
-					${row['log']} <i>${row['advance']}</i>
+					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance)})</i>` : ''}
 				</td>
 			`;
 		}
@@ -815,7 +844,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function document
 	const ismember = req.params[0];
 	const username = req.params[1];
 	
-	await curs.execute("select title, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+	var data = await curs.execute("select title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username
 				]);
@@ -849,47 +878,49 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function document
 			<tbody id>
 	`;
 	
-	for(row of curs.fetchall()) {
+	for(var row of data) {
+		var title = totitle(row.title, row.namespace) + '';
+		
 		content += `
-				<tr${(row['log'].length > 0 || row['advance'].length > 0 ? ' class=no-line' : '')}>
+				<tr${(row.log.length > 0 || row.advance.length > 0 ? ' class=no-line' : '')}>
 					<td>
-						<a href="/w/${encodeURI(row['title'])}">${html.escape(row['title'])}</a> 
-						<a href="/history/${encodeURI(row['title'])}">[역사]</a> 
+						<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a> 
+						<a href="/history/${encodeURIComponent(title)}">[역사]</a> 
 						${
-								Number(row['rev']) > 1
-								? '<a \href="/diff/' + encodeURI(row['title']) + '?rev=' + row['rev'] + '&oldrev=' + String(Number(row['rev']) - 1) + '">[비교]</a>'
+								Number(row.rev) > 1
+								? '<a \href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">[비교]</a>'
 								: ''
 						} 
-						<a href="/discuss/${encodeURI(row['title'])}">[토론]</a> 
+						<a href="/discuss/${encodeURIComponent(title)}">[토론]</a> 
 						
 						(<span style="color: ${
 							(
-								Number(row['changes']) > 0
+								Number(row.changes) > 0
 								? 'green'
 								: (
-									Number(row['changes']) < 0
+									Number(row.changes) < 0
 									? 'red'
 									: 'gray'
 								)
 							)
 							
-						};">${row['changes']}</span>)
+						};">${row.changes}</span>)
 					</td>
 					
 					<td>
-						${ip_pas(row['username'], row['ismember'])}
+						${ip_pas(row.username, row.ismember)}
 					</td>
 					
 					<td>
-						${generateTime(toDate(row['time']), timeFormat)}
+						${generateTime(toDate(row.time), timeFormat)}
 					</td>
 				</tr>
 		`;
 		
-		if(row['log'].length > 0 || row['advance'].length > 0) {
+		if(row.log.length > 0 || row.advance != 'normal') {
 			content += `
 				<td colspan="3" style="padding-left: 1.5rem;">
-					${row['log']} <i>${row['advance']}</i>
+					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance)})</i>` : ''}
 				</td>
 			`;
 		}
@@ -933,28 +964,30 @@ wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
 			<tbody id>
 	`;
 	
+	var trds;
+	
 	switch(logtype) {
 		case 'normal_thread':
-			await curs.execute("select title, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
 		break;case 'old_thread':
-			await curs.execute("select title, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) asc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) asc limit 120");
 		break;case 'closed_thread':
-			await curs.execute("select title, topic, time, tnum from threads where status = 'close' order by cast(time as integer) desc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'close' order by cast(time as integer) desc limit 120");
 		break;default:
-			await curs.execute("select title, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
 	}
 	
-	const trds = curs.fetchall();
-	
-	for(trd of trds) {
+	for(var trd of trds) {
+		const title = totitle(trd.title, trd.namespace) + '';
+		
 		content += `
 			<tr>
 				<td>
-					<a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a> (<a href="/discuss/${encodeURI(trd['title'])}">${html.escape(trd['title'])}</a>)
+					<a href="/thread/${trd.tnum}">${html.escape(trd.topic)}</a> (<a href="/discuss/${encodeURIComponent(title)}">${html.escape(title)}</a>)
 				</td>
 				
 				<td>
-					${generateTime(toDate(trd['time']), timeFormat)}
+					${generateTime(toDate(trd.time), timeFormat)}
 				</td>
 			</tr>
 		`;
@@ -972,7 +1005,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/discuss/, async function discussio
 	const ismember = req.params[0];
 	const username = req.params[1];
 	
-	await curs.execute("select id, tnum, time, username, ismember from res \
+	var dd = await curs.execute("select id, tnum, time, username, ismember from res \
 				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username
 				]);
@@ -1006,24 +1039,22 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/discuss/, async function discussio
 			<tbody id>
 	`;
 	
-	const dd = curs.fetchall();
-	
-	for(row of dd) {
-		await curs.execute("select title, topic from threads where tnum = ?", [row['tnum']]);
-		const td = curs.fetchall()[0];
+	for(var row of dd) {
+		const td = (await curs.execute("select title, namespace, topic from threads where tnum = ?", [row.tnum]))[0];
+		const title = totitle(td.title, td.namespace) + '';
 		
 		content += `
 				<tr>
 					<td>
-						<a href="/thread/${row['tnum']}">#${row['id']} ${html.escape(td['topic'])}</a> (<a href="/w/${encodeURI(td['title'])}">${html.escape(td['title'])}</a>)
+						<a href="/thread/${row.tnum}">#${row.id} ${html.escape(td['topic'])}</a> (<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a>)
 					</td>
 					
 					<td>
-						${ip_pas(row['username'], row['ismember'])}
+						${ip_pas(row.username, row.ismember)}
 					</td>
 					
 					<td>
-						${generateTime(toDate(row['time']), timeFormat)}
+						${generateTime(toDate(row.time), timeFormat)}
 					</td>
 				</tr>
 		`;
@@ -1038,33 +1069,36 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/discuss/, async function discussio
 });
 
 wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
-	const title = req.params[0];
+	var title = req.params[0];
+	
+	const doc = processTitle(title);
 	const from = req.query['from'];
 	const until = req.query['until'];
+	title = totitle(doc.title, doc.namespace);
 	
-	if(!await getacl(title, 'read')) {
-		res.send(showError('insufficient_privileges_read'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'read')) {
+		return res.send(showError('insufficient_privileges_read'));
 	}
 	
-	if(from) { // 더시드에서 from이 더 우선임
-		await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where title = ? and (cast(rev as integer) <= ? AND cast(rev as integer) > ?) \
+	var data;
+	
+	if(from) {  // 더시드에서 from이 더 우선임
+		data = await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+						where title = ? and namespace = ? and (cast(rev as integer) <= ? AND cast(rev as integer) > ?) \
 						order by cast(rev as integer) desc",
-						[title, Number(from), Number(from) - 30]);
+						[doc.title, doc.namespace, Number(from), Number(from) - 30]);
 	} else if(until) {
-		await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where title = ? and (cast(rev as integer) >= ? AND cast(rev as integer) < ?) \
+		data = await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+						where title = ? and namespace = ? and (cast(rev as integer) >= ? AND cast(rev as integer) < ?) \
 						order by cast(rev as integer) desc",
-						[title, Number(until), Number(until) + 30]);
+						[doc.title, doc.namespace, Number(until), Number(until) + 30]);
 	} else {
-		await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-						where title = ? order by cast(rev as integer) desc limit 30",
-						[title]);
+		data = await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+						where title = ? and namespace = ? order by cast(rev as integer) desc limit 30",
+						[doc.title, doc.namespace]);
 	}
 	
-	if(!curs.fetchall().length) res.send(showError(req, 'document_dont_exists'));
+	if(!data.length) res.send(showError(req, 'document_not_exists'));
 	
 	const navbtns = navbtn(0, 0, 0, 0);
 	
@@ -1078,45 +1112,45 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 		<ul class=wiki-list>
 	`;
 	
-	for(row of curs.fetchall()) {
+	for(var row of data) {
 		content += `
 				<li>
-					${generateTime(toDate(row['time']), timeFormat)} 
+					${generateTime(toDate(row.time), timeFormat)} 
 		
 					<span style="font-size: 8pt;">
-						(<a rel=nofollow href="/w/${encodeURI(title)}?rev=${row['rev']}">보기</a> |
-							<a rel=nofollow href="/raw/${encodeURI(title)}?rev=${row['rev']}" data-npjax="true">RAW</a> |
-							<a rel=nofollow href="/blame/${encodeURI(title)}?rev=${row['rev']}">Blame</a> |
-							<a rel=nofollow href="/revert/${encodeURI(title)}?rev=${row['rev']}">이 리비젼으로 되돌리기</a>${
-								Number(row['rev']) > 1
-								? ' | <a rel=nofollow href="/diff/' + encodeURI(title) + '?rev=' + row['rev'] + '&oldrev=' + String(Number(row['rev']) - 1) + '">비교</a>'
+						(<a rel=nofollow href="/w/${encodeURIComponent(title)}?rev=${row.rev}">보기</a> |
+							<a rel=nofollow href="/raw/${encodeURIComponent(title)}?rev=${row.rev}" data-npjax="true">RAW</a> |
+							<a rel=nofollow href="/blame/${encodeURIComponent(title)}?rev=${row.rev}">Blame</a> |
+							<a rel=nofollow href="/revert/${encodeURIComponent(title)}?rev=${row.rev}">이 리비젼으로 되돌리기</a>${
+								Number(row.rev) > 1
+								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
 								: ''
 							})
 					</span> 
 					
-					<input type="radio" name="oldrev" value="${row['rev']}">
-					<input type="radio" name="rev" value="${row['rev']}">
+					<input type="radio" name="oldrev" value="${row.rev}">
+					<input type="radio" name="rev" value="${row.rev}">
 
-					<i>${row['advance']}</i>
+					${row.advance != 'normal' ? `<i>(${edittype(row.advance)})</i>` : ''}
 					
-					<strong>r${row['rev']}</strong> 
+					<strong>r${row.rev}</strong> 
 					
 					(<span style="color: ${
 						(
-							Number(row['changes']) > 0
+							Number(row.changes) > 0
 							? 'green'
 							: (
-								Number(row['changes']) < 0
+								Number(row.changes) < 0
 								? 'red'
 								: 'gray'
 							)
 						)
 						
-					};">${row['changes']}</span>)
+					};">${row.changes}</span>)
 					
-					${ip_pas(row['username'], row['ismember'])}
+					${ip_pas(row.username, row.ismember)}
 					
-					(<span style="color: gray;">${row['log']}</span>)
+					(<span style="color: gray;">${row.log}</span>)
 				</li>
 		`;
 	}
@@ -1126,22 +1160,23 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 		
 		${navbtns}
 		
-		<script>historyInit("${encodeURI(title)}");</script>
+		<script>historyInit("${encodeURIComponent(title)}");</script>
 	`;
 	
-	res.send(render(req, title, content, _, '의 역사', error = false, viewname = 'history'));
+	res.send(render(req, totitle(doc.title, doc.namespace) + '의 역사', content, {
+		document: doc,
+	}, '', error = false, viewname = 'history'));
 });
 
 wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	const title = req.params[0];
+	const doc = processTitle(title);
 	
 	var state = req.query['state'];
 	if(!state) state = '';
 	
-	if(!await getacl(title, 'read')) {
-		res.send(showError('insufficient_privileges_read'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'read')) {
+		return res.send(showError('insufficient_privileges_read'));
 	}
 	
 	var content = '';
@@ -1156,18 +1191,16 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			content += '<ul class=wiki-list>';
 			
 			var cnt = 0;
-			await curs.execute("select topic, tnum from threads where title = ? and status = 'close' order by cast(time as integer) desc");
-			trdlst = curs.fetchall();
+			trdlst = await curs.execute("select topic, tnum from threads where title = ? and namespace = ? and status = 'close' order by cast(time as integer) desc", [doc.title, doc.namespace]);
 			
-			for(trd of trdlst) {
-				content += `<li><a href="#${++cnt}">${cnt}</a>. <a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a></li>`;
+			for(var trd of trdlst) {
+				content += `<li><a href="#${++cnt}">${cnt}</a>. <a href="/thread/${trd.tnum}">${html.escape(trd.topic)}</a></li>`;
 			}
 			
 			content += '</ul>';
 			
 			subtitle = ' (닫힌 토론)';
-			
-			viewname = 'thread_list_close'
+			viewname = 'thread_list_close';
 		break;default:
 			content += `
 				<h3 class="wiki-heading">편집 요청</h3>
@@ -1191,11 +1224,10 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			`;
 			
 			var cnt = 0;
-			await curs.execute("select topic, tnum from threads where title = ? and status = 'normal' order by cast(time as integer) desc", [title]);
-			trdlst = curs.fetchall();
+			trdlst = await curs.execute("select topic, tnum from threads where title = ? and namespace = ? and status = 'normal' order by cast(time as integer) desc", [doc.title, doc.namespace]);
 			
 			for(trd of trdlst) {
-				content += `<li><a href="#${++cnt}">${cnt}</a>. <a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a></li>`;
+				content += `<li><a href="#${++cnt}">${cnt}</a>. <a href="/thread/${trd.tnum}">${html.escape(trd.topic)}</a></li>`;
 			}
 			
 			content += `
@@ -1206,36 +1238,32 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 					<a href="?state=close">[닫힌 토론 목록 보기]</a>
 				</p>`
 				
-			await curs.execute("select topic, tnum from threads where title = ? and status = 'normal' order by cast(time as integer) desc", [title]);
-			trdlst = curs.fetchall();
+			trdlst = await curs.execute("select topic, tnum from threads where title = ? and namespace = ? and status = 'normal' order by cast(time as integer) desc", [doc.title, doc.namespace]);
 			
 			cnt = 0;
-			for(trd of trdlst) {
+			for(var trd of trdlst) {
 				content += `
 					<h2 class=wiki-heading id="${++cnt}">
-						${cnt}. <a href="/thread/${trd['tnum']}">${html.escape(trd['topic'])}</a>
+						${cnt}. <a href="/thread/${trd.tnum}">${html.escape(trd.topic)}</a>
 					</h2>
 					
 					<div class=topic-discuss>
 				`;
 				
-				await curs.execute("select id, content, username, time, hidden, hider, status, ismember from res where tnum = ? order by cast(id as integer) asc", [trd['tnum']]);
-				const td = curs.fetchall();
-				await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [trd['tnum']]);
-				const ltid = Number(curs.fetchall()[0]['id']);
+				const td = await curs.execute("select id, content, username, time, hidden, hider, status, ismember from res where tnum = ? order by cast(id as integer) asc", [trd.tnum]);
+				const ltid = Number((await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [trd.tnum]))[0]['id']);
 				
 				var ambx = false;
 				
-				await curs.execute("select username from res where tnum = ? and (id = '1')", [trd['tnum']]);
-				const fstusr = curs.fetchall()[0]['username'];
+				const fstusr = (await curs.execute("select username from res where tnum = ? and (id = '1')", [trd.tnum]))[0]['username'];
 				
-				for(rs of td) {
+				for(var rs of td) {
 					const crid = Number(rs['id']);
 					if(ltid > 4 && crid != 1 && (crid < ltid - 2)) {
 						if(!ambx) {
 							content += `
 								<div>
-									<a class=more-box href="/thread/${trd['tnum']}">more...</a>
+									<a class=more-box href="/thread/${trd.tnum}">more...</a>
 								</div>
 							`;
 							
@@ -1286,7 +1314,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 					</div>
 
 					
-					<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론 주제를 생성합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>
+					${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론 주제를 생성합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 					
 
 					<div class="btns">
@@ -1309,25 +1337,24 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			`;
 			
 			subtitle = ' (토론)';
-			viewname = 'thread_list'
+			viewname = 'thread_list';
 	}
 	
-	res.send(render(req, title, content, _, subtitle, false, viewname));
+	res.send(render(req, totitle(doc.title, doc.namespace) + subtitle, content, {
+		document: doc,
+	}, '', false, viewname));
 });
 
 wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	const title = req.params[0];
+	const doc = processTitle(title);
 	
-	if(!await getacl(title, 'read')) {
-		res.send(showError('insufficient_privileges_read'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'read')) {
+		return res.send(showError('insufficient_privileges_read'));
 	}
 	
-	if(!await getacl(title, 'create_thread')) {
-		res.send(showError(req, 'insufficient_privileges'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'create_thread')) {
+		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
 	var tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
@@ -1338,10 +1365,10 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 		tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
 	}
 	
-	curs.execute("insert into threads (title, topic, status, time, tnum) values (?, ?, ?, ?, ?)",
-					[title, req.body['topic'], 'normal', getTime(), tnum]);
+	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum) values (?, ?, ?, ?, ?, ?)",
+					[doc.title, doc.namespace, req.body['topic'], 'normal', getTime(), tnum]);
 	
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) values \
+	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) values \
 					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0']);
 					
@@ -1351,21 +1378,20 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	const tnum = req.param("tnum");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
-	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
-	const title = curs.fetchall()[0]['title'];
-	const topic = curs.fetchall()[0]['topic'];
-	const status = curs.fetchall()[0]['status'];
+	var data = await curs.execute("select title, namespace, topic, status from threads where tnum = ?", [tnum]);
+	const title = data[0]['title'];
+	const namespace = data[0]['namespace'];
+	const topic = data[0]['topic'];
+	const status = data[0]['status'];
+	const doc = totitle(title, namespace);
 	
-	if(!await getacl(title, 'read')) {
-		res.send(showError(req, 'insufficient_privileges_read'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'read')) {
+		return res.send(showError(req, 'insufficient_privileges_read'));
 	}
 	
 	var content = `
@@ -1400,6 +1426,8 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	content += `
 			</div>
 		</div>
+		
+		<script>$(function() { discussPollStart("${tnum}"); });</script>
 		
 		<h2 class=wiki-heading style="cursor: pointer;">댓글 달기</h2>
 	`;
@@ -1455,12 +1483,10 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	}
 	
 	content += `
-		<script>$(function() { discussPollStart("${tnum}"); });</script>
-	
 		<form id=new-thread-form method=post>
 			<textarea class=form-control rows=5 name=text ${['close', 'pause'].includes(status) ? 'disabled' : ''}>${status == 'pause' ? 'pause 상태입니다.' : (status == 'close' ? '닫힌 토론입니다.' : '')}</textarea>
 		
-			<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론에 참여합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>
+			${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론에 참여합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
 			<div class=btns>
 				<button type=submit class="btn btn-primary" style="width: 120px;">전송</button>
@@ -1468,7 +1494,9 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		</form>
 	`;
 	
-	res.send(render(req, title, content, {}, ' (토론) - ' + topic, error = false, viewname = 'thread'));
+	res.send(render(req, totitle(title, namespace) + ' (토론) - ' + topic, content, {
+		document: doc,
+	}, '', error = false, viewname = 'thread'));
 });
 
 wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
@@ -1480,32 +1508,30 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
-	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
-	const title = curs.fetchall()[0]['title'];
-	const topic = curs.fetchall()[0]['topic'];
-	const status = curs.fetchall()[0]['status'];
+	var data = await curs.execute("select title, namespace, topic, status from threads where tnum = ?", [tnum]);
+	const title = data[0]['title'];
+	const topic = data[0]['topic'];
+	const status = data[0]['status'];
+	const namespace = data[0]['namespace'];
+	const doc = totitle(title, namespace);
 	
-	if(!await getacl(title, 'read')) {
-		res.send(showError('insufficient_privileges_read'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'read')) {
+		return res.send(showError('insufficient_privileges_read'));
 	}
 	
-	if(!await getacl(title, 'write_thread_comment')) {
-		res.send(showError(req, 'insufficient_privileges'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'write_thread_comment')) {
+		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
-	await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
-	const lid = Number(curs.fetchall()[0]['id']);
+	var data = await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
+	const lid = Number(data[0]['id']);
 	
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
+	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
 					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 						String(lid + 1), req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', await getperm('admin', ip_check(req)) ? '1' : '0'
 					]);
 					
-	curs.execute("update threads set time = ? where tnum = ?", [getTime(), tnum]);
+	await curs.execute("update threads set time = ? where tnum = ?", [getTime(), tnum]);
 	
 	res.json({});
 });
@@ -1514,30 +1540,29 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	const tnum = req.param("tnum");
 	const tid = req.param("id");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
-	await curs.execute("select username from res where tnum = ? and (id = '1')", [tnum]);
-	const fstusr = curs.fetchall()[0]['username'];
+	var data = await curs.execute("select username from res where tnum = ? and (id = '1')", [tnum]);
+	const fstusr = data[0]['username'];
 	
-	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
-	const title = curs.fetchall()[0]['title'];
-	const topic = curs.fetchall()[0]['topic'];
-	const status = curs.fetchall()[0]['status'];
+	var data = await curs.execute("select title, namespace, topic, status from threads where tnum = ?", [tnum]);
+	const title = data[0]['title'];
+	const namespace = data[0]['namespace'];
+	const topic = data[0]['topic'];
+	const status = data[0]['status'];
+	const doc = totitle(title, namespace);
 	
-	if(!await getacl(title, 'read')) {
-		res.send(showError(req, 'insufficient_privileges_read'));
-		
-		return;
+	if(!await getacl(doc.title, doc.namespace, 'read')) {
+		return res.send(showError(req, 'insufficient_privileges_read'));
 	}
 	
 	content = ``;
 	
-	await curs.execute("select id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
-	for(rs of curs.fetchall()) {
+	var data = await curs.execute("select id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
+	for(var rs of data) {
 		content += `
 			<div class=res-wrapper data-id="${rs['id']}">
 				<div class="res res-type-${rs['status'] == '1' ? 'status' : 'normal'}">
@@ -1582,19 +1607,16 @@ wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, r
 	const tnum = req.param("tnum");
 	const tid = req.param("id");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
 	if(!await getperm('hide_thread_comment', ip_check(req))) {
-		res.send(showError(req, 'insufficient_privileges'));
-		
-		return;
+		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
-	curs.execute("update res set hidden = '0', hider = '' where tnum = ? and id = ?", [tnum, tid]);
+	await curs.execute("update res set hidden = '0', hider = '' where tnum = ? and id = ?", [tnum, tid]);
 	
 	res.redirect('/thread/' + tnum);
 });
@@ -1603,19 +1625,16 @@ wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
 	const tnum = req.param("tnum");
 	const tid = req.param("id");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
 	if(!await getperm('hide_thread_comment', ip_check(req))) {
-		res.send(showError(req, 'insufficient_privileges'));
-		
-		return;
+		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
-	curs.execute("update res set hidden = '1', hider = ? where tnum = ? and id = ?", [ip_check(req), tnum, tid]);
+	await curs.execute("update res set hidden = '1', hider = ? where tnum = ? and id = ?", [ip_check(req), tnum, tid]);
 	
 	res.redirect('/thread/' + tnum);
 });
@@ -1623,9 +1642,8 @@ wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
 wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, res) {
 	const tnum = req.param("tnum");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 
@@ -1633,9 +1651,7 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 	if(!['close', 'pause', 'normal'].includes(newstatus)) newstatus = 'normal';
 	
 	if(!await getperm('update_thread_status', ip_check(req))) {
-		res.send(showError(req, 'insufficient_privileges'));
-		
-		return;
+		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
 	curs.execute("update threads set status = ? where tnum = ?", [newstatus, tnum]);
@@ -1650,22 +1666,18 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(req, res) {
 	const tnum = req.param("tnum");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 
-	var newdoc = req.body['document'];
-	if(!newdoc.length) {
-		res.send('');
-		return;
+	if(!await getperm('update_thread_document', ip_check(req))) {
+		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
-	if(!await getperm('update_thread_document', ip_check(req))) {
-		res.send(showError(req, 'insufficient_privileges'));
-		
-		return;
+	var newdoc = req.body['document'];
+	if(!newdoc.length) {
+		return res.send('');
 	}
 	
 	curs.execute("update threads set title = ? where tnum = ?", [newdoc, tnum]);
@@ -1680,24 +1692,20 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res) {
 	const tnum = req.param("tnum");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 
+	if(!await getperm('update_thread_topic', ip_check(req))) {
+		return res.send(showError(req, 'insufficient_privileges'));
+	}
+
 	var newtopic = req.body['topic'];
 	if(!newtopic.length) {
-		res.send('');
-		return;
+		return res.send('');
 	}
-	
-	if(!await getperm('update_thread_topic', ip_check(req))) {
-		res.send(showError(req, 'insufficient_privileges'));
 		
-		return;
-	}
-	
 	curs.execute("update threads set topic = ? where tnum = ?", [newtopic, tnum]);
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
@@ -1710,27 +1718,19 @@ wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res
 wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
 	const tnum = req.param("tnum");
 	
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
-	const rescount = curs.fetchall().length;
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = data.length;
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
 	if(!await getperm('delete_thread', ip_check(req))) {
-		res.send(showError(req, 'insufficient_privileges'));
-		
-		return;
+		return res.send(showError(req, 'insufficient_privileges'));
 	}
-	
-	await curs.execute("select title, topic, status from threads where tnum = ?", [tnum]);
-	const title = curs.fetchall()[0]['title'];
-	const topic = curs.fetchall()[0]['topic'];
-	const status = curs.fetchall()[0]['status'];
 	
 	curs.execute("delete from threads where tnum = ?", [tnum]);
 	curs.execute("delete from res where tnum = ?", [tnum]);
 	
-	res.redirect('/discuss/' + encodeURI(title));
+	res.redirect('/discuss/' + encodeURIComponent(title));
 });
 
 wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
@@ -1742,30 +1742,61 @@ wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
-	await curs.execute("select id from res where tnum = ? order by cast(time as integer) desc limit 1", [tnum]);
+	var data = await curs.execute("select id from res where tnum = ? order by cast(time as integer) desc limit 1", [tnum]);
 	
 	res.json({
-		"status": "event",
-		"comment_id": Number(curs.fetchall()[0]['id'])
+		status: "event",
+		comment_id: Number(data[0].id)
 	});
 });
 
-wiki.get('/member/login', async function loginScreen(req, res) {
+wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
+	if(!['GET', 'POST'].includes(req.method)) return next();
+	
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
-	res.send(render(req, '로그인', `
+	var id = '1', pw = '1';
+	
+	if(req.method == 'POST') {
+		id = req.body['username'];
+		pw = req.body['password'];
+		
+		var data = await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
+		var invalidusername = !data.length;
+		
+		var data = curs.execute("select username, password from users where username = ? and password = ?", [id, sha3(pw)]);
+		var invalidpw = !invalidusername && !data.length;
+		
+		if(!invalidusername && !invalidpw) {
+			curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+	
+			req.session.username = id;
+			
+			conn.run("delete from useragents where username = ?", [id], () => {
+				curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+			});
+			
+			return res.redirect(desturl);
+		}
+	}
+	
+	var content = `
 		<form class=login-form method=post>
 			<div class=form-group>
 				<label>Username</label><br>
 				<input class=form-control name="username" type="text">
+				${!id.length ? `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>` : ''}
+				${id.length && invalidusername ? `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>` : ''}
 			</div>
 
 			<div class=form-group>
 				<label>Password</label><br>
 				<input class=form-control name="password" type="password">
+				${id.length && !invalidusername && !pw.length ? `<p class=error-desc>암호의 값은 필수입니다.</p>` : ''}
+				${id.length && !invalidusername && invalidpw ? `<p class=error-desc>암호가 올바르지 않습니다.</p>` : ''}
 			</div>
 			
 			<div class="checkbox" style="display: inline-block;">
@@ -1779,163 +1810,51 @@ wiki.get('/member/login', async function loginScreen(req, res) {
 			
 			<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
 		</form>
-	`, {}));
+	`;
+	
+	res.send(render(req, '로그인', content, {}));
 });
 
-wiki.post('/member/login', async function authUser(req, res) {
+wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) {
+	if(!['GET', 'POST'].includes(req.method)) return next();
+	
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
-	var   id = req.body['username'];
-	const pw = req.body['password'];
-	
-	if(!id.length) {
-		res.send(render(req, '로그인', `
-			<form class=login-form method=post>
-				<div class=form-group>
-					<label>Username</label><br>
-					<input class=form-control name="username" type="text">
-					<p class=error-desc>사용자 이름의 값은 필수입니다.</p>
-				</div>
-
-				<div class=form-group>
-					<label>Password</label><br>
-					<input class=form-control name="password" type="password">
-				</div>
-				
-				<div class="checkbox" style="display: inline-block;">
-					<label>
-						<input type="checkbox" name="autologin">
-						<span>자동 로그인</span>
-					</label>
-				</div>
-				
-				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
-				
-				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
-			</form>
-		`, {}));
+	if(req.method == 'POST') {
+		var data = await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
+		if(data.length) var duplicate = 1;
 		
-		return;
+		if(!duplicate) {
+			await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
+			const key = rndval('abcdef1234567890', 64);
+			curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
+			
+			return res.send(render(req, '계정 만들기', `
+				<p>
+					이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
+				</p>
+
+				<ul class=wiki-list>
+					<li>간혹 메일이 도착하지 않는 경우가 있습니다. 이 경우, 스팸함을 확인해주시기 바랍니다.</li>
+					<li>인증 메일은 24시간동안 유효합니다.</li>
+				</ul>
+				
+				<p style="font-weight: bold; color: red;">
+					[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
+				</p>
+			`, {}));
+		}
 	}
 	
-	if(!pw.length) {
-		res.send(render(req, '로그인', `
-			<form class=login-form method=post>
-				<div class=form-group>
-					<label>Username</label><br>
-					<input class=form-control name="username" type="text" value="${html.escape(id)}">
-				</div>
-
-				<div class=form-group>
-					<label>Password</label><br>
-					<input class=form-control name="password" type="password">
-					<p class=error-desc>암호의 값은 필수입니다.</p>
-				</div>
-				
-				<div class="checkbox" style="display: inline-block;">
-					<label>
-						<input type="checkbox" name="autologin">
-						<span>자동 로그인</span>
-					</label>
-				</div>
-				
-				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
-				
-				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
-	if(!curs.fetchall().length) {
-		res.send(render(req, '로그인', `
-			<form class=login-form method=post>
-				<div class=form-group>
-					<label>Username</label><br>
-					<input class=form-control name="username" type="text" value="${html.escape(id)}">
-					<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>
-				</div>
-
-				<div class=form-group>
-					<label>Password</label><br>
-					<input class=form-control name="password" type="password">
-				</div>
-				
-				<div class="checkbox" style="display: inline-block;">
-					<label>
-						<input type="checkbox" name="autologin">
-						<span>자동 로그인</span>
-					</label>
-				</div>
-				
-				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
-				
-				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	id = curs.fetchall()[0]['username'];
-	
-	curs.execute("select username, password from users where username = ? and password = ?", [id, sha3(pw)]);
-	if(!curs.fetchall().length) {
-		res.send(render(req, '로그인', `
-			<form class=login-form method=post>
-				<div class=form-group>
-					<label>Username</label><br>
-					<input class=form-control name="username" type="text" value="${html.escape(id)}">
-				</div>
-
-				<div class=form-group>
-					<label>Password</label><br>
-					<input class=form-control name="password" type="password">
-					<p class=error-desc>암호가 올바르지 않습니다.</p>
-				</div>
-				
-				<div class="checkbox" style="display: inline-block;">
-					<label>
-						<input type="checkbox" name="autologin">
-						<span>자동 로그인</span>
-					</label>
-				</div>
-				
-				<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
-				
-				<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
-	
-	req.session.username = id;
-	
-	await curs.execute("delete from useragents where username = ?", [id]);
-	await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
-	
-	res.redirect(desturl);
-});
-
-wiki.get('/member/signup', async function signupEmailScreen(req, res) {
-	var desturl = req.query['redirect'];
-	if(!desturl) desturl = '/';
-	
-	if(islogin(req)) { res.redirect(desturl); return; }
-	
-	res.send(render(req, '계정 만들기', `
+	var content = `
 		<form method=post class=signup-form>
 			<div class=form-group>
 				<label>전자우편 주소</label><br>
-				<input type=email name=email class=form-control>
+				<input type=email name=email class=form-control />
+				${duplicate ? `<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>` : ''}
 			</div>
 			
 			<p>
@@ -1947,70 +1866,20 @@ wiki.get('/member/signup', async function signupEmailScreen(req, res) {
 				<button type=submit class="btn btn-primary">가입</button>
 			</div>
 		</form>
-	`, {}));
+	`;
+	
+	res.send(render(req, '계정 만들기', content, {}));
 });
 
-wiki.post('/member/signup', async function emailConfirmationScreen(req, res) {
-	var desturl = req.query['redirect'];
-	if(!desturl) desturl = '/';
-	
-	if(islogin(req)) { res.redirect(desturl); return; }
+wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next) {
+	if(!['GET', 'POST'].includes(req.method)) return next();
 	
 	await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
 	
-	await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
-	if(curs.fetchall().length) {
-		res.send(render(req, '계정 만들기', `
-			<form method=post class=signup-form>
-				<div class=form-group>
-					<label>전자우편 주소</label><br>
-					<input type=email name=email class=form-control>
-					<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>
-				</div>
-				
-				<p>
-					<strong>가입후 탈퇴는 불가능합니다.</strong>
-				</p>
-			
-				<div class=btns>
-					<button type=reset class="btn btn-secondary">초기화</button>
-					<button type=submit class="btn btn-primary">가입</button>
-				</div>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	const key = rndval('abcdef1234567890', 64);
-	
-	curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
-	
-	res.send(render(req, '계정 만들기', `
-		<p>
-			이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
-		</p>
-
-		<ul class=wiki-list>
-			<li>간혹 메일이 도착하지 않는 경우가 있습니다. 이 경우, 스팸함을 확인해주시기 바랍니다.</li>
-			<li>인증 메일은 24시간동안 유효합니다.</li>
-		</ul>
-		
-		<p style="font-weight: bold; color: red;">
-			[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
-		</p>
-	`, {}));
-});
-
-wiki.get('/member/signup/:key', async function signupScreen(req, res) {
-	await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
-	
-	const key = req.param('key');
+	const key = req.params[0];
 	await curs.execute("select key from account_creation where key = ?", [key]);
 	if(!curs.fetchall().length) {
-		res.send(showError(req, 'invalid_signup_key'));
-		
-		return;
+		return res.send(showError(req, 'invalid_signup_key'));
 	}
 	
 	var desturl = req.query['redirect'];
@@ -2018,212 +1887,77 @@ wiki.get('/member/signup/:key', async function signupScreen(req, res) {
 	
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
-	res.send(render(req, '계정 만들기', `
+	var id = '1', pw = '1', pw2 = '1';
+	
+	if(req.method == 'POST') {
+		id = req.body['username'];
+		pw = req.body['password'];
+		pw2 = req.body['password_check'];
+		
+		var data = await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
+		if(data.length) {
+			var duplicate = 1;
+		}
+		if(id.length && !duplicate && pw.length && pw == pw2) {
+			var data = await curs.execute("select username from users");
+			if(!data.length) {
+				for(var perm of perms) {
+					curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
+				}
+			}
+			
+			req.session.username = id;
+			
+			await curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
+			await curs.execute("insert into documents (title, namespace, content) values (?, '사용자', '')", [id]);
+			await curs.execute("insert into history (title, namespace, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
+							values (?, '사용자', '', '1', ?, ?, '0', '', '0', '', 'create', 'author')", [
+								id, getTime(), id
+							]);
+			await curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+			await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+			
+			return res.send(render(req, '계정 만들기', `
+				<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
+			`, {}));
+		}
+	}
+	
+	var content = `
 		<form class=signup-form method=post>
 			<div class=form-group>
 				<label>사용자 ID</label><br>
-				<input class=form-control name="username" type="text">
+				<input class=form-control name="username" type="text" />
+				${duplicate ? `<p class=error-desc>해당 사용자가 이미 존재합니다.</p>` : ''}
+				${!duplicate && !id.length ? `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>` : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호</label><br>
-				<input class=form-control name="password" type="password">
+				<input class=form-control name="password" type="password" />
+				${!duplicate && id.length && !pw.length ? `<p class=error-desc>암호의 값은 필수입니다.</p>` : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호 확인</label><br>
-				<input class=form-control name="password_check" type="password">
+				<input class=form-control name="password_check" type="password" />
+				${!duplicate && id.length && pw.length && pw != pw2 ? `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>` : ''}
 			</div>
 			
 			<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
 			
 			<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
 		</form>
-	`, {}));
+	`;
+	
+	res.send(render(req, '계정 만들기', content, {}));
 });
 
-wiki.post('/member/signup/:key', async function createAccount(req, res) {
-	await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
-	
-	const key = req.param('key');
-	await curs.execute("select key from account_creation where key = ?", [key]);
-	if(!curs.fetchall().length) {
-		res.send(showError(req, 'invalid_signup_key'));
-		
-		return;
-	}
-	
-	var desturl = req.query['redirect'];
-	if(!desturl) desturl = '/';
-	
-	if(islogin(req)) { res.redirect(desturl); return; }
-	
-	const id = req.body['username'];
-	const pw = req.body['password'];
-	const pw2 = req.body['password_check'];
-	
-	await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
-	if(curs.fetchall().length) {
-		res.send(render(req, '계정 만들기', `
-			<form class=signup-form method=post>
-				<div class=form-group>
-					<label>사용자 ID</label><br>
-					<input class=form-control name="username" type="text">
-					<p class=error-desc>해당 사용자가 이미 존재합니다.</p>
-				</div>
-
-				<div class=form-group>
-					<label>암호</label><br>
-					<input class=form-control name="password" type="password">
-				</div>
-
-				<div class=form-group>
-					<label>암호 확인</label><br>
-					<input class=form-control name="password_check" type="password">
-				</div>
-			
-				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
-				
-				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	if(!id.length) {
-		res.send(render(req, '계정 만들기', `
-			<form class=signup-form method=post>
-				<div class=form-group>
-					<label>사용자 ID</label><br>
-					<input class=form-control name="username" type="text">
-					<p class=error-desc>사용자 이름의 값은 필수입니다.</p>
-				</div>
-
-				<div class=form-group>
-					<label>암호</label><br>
-					<input class=form-control name="password" type="password">
-				</div>
-
-				<div class=form-group>
-					<label>암호 확인</label><br>
-					<input class=form-control name="password_check" type="password">
-				</div>
-			
-				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
-				
-				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	if(!pw.length) {
-		res.send(render(req, '계정 만들기', `
-			<form class=signup-form method=post>
-				<div class=form-group>
-					<label>사용자 ID</label><br>
-					<input class=form-control name="username" type="text">
-				</div>
-
-				<div class=form-group>
-					<label>암호</label><br>
-					<input class=form-control name="password" type="password">
-				</div>
-
-				<div class=form-group>
-					<label>암호 확인</label><br>
-					<input class=form-control name="password_check" type="password">
-					<p class=error-desc>암호의 값은 필수입니다.</p>
-				</div>
-			
-				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
-				
-				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	if(pw != pw2) {
-		res.send(render(req, '계정 만들기', `
-			<form class=signup-form method=post>
-				<div class=form-group>
-					<label>사용자 ID</label><br>
-					<input class=form-control name="username" type="text">
-				</div>
-
-				<div class=form-group>
-					<label>암호</label><br>
-					<input class=form-control name="password" type="password">
-				</div>
-
-				<div class=form-group>
-					<label>암호 확인</label><br>
-					<input class=form-control name="password_check" type="password">
-					<p class=error-desc>암호 확인이 올바르지 않습니다.</p>
-				</div>
-			
-				<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
-				
-				<button type=reset class="btn btn-secondary">초기화</button><button type="submit" class="btn btn-primary">가입</button>
-			</form>
-		`, {}));
-		
-		return;
-	}
-	
-	await curs.execute("select username from users");
-	if(!curs.fetchall().length) {
-		for(perm of perms) {
-			curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
-		}
-	}
-	
-	req.session.username = id;
-	
-	curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
-	
-	curs.execute("insert into documents (title, content) values (?, '')", ["사용자:" + id]);
-	
-	curs.execute("insert into history (title, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
-					values (?, '', '1', ?, ?, '0', '', '0', '', '(새 문서)', 'author')", [
-						'사용자:' + id, getTime(), id
-					]);
-		
-	curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
-	curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
-	
-	res.send(render(req, '계정 만들기', `
-		<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
-	`, {}));
-});
-
-wiki.get('/RandomPage', async function randomPage(req, res) {
+wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 	var ns = req.query['namespace'];
 	if(!ns) ns = '문서';
 	
-	if(ns == '문서') {
-		var sql = 'select title from documents where ';
-		
-		const nmsplst = await fetchNamespaces();
-		
-		for(nsp of nmsplst) {
-			if(nsp == '문서') continue;
-			
-			sql += `not title like '${nsp}:%' and `;
-		}
-		
-		sql = sql.replace(/and\s$/, '');
-		
-		sql += 'order by random() limit 20';
-		
-		await curs.execute(sql);
-	} else {
-		await curs.execute("select title from documents where title like ? || ':%' order by random() limit 20", [ns]);
-	}
+	var data = await curs.execute("select title from documents where namespace = ? order by random() limit 20", [ns]);
 	
 	var content = `
 		<fieldset class="recent-option">
@@ -2234,7 +1968,7 @@ wiki.get('/RandomPage', async function randomPage(req, res) {
 					
 	`;
 	
-	for(nsp of await fetchNamespaces()) {
+	for(var nsp of fetchNamespaces()) {
 		content += `
 			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', 'Wiki') : nsp}</option>
 		`;
@@ -2253,21 +1987,17 @@ wiki.get('/RandomPage', async function randomPage(req, res) {
 		<ul class=wiki-list>
 	`;
 	
-	for(i of curs.fetchall())
-        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	for(var i of data)
+        content += '<li><a href="/w/' + encodeURIComponent(totitle(i.title, ns)) + '">' + html.escape(i['title']) + '</a></li>';
 	
 	content += '</ul>';
 	
 	res.send(render(req, 'RandomPage', content, {}));
 });
 
-wiki.get('/ShortestPages', async function shortestPages(req, res) {
+wiki.get(/^\/ShortestPages$/, async function shortestPages(req, res) {
 	var from = req.query['from'];
 	if(!from) ns = '1';
-	
-	var sql = 'select title from documents where ';
-	
-	const nmsplst = await fetchNamespaces();
 	
 	var sql_num = 0;
     if(from > 0)
@@ -2275,17 +2005,7 @@ wiki.get('/ShortestPages', async function shortestPages(req, res) {
     else
         sql_num = 0;
 	
-	for(nsp of nmsplst) {
-		if(nsp == '문서') continue;
-		
-		sql += `not title like '${nsp}:%' and `;
-	}
-	
-	sql = sql.replace(/and\s$/, '');
-	
-	sql += "order by length(content) limit ?, '122'";
-	
-	await curs.execute(sql, [sql_num]);
+	var data = await curs.execute("select title from documents where namespace = '문서' order by length(content) limit ?, '122'", [sql_num]);
 	
 	var content = `
 		<p>내용이 짧은 문서 (문서 이름공간, 리다이렉트 제외)</p>
@@ -2295,21 +2015,17 @@ wiki.get('/ShortestPages', async function shortestPages(req, res) {
 		<ul class=wiki-list>
 	`;
 	
-	for(i of curs.fetchall())
-        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	for(var i of data)
+        content += '<li><a href="/w/' + encodeURIComponent(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
 	
 	content += '</ul>' + navbtn(0, 0, 0, 0);
 	
 	res.send(render(req, '내용이 짧은 문서', content, {}));
 });
 
-wiki.get('/LongestPages', async function longestPages(req, res) {
+wiki.get(/^\/LongestPages$/, async function longestPages(req, res) {
 	var from = req.query['from'];
 	if(!from) ns = '1';
-	
-	var sql = 'select title from documents where ';
-	
-	const nmsplst = await fetchNamespaces();
 	
 	var sql_num = 0;
     if(from > 0)
@@ -2317,17 +2033,7 @@ wiki.get('/LongestPages', async function longestPages(req, res) {
     else
         sql_num = 0;
 	
-	for(nsp of nmsplst) {
-		if(nsp == '문서') continue;
-		
-		sql += `not title like '${nsp}:%' and `;
-	}
-	
-	sql = sql.replace(/and\s$/, '');
-	
-	sql += "order by length(content) desc limit ?, '122'";
-	
-	await curs.execute(sql, [sql_num]);
+	var data = await curs.execute("select title from documents where namespace = '문서' order by length(content) desc limit ?, '122'", [sql_num]);
 	
 	var content = `
 		<p>내용이 긴 문서 (문서 이름공간, 리다이렉트 제외)</p>
@@ -2337,8 +2043,8 @@ wiki.get('/LongestPages', async function longestPages(req, res) {
 		<ul class=wiki-list>
 	`;
 	
-	for(i of curs.fetchall())
-        content += '<li><a href="/w/' + encodeURI(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	for(var i of data)
+        content += '<li><a href="/w/' + encodeURIComponent(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
 	
 	content += '</ul>' + navbtn(0, 0, 0, 0);
 	
