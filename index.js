@@ -129,6 +129,7 @@ wiki.use(session({
 	}
 }));
 
+var ipRangeCheck = require("ip-range-check");
 var bodyParser = require('body-parser');
 var multer = require('multer');
 var upload = multer();
@@ -180,6 +181,9 @@ try {
 		'account_creation': ['key', 'email', 'time'],
 		'acl': ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
 		'ipacl': ['cidr', 'al', 'expiration', 'note', 'date'],
+		'suspend_account': ['username', 'date', 'expiration', 'note'],
+		'aclgroup_groups': ['name', 'admin', 'date', 'lastupdate'],
+		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration'],
 	};
 	
 	for(var table in tables) {
@@ -392,7 +396,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 
 function fetchErrorString(code) {
 	const codes = {
-		
+		insufficient_privileges: '권한이 부족합니다.',
 	};
 	
 	if(typeof(codes[code]) == 'undefined') return code;
@@ -439,6 +443,9 @@ async function getacl(req, title, namespace, type, getmsg) {
 	var doc = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [title, namespace, type]);
 	var flag = 0;
 	
+	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
+	
 	function f(table) {
 		if(!table.length && !flag) {
 			flag = 1;
@@ -455,6 +462,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 		for(var row of table) {
 			if(row.conditiontype == 'perm') {
 				var ret = 0;
+				var msg = '', m1 = '', m2 = '';
 				switch(row.condition) {
 					case 'any': {
 						ret = 1;
@@ -465,7 +473,13 @@ async function getacl(req, title, namespace, type, getmsg) {
 					} break; case 'member_signup_15days_ago': {
 						// 나중에
 					} break; case 'blocked_ipacl': {
-						// 차단 기능 구현 후 예정
+						for(let row of ipacl) {
+							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
+								ret = 1;
+								msg = 'IP가 차단되었습니다.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+								break;
+							}
+						}
 					} break; case 'suspend_account': {
 						// 차단 기능 구현 후 예정
 					} break; case 'document_contributor': {
@@ -489,6 +503,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						break;
 					} else if(row.action == 'deny') {
 						r.ret = 0;
+						r.msg = msg;
 						break;
 					} else if(row.action == 'gotons') {
 						r = f(ns);
@@ -535,7 +550,24 @@ async function getacl(req, title, namespace, type, getmsg) {
 	
 	const r = f(doc);
 	if(!getmsg) return r.ret;
-	else return r.msg;  // 거부되었으면 오류메시지 내용반환 허용은 빈문자열
+	if(!r.ret && !r.msg) {
+		r.msg = `${r.m1}${
+			({
+				read: '읽기',
+				edit: '편집',
+				move: '이동',
+				delete: '삭제',
+				create_thread: '토론 생성',
+				write_thread_comment: '토론 댓글',
+				edit_request: '편집요청',
+				acl: 'ACL',
+			})[type]
+		} 권한이 부족합니다.${r.m2}`;
+		// 해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.
+		if(type == 'edit')
+			r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
+	}
+	return r.msg;  // 거부되었으면 오류메시지 내용반환 허용은 빈문자열
 }
 
 function navbtn(cs, ce, s, e) {
@@ -854,11 +886,11 @@ wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 	`;
 	
 	var httpstat = 200;
-	
-	if(!await getacl(req, doc.title, doc.namespace, 'edit')) {
+	const aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
+	if(aclmsg) {
 		error = true;
 		content = `
-			${alertBalloon('편집 권한이 부족합니다. 대신 <strong><a href="/new_edit_request/' + html.escape(title) + '">편집 요청</a></strong>을 생성하실 수 있습니다.', 'danger', true, 'fade in edit-alert')}
+			${alertBalloon(aclmsg, 'danger', true, 'fade in edit-alert')}
 		` + content.replace('<textarea', '<textarea readonly=readonly') + `
 			</form>
 		`;
@@ -1020,6 +1052,12 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				if(data.length) return res.status(400).json({
 					status: fetchErrorString('acl_already_exists'),
 				});
+				if(cond[0] == 'aclgroup') {
+					var data = await curs.execute("select name from aclgroup_groups where name = ?", [cond[1]]);
+					if(!data.length) return res.status(400).json({
+						status: fetchErrorString('invalid_aclgroup'),
+					});
+				}
 				
 				const expiration = String(expire ? (getTime() + Number(expire) * 1000) : 0);
 				if(isNS) var data = await curs.execute("select id from acl where type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [type, doc.namespace]);
@@ -2281,6 +2319,220 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	res.send(render(req, doc + ' (삭제)', content, {
 		document: doc,
 	}, '', _, 'delete'));
+});
+
+wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
+	if(!hasperm(req, 'ipacl')) return res.status(403).send(showError(req, 'insufficient_privileges'));
+	await curs.execute("delete from ipacl where cidr = ?", [req.body['ip']]);
+	return res.redirect('/admin/ipacl');
+});
+
+wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	
+	if(!hasperm(req, 'ipacl')) return res.status(403).send(showError(req, 'insufficient_privileges'));
+	
+	var content = `
+		<form method="post" class="settings-section">
+    		<div class="form-group">
+    			<label class="control-label">IP 주소 (CIDR<sup><a href="https://ko.wikipedia.org/wiki/%EC%82%AC%EC%9D%B4%EB%8D%94_(%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%82%B9)" target="_blank">[?]</a></sup>) :</label>
+    			<div>
+    				<input type="text" class="form-control" id="ipInput" name="ip" />
+    			</div>
+    		</div>
+
+    		<div class="form-group">
+    			<label class="control-label">메모 :</label>
+    			<div>
+    				<input type="text" class="form-control" id="noteInput" name="note" />
+    			</div>
+    		</div>
+
+    		<div class="form-group">
+    			<label class="control-label">차단 기간 :</label>
+    			<select class="form-control" name="expire">
+    				<option value="0" selected="">영구</option>
+    				<option value="300">5분</option>
+    				<option value="600">10분</option>
+    				<option value="1800">30분</option>
+    				<option value="3600">1시간</option>
+    				<option value="7200">2시간</option>
+    				<option value="86400">하루</option>
+    				<option value="259200">3일</option>
+    				<option value="432000">5일</option>
+    				<option value="604800">7일</option>
+    				<option value="1209600">2주</option>
+    				<option value="1814400">3주</option>
+    				<option value="2419200">4주</option>
+    				<option value="4838400">2개월</option>
+    				<option value="7257600">3개월</option>
+    				<option value="14515200">6개월</option>
+    				<option value="29030400">1년</option>
+    			</select>
+    		</div>
+
+    		<div class="form-group">
+    			<label class="control-label">로그인 허용 :</label>
+    			<div class="checkbox">
+    				<label>
+    					<input type="checkbox" id="allowLoginInput" name="allow_login">&nbsp;&nbsp;Yes
+    				</label>
+    			</div>
+    		</div>
+
+    		<div class="btns" style="margin-bottom: 20px;">
+    			<button type="submit" class="btn btn-primary" style="width: 90px;">추가</button>
+    		</div>
+    	</form>
+		
+		<div class="line-break" style="margin: 20px 0;"></div>
+		
+		<!-- 내비버튼 -->
+		
+		<form class="form-inline pull-right" id="searchForm" method=get>
+    		<div class="input-group">
+    			<input type="text" class="form-control" id="searchQuery" name="from" placeholder="CIDR" />
+    			<span class="input-group-btn">
+    				<button type=submit class="btn btn-primary">Go</button>
+    			</span>
+    		</div>
+    	</form>
+		
+		<div class="table-wrap">
+			<table class="table" style="margin-top: 7px;">
+				<colgroup>
+					<col style="width: 150px;">
+					<col>
+					<col style="width: 200px">
+					<col style="width: 160px">
+					<col style="width: 60px">
+					<col style="width: 60px;">
+				</colgroup>
+				<thead>
+					<tr style="vertical-align: bottom; border-bottom: 2px solid #eceeef;">
+						<th>IP</th>
+						<th>메모</th>
+						<th>차단일</th>
+						<th>만료일</th>
+						<th style="text-align: center;">AL</th>
+						<th style="text-align: center;">작업</th>
+					</tr>
+				</thead>
+				<tbody>
+					
+	`;
+	
+	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl order by cidr asc limit 50");
+	for(var row of data) {
+		content += `
+			<tr>
+				<td>${row.cidr}</td>
+				<td>${row.note}</td>
+				<td>${generateTime(toDate(row.date), timeFormat)}
+				<td>${!Number(row.expiration) ? '영구' : generateTime(toDate(row.expiration), timeFormat)}
+				<td>${row.al == '1' ? 'Y' : 'N'}</td>
+				<td class="text-center">
+					<form method=post onsubmit="return confirm('정말로?');" action="/admin/ipacl/remove">
+						<input type=hidden name=ip value="${row.cidr}">
+						<input type=submit class="btn btn-sm btn-danger" value="삭제">
+					</form>
+				</td>
+			</tr>
+		`;
+	}
+	
+	content += `
+				</tbody>
+    		</table>
+    	</div>
+    	<div class="text-right pull-right">
+    		AL = Allow Login(로그인 허용)
+    	</div>
+	`;
+	
+	var error = false;
+	
+	if(req.method == 'POST') {
+		var { ip, allow_login, expire, note } = req.body;
+		if(!ip.includes('/')) ip += '/32';
+		if(!ip.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/)) error = true, content = alertBalloon(fetchErrorString('invalid_cidr'), 'danger', true, 'fade in edit-alert') + content;
+		else {
+			const date = getTime();
+			const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
+			var data = await curs.execute("select cidr from ipacl where cidr = ? limit 1", [ip]);
+			if(data.length) error = true, content = alertBalloon(fetchErrorString('ipacl_already_exists'), 'danger', true, 'fade in edit-alert') + content;
+			else {
+				await curs.execute("insert into ipacl (cidr, al, expiration, note, date) values (?, ?, ?, ?, ?)", [ip, allow_login ? '1' : '0', expiration, note, date]);
+				return res.redirect('/admin/ipacl');
+			}
+		}
+	}
+	
+	res.send(render(req, 'IPACL', content, {
+	}, '', error, 'ipacl'));
+});
+
+wiki.get(/^\/aclgroup$/, async(req, res) => {
+	var content = `
+		<ul class="nav nav-tabs" style="height: 38px;">
+			<li class="nav-item">
+				<a class="nav-link active" href="?group=테스트">테스트 <form method=post action="/aclgroup/delete?group=테스트" style="display: inline-block; margin: 0; padding: 0;"><button type=submit>×</button></form></a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" href="#">+</a>
+			</li>
+		</ul>
+
+		<form method="post" class="settings-section">
+    		<div class="form-group">
+    			<div>
+					<select class=form-control name=mode>
+						<option value=ip>아이피</option>
+						<option value=username>사용자 이름</option>
+					</select>
+    				<input type="text" class="form-control" name="username" />
+    			</div>
+    		</div>
+
+    		<div class="form-group">
+    			<label class="control-label">메모 :</label>
+    			<div>
+    				<input type="text" class="form-control" id="noteInput" name="note" />
+    			</div>
+    		</div>
+
+    		<div class="form-group">
+    			<label class="control-label">기간 :</label>
+    			<select class="form-control" name="expire">
+    				<option value="0" selected="">영구</option>
+    				<option value="300">5분</option>
+    				<option value="600">10분</option>
+    				<option value="1800">30분</option>
+    				<option value="3600">1시간</option>
+    				<option value="7200">2시간</option>
+    				<option value="86400">하루</option>
+    				<option value="259200">3일</option>
+    				<option value="432000">5일</option>
+    				<option value="604800">7일</option>
+    				<option value="1209600">2주</option>
+    				<option value="1814400">3주</option>
+    				<option value="2419200">4주</option>
+    				<option value="4838400">2개월</option>
+    				<option value="7257600">3개월</option>
+    				<option value="14515200">6개월</option>
+    				<option value="29030400">1년</option>
+    			</select>
+    		</div>
+
+    		<div class="btns" style="margin-bottom: 20px;">
+    			<button type="submit" class="btn btn-primary" style="width: 90px;">추가</button>
+    		</div>
+    	</form>
+	`;
+	
+	res.send(render(req, 'ACLGroup', content, {
+	}, '', _, 'aclgroup'));
 });
 
 wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
