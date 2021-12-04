@@ -4,7 +4,7 @@ const perms = [
 	'admin', 'ipacl', 'suspend_account', 'developer', 'hideip', 'update_thread_document',
 	'update_thread_status', 'update_thread_topic', 'hide_thread_comment', 'grant',
 	'editable_other_user_document', 'no_force_recaptcha', 'disable_two_factor_login',
-	'login_history', 'delete_thread', 'nsacl'
+	'login_history', 'delete_thread', 'nsacl', 'aclgroup',
 ];
 
 function print(x) { console.log(x); }
@@ -183,7 +183,7 @@ try {
 		'ipacl': ['cidr', 'al', 'expiration', 'note', 'date'],
 		'suspend_account': ['username', 'date', 'expiration', 'note'],
 		'aclgroup_groups': ['name', 'admin', 'date', 'lastupdate'],
-		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration'],
+		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
 	};
 	
 	for(var table in tables) {
@@ -202,7 +202,7 @@ try {
 	
 	fs.writeFileSync('config.json', JSON.stringify(hostconfig), 'utf8');
 	
-	print('엔진을 다시 시작하십시오.');
+	print('\n준비 완료되었습니다. 엔진을 다시 시작하십시오.');
 	process.exit(0);
 })(); } if(_ready) {
 
@@ -733,8 +733,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				` + content;
 			}
 			
-			if(rev)
-				content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
+			if(rev) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 			
 			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 			lstedt = Number(data[0].time);
@@ -1081,7 +1080,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				if(cond[0] == 'member') {
 					var data = await curs.execute("select username from users where username = ?", [cond[1]]);
 					if(!data.length) return res.status(400).json({
-						status: fetchErrorString('사용자 이름이 올바르지 않습니다.'),
+						status: '사용자 이름이 올바르지 않습니다.',
 					});
 				}
 				
@@ -2499,15 +2498,70 @@ wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	}, '', error, 'ipacl'));
 });
 
+wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	if(!hasperm(req, 'aclgroup')) return res.send(showError(req, 'insufficient_privileges'));
+	
+	var content = `
+		<form method=post>
+			<div class=form-group>
+				<label>그룹 이름: </label><br />
+				<input type=text name=group class=form-control />
+			</div>
+			
+			<div class=btns>
+				<button type=submit class="btn btn-primary" style="width: 100px;">생성</button>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST') {
+		const { group } = req.body;
+		if(!group) content = alertBalloon('ACL그룹의 값은 필수입니다.', 'danger', true, 'fade in') + content;
+		else {
+			var data = await curs.execute("select name from aclgroup_groups where name = ?", [group]);
+			if(data.length) content = alertBalloon(fetchErrorString('aclgroup_already_exists'), 'danger', true, 'fade in') + content;
+			else {
+				await curs.execute("insert into aclgroup_groups (name) values (?)", [group]);
+				return res.redirect('/aclgroup');
+			}
+		}
+	}
+	
+	res.send(render(req, 'ACL그룹 생성', content, {}, '', false, _));
+});
+
+wiki.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
+	if(!hasperm(req, 'aclgroup')) return res.send(showError(req, 'insufficient_privileges'));
+	const { group } = req.body;
+	if(!group) return res.redirect('/aclgroup');
+	await curs.execute("delete from aclgroup_groups where name = ?", [group]);
+	res.redirect('/aclgroup');
+});
+
 wiki.get(/^\/aclgroup$/, async(req, res) => {
+	var data = await curs.execute("select name from aclgroup_groups", []);
+	const editable = hasperm(req, 'aclgroup');
+	
+	var tabs = ``;
+	const group = req.query['group'] || (data.length ? data[0].name : null);
+	for(var g of data) {
+		const delbtn = `<form method=post onsubmit="return confirm('삭제하시겠습니까?');" action="/aclgroup/delete?group=${encodeURIComponent(g.name)}" style="display: inline-block; margin: 0; padding: 0;"><input type=hidden name=group value="${html.escape(g.name)}" /><button type=submit style="background: none; border: none; padding: 0; margin: 0;">×</button></form>`;
+		tabs += `
+			<li class="nav-item">
+				<a class="nav-link${g.name == group ? ' active' : ''}" href="?group=${encodeURIComponent(g.name)}">${html.escape(g.name)} ${editable ? delbtn : ''}</a>
+			</li>
+		`;
+	}
+	
 	var content = `
 		<ul class="nav nav-tabs" style="height: 38px;">
+			${tabs}
+			${editable ? `
 			<li class="nav-item">
-				<a class="nav-link active" href="?group=테스트">테스트 <form method=post action="/aclgroup/delete?group=테스트" style="display: inline-block; margin: 0; padding: 0;"><button type=submit>×</button></form></a>
+				<a class="nav-link" href="/aclgroup/create">+</a>
 			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="#">+</a>
-			</li>
+			` : ''}
 		</ul>
 
 		<form method="post" class="settings-section">
@@ -2555,6 +2609,49 @@ wiki.get(/^\/aclgroup$/, async(req, res) => {
     			<button type="submit" class="btn btn-primary" style="width: 90px;">추가</button>
     		</div>
     	</form>
+	`;
+	
+	if(group) content += `	
+		<div class="line-break" style="margin: 20px 0;"></div>
+		
+		<!-- 내비버튼 -->
+		
+		<form class="form-inline pull-right" id="searchForm" method=get>
+    		<div class="input-group">
+    			<input type="text" class="form-control" id="searchQuery" name="from" placeholder="ID" />
+    			<span class="input-group-btn">
+    				<button type=submit class="btn btn-primary">Go</button>
+    			</span>
+    		</div>
+    	</form>
+		
+		<div class="table-wrap">
+			<table class="table" style="margin-top: 7px;">
+				<colgroup>
+					<col style="width: 150px;">
+					<col style="width: 150px;">
+					<col>
+					<col style="width: 200px">
+					<col style="width: 160px">
+					<col style="width: 60px;">
+				</colgroup>
+				<thead>
+					<tr style="vertical-align: bottom; border-bottom: 2px solid #eceeef;">
+						<th>ID</th>
+						<th>대상</th>
+						<th>메모</th>
+						<th>생성일</th>
+						<th>만료일</th>
+						<th style="text-align: center;">작업</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td colspan=6>ACL 그룹이 비어있습니다.</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
 	`;
 	
 	res.send(render(req, 'ACLGroup', content, {
