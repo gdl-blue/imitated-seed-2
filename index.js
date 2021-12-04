@@ -39,7 +39,7 @@ const exec = eval;
 
 const { SHA3 } = require('sha3');
  
-const hash = new SHA3(512);
+const hash = new SHA3(256);
 
 function sha3(p) {
 	hash.update(p);
@@ -163,7 +163,7 @@ try {
 	
 	const tables = {
 		'documents': ['title', 'content', 'namespace'],
-		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember'],
+		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags'],
 		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
 		'users': ['username', 'password'],
 		'user_settings': ['username', 'key', 'value'],
@@ -279,6 +279,8 @@ function getSkin() {
 }
 
 function getperm(perm, username) {
+	if(!islogin(req)) return false;
+	if(!permlist[ip_check(req)]) permlist[ip_check(req)] = [];
 	return permlist[username].includes(perm);
 	/* await curs.execute("select perm from perms where username = ? and perm = ?", [username, perm]);
 	if(curs.fetchall().length) {
@@ -331,6 +333,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 	templateVariables['content'] = content;
 	templateVariables['perms'] = perms;
 	templateVariables['url'] = req.path;
+	templateVariables['error'] = error;
 	
 	if(islogin(req)) {
 		templateVariables['member'] = {
@@ -431,8 +434,102 @@ function ip_pas(ip = '', ismember = '') {
 	}
 }
 
-async function getacl(title, type) {
-	return 1;
+async function getacl(req, title, namespace, type, getmsg) {
+	var doc = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [namespace, type]);
+	var ns  = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [title, namespace, type]);
+	var flag = 0;
+	
+	function f(table) {
+		if(!table.length && !flag) {
+			flag = 1;
+			return f(ns);
+		}
+		
+		var r = {
+			ret: 0, 
+			m1: '', 
+			m2: '', 
+			msg: '',
+		};
+		
+		for(var row of table) {
+			if(row.conditiontype == 'perm') {
+				var ret = 0;
+				switch(row.condition) {
+					case 'any': {
+						ret = 1;
+					} break; case 'member': {
+						if(islogin(req)) ret = 1;
+					} break; case 'admin': {
+						if(hasperm(req, 'admin')) ret = 1;
+					} break; case 'member_signup_15days_ago': {
+						// 나중에
+					} break; case 'blocked_ipacl': {
+						// 차단 기능 구현 후 예정
+					} break; case 'suspend_account': {
+						// 차단 기능 구현 후 예정
+					} break; case 'document_contributor': {
+						// 나중에
+					} break; case 'contributor': {
+						// 나중에
+					} break; case 'match_username_and_document_title': {
+						if(islogin(req) && ip_check(req) == title.split('/')[0]) ret = 1;
+					}
+				}
+				
+				if(ret) {
+					if(row.action == 'allow') {
+						r.ret = 1;
+						break;
+					} else if(row.action == 'deny') {
+						r.ret = 0;
+						break;
+					} else if(row.action == 'gotons') {
+						r = f(ns);
+						break;
+					} else break;
+				}
+			} else if(row.conditiontype == 'member') {
+				if(ip_check(req) == row.condition && islogin(req)) {
+					if(row.action == 'allow') {
+						r.ret = 1;
+						break;
+					} else if(row.action == 'deny') {
+						r.ret = 0;
+						break;
+					} else if(row.action == 'gotons') {
+						r = f(ns);
+						break;
+					} else break;
+				}
+			} else if(row.conditiontype == 'ip') {
+				if(ip_check(req, 1) == row.condition) {
+					if(row.action == 'allow') {
+						r.ret = 1;
+						break;
+					} else if(row.action == 'deny') {
+						r.ret = 0;
+						break;
+					} else if(row.action == 'gotons') {
+						r = f(ns);
+						break;
+					} else break;
+				}
+			} else if(row.conditiontype == 'geoip') {
+				// geoip-lite 모듈사용
+				continue;
+			} else if(row.conditiontype == 'aclgroup') {
+				// 나중에
+				continue;
+			}
+		}
+		
+		return r;
+	}
+	
+	const r = f(doc);
+	if(!getmsg) return r.ret;
+	else return r.msg;  // 거부되었으면 오류메시지 내용반환 허용은 빈문자열
 }
 
 function navbtn(cs, ce, s, e) {
@@ -573,7 +670,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	var lstedt = undefined;
 	
 	try {
-		if(!await getacl(doc.title, doc.namespace, 'read')) {
+		if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 			httpstat = 403;
 			error = true;
 			return res.status(403).send(showError(req, 'insufficient_privileges_read'));
@@ -594,11 +691,11 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	} catch(e) {
 		viewname = 'notfound';
 		
-		print(`[오류!] ${e}`);
+		print(e.stack);
 		
 		httpstat = 404;
 		
-		var data = await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		var data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 3",
 						[doc.title, doc.namespace]);
 		
@@ -606,7 +703,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			<p>해당 문서를 찾을 수 없습니다.</p>
 			
 			<p>
-				<a rel="nofollow" href="/edit/` + encodeURIComponent(totitle(doc.title, doc.namespace)) + `">[새 문서 만들기]</a>
+				<a rel="nofollow" href="/edit/` + encodeURIComponent(doc + '') + `">[새 문서 만들기]</a>
 			</p>
 		`;
 		
@@ -619,7 +716,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			for(var row of data) {
 				content += `
 					<li>
-						${generateTime(toDate(row.time), timeFormat)} <strong>r${row.rev}</strong> ${row.advance != 'normal' ? `<i>(${edittype(row.advance)})</i>` : ''} (<span style="color: ${
+						${generateTime(toDate(row.time), timeFormat)} <strong>r${row.rev}</strong> ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''} (<span style="color: ${
 							(
 								Number(row.changes) > 0
 								? 'green'
@@ -636,6 +733,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			
 			content += `
 				</ul>
+				<a href="/history/` + encodeURIComponent(doc + '') + `">[더보기]</a>
 			`;
 		}
 	}
@@ -702,7 +800,7 @@ wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	
-	if(!await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.status(403).send(showError(req, 'insufficient_privileges_read'));
 	}
 	
@@ -750,7 +848,7 @@ wiki.get(/^\/edit\/(.*)/, async function editDocument(req, res) {
 	
 	var httpstat = 200;
 	
-	if(!await getacl(doc.title, doc.namespace, 'edit')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'edit')) {
 		error = true;
 		content = `
 			${alertBalloon('편집 권한이 부족합니다. 대신 <strong><a href="/new_edit_request/' + html.escape(title) + '">편집 요청</a></strong>을 생성하실 수 있습니다.', 'danger', true, 'fade in edit-alert')}
@@ -809,7 +907,7 @@ wiki.post(/^\/edit\/(.*)/, async function saveDocument(req, res) {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	
-	if(!await getacl(doc.title, doc.namespace, 'edit') || !await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'edit') || !await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.send(showError(req, 'insufficient_privileges_edit'));
 	}
 	
@@ -883,6 +981,18 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 	}
 	
 	if(req.method == 'POST') {
+		var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		if(!rawContent[0]) rawContent = '';
+		else rawContent = rawContent[0].content;
+		
+		var baserev;
+		var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
+		try {
+			baserev = data[0].rev;
+		} catch(e) {
+			baserev = 0;
+		}
+		
 		const { id, after_id, mode, type, isNS, condition, action, expire } = req.body;
 		if(!types.includes(type)) return res.status(400).send('');
 		
@@ -893,11 +1003,16 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 		
 		switch(mode) {
 			case 'insert': {
-				if(!['allow', 'deny', 'gotons'].includes(action)) return res.status(400).send('');
+				if(!['allow', 'deny'].concat(isNS ? [] : ['gotons']).includes(action)) return res.status(400).send('');
 				if(Number(expire) === NaN) return res.status(400).send('');
 				const cond = condition.split(':');
 				if(cond.length != 2) return res.status(400).send('');
-				if(!['perm', 'ip', 'member', 'geoip'].includes(cond[0])) return res.status(400).send('');
+				if(!['perm', 'ip', 'member', 'geoip', 'aclgroup'].includes(cond[0])) return res.status(400).send('');
+				if(isNS) var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.namespace]);
+				else var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.title, doc.namespace]);
+				if(data.length) return res.status(400).json({
+					status: fetchErrorString('acl_already_exists'),
+				});
 				
 				const expiration = String(expire ? (getTime() + Number(expire) * 1000) : 0);
 				if(isNS) var data = await curs.execute("select id from acl where type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [type, doc.namespace]);
@@ -911,12 +1026,42 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				
 				// ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
 				await curs.execute("insert into acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) values (?, ?, ?, ?, ?, ?, ?, ?, ?)", [isNS ? '' : doc.title, doc.namespace, aclid, type, action, expire == '0' ? '0' : expiration, cond[0], cond[1], isNS ? '1' : '0']);
+				
+				curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+					doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + action + ',' + condition
+				]);
+				
 				return res.send(await tbody(type, isNS, edit));
 			} case 'delete': {
+				var data = await curs.execute("select action, conditiontype, condition from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
+				if(!data.length) return res.status(400).send('');
 				await curs.execute("delete from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
+				
+				curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+					doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + data[0].action + ',' + data[0].conditiontype + ':' + data[0].condition
+				]);
+				
 				return res.send(await tbody(type, isNS, edit));
 			} case 'move': {
-				return res.status(400).send('');
+				if(id > after_id) {  // 위로 올림
+					for(var i=id; i>=after_id+2; i--) {
+						const rndv = rndval('0123456789abcdefghijklmnopqrstuvwxyz') + ip_check(req) + getTime();
+						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [rndv, String(i - 1), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i - 1), String(i), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i), rndv, isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+					}
+				} else {  // 아래로 내림
+					for(var i=id; i<after_id; i++) {
+						const rndv = rndval('0123456789abcdefghijklmnopqrstuvwxyz') + ip_check(req) + getTime();
+						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [rndv, String(i + 1), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i + 1), String(i), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i), rndv, isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+					}
+				}
+				
+				return res.send(await tbody(type, isNS, edit));
 			}
 		}
 	} else {
@@ -972,6 +1117,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 										<option value="member">사용자</option>
 										<option value="ip">아이피</option>
 										<option value="geoip">GeoIP</option>
+										<option value="aclgroup">ACL그룹</option>
 									</select>
 									<select class="seed-acl-add-condition-value-perm form-control" id="permTextWTC">
 										<option value="any">아무나</option>
@@ -993,6 +1139,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 									<select class="seed-acl-add-action form-control">
 										<option value="allow">허용</option>
 										<option value="deny">거부</option>
+										${isns ? '' : `<option value="gotons">이름공간ACL 실행</option>`}
 									</select>
 								</div>
 							</div>
@@ -1046,7 +1193,7 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 	if(!['all', 'create', 'delete', 'move', 'revert'].includes(flag)) flag = 'all';
 	if(flag == 'all') flag = '%';
 	
-	var data = await curs.execute("select title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+	var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 					where " + (flag == '%' ? "not namespace = '사용자' and " : '') + "advance like ? order by cast(time as integer) desc limit 100", 
 					[flag]);
 	
@@ -1120,7 +1267,7 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 		if(row.log.length > 0 || row.advance != 'normal') {
 			content += `
 				<td colspan="3" style="padding-left: 1.5rem;">
-					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance)})</i>` : ''}
+					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
 				</td>
 			`;
 		}
@@ -1138,7 +1285,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function document
 	const ismember = req.params[0];
 	const username = req.params[1];
 	
-	var data = await curs.execute("select title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+	var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username
 				]);
@@ -1214,7 +1361,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function document
 		if(row.log.length > 0 || row.advance != 'normal') {
 			content += `
 				<td colspan="3" style="padding-left: 1.5rem;">
-					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance)})</i>` : ''}
+					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
 				</td>
 			`;
 		}
@@ -1370,24 +1517,24 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	const until = req.query['until'];
 	title = totitle(doc.title, doc.namespace);
 	
-	if(!await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.send(showError('insufficient_privileges_read'));
 	}
 	
 	var data;
 	
 	if(from) {  // 더시드에서 from이 더 우선임
-		data = await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 						where title = ? and namespace = ? and (cast(rev as integer) <= ? AND cast(rev as integer) > ?) \
 						order by cast(rev as integer) desc",
 						[doc.title, doc.namespace, Number(from), Number(from) - 30]);
 	} else if(until) {
-		data = await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 						where title = ? and namespace = ? and (cast(rev as integer) >= ? AND cast(rev as integer) < ?) \
 						order by cast(rev as integer) desc",
 						[doc.title, doc.namespace, Number(until), Number(until) + 30]);
 	} else {
-		data = await curs.execute("select rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 30",
 						[doc.title, doc.namespace]);
 	}
@@ -1425,7 +1572,7 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 					<input type="radio" name="oldrev" value="${row.rev}">
 					<input type="radio" name="rev" value="${row.rev}">
 
-					${row.advance != 'normal' ? `<i>(${edittype(row.advance)})</i>` : ''}
+					${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
 					
 					<strong>r${row.rev}</strong> 
 					
@@ -1469,7 +1616,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	var state = req.query['state'];
 	if(!state) state = '';
 	
-	if(!await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.send(showError('insufficient_privileges_read'));
 	}
 	
@@ -1643,11 +1790,11 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	
-	if(!await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.send(showError('insufficient_privileges_read'));
 	}
 	
-	if(!await getacl(doc.title, doc.namespace, 'create_thread')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'create_thread')) {
 		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
@@ -1684,7 +1831,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	const status = data[0]['status'];
 	const doc = totitle(title, namespace);
 	
-	if(!await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.send(showError(req, 'insufficient_privileges_read'));
 	}
 	
@@ -1809,11 +1956,11 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	const namespace = data[0]['namespace'];
 	const doc = totitle(title, namespace);
 	
-	if(!await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.send(showError('insufficient_privileges_read'));
 	}
 	
-	if(!await getacl(doc.title, doc.namespace, 'write_thread_comment')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'write_thread_comment')) {
 		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
@@ -1849,7 +1996,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	const status = data[0]['status'];
 	const doc = totitle(title, namespace);
 	
-	if(!await getacl(doc.title, doc.namespace, 'read')) {
+	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 		return res.send(showError(req, 'insufficient_privileges_read'));
 	}
 	
@@ -2268,10 +2415,13 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 			var duplicate = 1;
 		}
 		if(id.length && !duplicate && pw.length && pw == pw2) {
+			permlist[id] = [];
+			
 			var data = await curs.execute("select username from users");
 			if(!data.length) {
 				for(var perm of perms) {
 					curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
+					permlist[id].push(perm);
 				}
 			}
 			
@@ -2487,7 +2637,7 @@ wiki.use(function(req, res, next) {
 	}
 })();
 
-const server = wiki.listen(hostconfig['port']); // 서버실행
+const server = wiki.listen(hostconfig['port'], hostconfig['host']);  // 서버실행
 print(String(hostconfig['host']) + ":" + String(hostconfig['port']) + "에 실행 중. . .");
 
 }
