@@ -174,7 +174,7 @@ try {
 		'stars': ['title', 'namespace', 'username', 'lastedit'],
 		'perms': ['perm', 'username'],
 		'threads': ['title', 'namespace', 'topic', 'status', 'time', 'tnum'],
-		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin'],
+		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin', 'type'],
 		'useragents': ['username', 'string'],
 		'login_history': ['username', 'ip'],
 		'account_creation': ['key', 'email', 'time'],
@@ -279,8 +279,8 @@ function getSkin() {
 }
 
 function getperm(perm, username) {
-	if(!islogin(req)) return false;
-	if(!permlist[ip_check(req)]) permlist[ip_check(req)] = [];
+	// if(!islogin(req)) return false;
+	if(!permlist[username]) permlist[username] = [];
 	return permlist[username].includes(perm);
 	/* await curs.execute("select perm from perms where username = ? and perm = ?", [username, perm]);
 	if(curs.fetchall().length) {
@@ -435,8 +435,8 @@ function ip_pas(ip = '', ismember = '') {
 }
 
 async function getacl(req, title, namespace, type, getmsg) {
-	var doc = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [namespace, type]);
-	var ns  = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [title, namespace, type]);
+	var ns  = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [namespace, type]);
+	var doc = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [title, namespace, type]);
 	var flag = 0;
 	
 	function f(table) {
@@ -474,6 +474,12 @@ async function getacl(req, title, namespace, type, getmsg) {
 						// 나중에
 					} break; case 'match_username_and_document_title': {
 						if(islogin(req) && ip_check(req) == title.split('/')[0]) ret = 1;
+					} break; case 'ip': {
+						if(!islogin(req)) ret = 1;
+					} break; case 'bot': {
+						// 나중에
+					} break; default: {
+						if(islogin(req) && hasperm(req, row.condition)) ret = 1;
 					}
 				}
 				
@@ -579,10 +585,6 @@ wiki.get('/css/:filepath', function dropCSS(req, res) {
 	res.sendFile(filepath, { root: "./css" });
 });
 
-function redirectToFrontPage(req, res) {
-	res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
-}
-
 function processTitle(d) {
 	const sp = d.split(':');
 	var ns = sp[0];
@@ -650,6 +652,10 @@ function edittype(type, ...flags) {
 	return ret;
 }
 
+function redirectToFrontPage(req, res) {
+	res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
+}
+
 wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
@@ -673,7 +679,8 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		if(!await getacl(req, doc.title, doc.namespace, 'read')) {
 			httpstat = 403;
 			error = true;
-			return res.status(403).send(showError(req, 'insufficient_privileges_read'));
+			content = '<h2>읽기 권한이 부족합니다. getacl getmsg</h2>';
+			// return res.status(403).send(showError(req, 'insufficient_privileges_read'));
 		} else {
 			content = markdown(rawContent[0].content);
 			
@@ -1027,7 +1034,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				// ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
 				await curs.execute("insert into acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) values (?, ?, ?, ?, ?, ?, ?, ?, ?)", [isNS ? '' : doc.title, doc.namespace, aclid, type, action, expire == '0' ? '0' : expiration, cond[0], cond[1], isNS ? '1' : '0']);
 				
-				curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+				if(!isNS) curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
 					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 					doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + action + ',' + condition
 				]);
@@ -1038,7 +1045,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				if(!data.length) return res.status(400).send('');
 				await curs.execute("delete from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
 				
-				curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+				if(!isNS) curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
 					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 					doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + data[0].action + ',' + data[0].conditiontype + ':' + data[0].condition
 				]);
@@ -2002,7 +2009,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	
 	content = ``;
 	
-	var data = await curs.execute("select id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
+	var data = await curs.execute("select type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
 	for(var rs of data) {
 		content += `
 			<div class=res-wrapper data-id="${rs['id']}">
@@ -2023,8 +2030,15 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 							  )
 							: (
 								rs['status'] == 1
-								? rs['content']
-								: markdown(rs['content'])
+								? (
+									rs.type == 'status'
+									? '스레드 상태를 <strong>' + rs['content'] + '</strong>로 변경'
+									: (
+										rs.type == 'document'
+										? '스레드를 <strong>' + rs['content'] + '</strong> 문서로 이동'
+										: '스레드 주제를 <strong>' + rs['content'] + '</strong>로 변경'
+									)
+								) : markdown(rs['content'])
 							)
 						}
 					</div>
@@ -2096,9 +2110,9 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 	}
 	
 	curs.execute("update threads set status = ? where tnum = ?", [newstatus, tnum]);
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
-					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
-						String(rescount + 1), '스레드 상태를 <strong>' + newstatus + '</strong>로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
+	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
+					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'status')", [
+						String(rescount + 1), newstatus, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -2122,9 +2136,9 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 	}
 	
 	curs.execute("update threads set title = ? where tnum = ?", [newdoc, tnum]);
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
-					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
-						String(rescount + 1), '스레드를 <strong>' + newdoc + '</strong> 문서로 이동', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
+	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
+					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'document')", [
+						String(rescount + 1), newdoc, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -2148,9 +2162,9 @@ wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res
 	}
 		
 	curs.execute("update threads set topic = ? where tnum = ?", [newtopic, tnum]);
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
-					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?)", [
-						String(rescount + 1), '스레드 주제를 <strong>' + newtopic + '</strong>로 변경', ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
+	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
+					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'topic')", [
+						String(rescount + 1), newtopic, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -2164,12 +2178,15 @@ wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
 	
 	if(!rescount) { res.send(showError(req, "thread_not_found")); return; }
 	
+	var data = await curs.execute("select title, namespace from threads where tnum = ?", [tnum]);
+	const title = totitle(data[0].title, data[0].namespace) + '';
+	
 	if(!getperm('delete_thread', ip_check(req))) {
 		return res.send(showError(req, 'insufficient_privileges'));
 	}
 	
-	curs.execute("delete from threads where tnum = ?", [tnum]);
-	curs.execute("delete from res where tnum = ?", [tnum]);
+	await curs.execute("delete from threads where tnum = ?", [tnum]);
+	await curs.execute("delete from res where tnum = ?", [tnum]);
 	
 	res.redirect('/discuss/' + encodeURIComponent(title));
 });
