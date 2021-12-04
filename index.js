@@ -403,7 +403,7 @@ function fetchErrorString(code) {
 	else return codes[code];
 }
 
-function alertBalloon(content, type = 'danger', dismissible = true, classes = '') {
+function alertBalloon(content, type = 'danger', dismissible = true, classes = '', noh) {
 	return `
 		<div class="alert alert-${type} ${dismissible ? 'alert-dismissible' : ''} ${classes}" role=alert>
 			<button type=button class=close data-dismiss=alert aria-label=Close>
@@ -411,13 +411,13 @@ function alertBalloon(content, type = 'danger', dismissible = true, classes = ''
 				<span class=sr-only>Close</span>
 			</button>
 			<strong>${
-				{
+				noh ? '' : ({
 					none: '',
 					danger: '[오류!]',
 					warning: '',
 					info: '',
 					success: '[경고!]'
-				}[type]
+				}[type])
 			}</strong> ${content}
 		</div>`;
 }
@@ -696,8 +696,16 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
 	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
 	const doc = processTitle(title);
+	const { rev } = req.query;
 	
-	const rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+	if(rev) {
+		var rawContent = await curs.execute("select content, time from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
+		var data = rawContent;
+	} else {
+		var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+	}
+	
+	if(rev && !rawContent.length) return res.send(showError(req, 'revision_not_found'));
 
 	var content = '';
 	
@@ -708,10 +716,11 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	var lstedt = undefined;
 	
 	try {
-		if(!await getacl(req, doc.title, doc.namespace, 'read')) {
+		const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+		if(aclmsg) {
 			httpstat = 403;
 			error = true;
-			content = '<h2>읽기 권한이 부족합니다. getacl getmsg</h2>';
+			content = '<h2>' + aclmsg + '</h2>';
 			// return res.status(403).send(showError(req, 'insufficient_privileges_read'));
 		} else {
 			content = markdown(rawContent[0].content);
@@ -724,16 +733,16 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				` + content;
 			}
 			
+			if(rev)
+				content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
+			
 			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 			lstedt = Number(data[0].time);
 		}
 	} catch(e) {
 		viewname = 'notfound';
-		
 		print(e.stack);
-		
 		httpstat = 404;
-		
 		var data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 3",
 						[doc.title, doc.namespace]);
@@ -782,6 +791,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		starred: false,
 		date: lstedt,
 		document: doc,
+		rev,
 	}, _, error, viewname));
 });
 
@@ -1056,6 +1066,22 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					var data = await curs.execute("select name from aclgroup_groups where name = ?", [cond[1]]);
 					if(!data.length) return res.status(400).json({
 						status: fetchErrorString('invalid_aclgroup'),
+					});
+				}
+				if(cond[0] == 'ip') {
+					if(!cond[1].match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])$/)) return res.status(400).json({
+						status: fetchErrorString('invalid_acl_condition'),
+					});
+				}
+				if(cond[0] == 'geoip') {
+					if(!cond[1].match(/^[A-Z][A-Z]$/)) return res.status(400).json({
+						status: fetchErrorString('invalid_acl_condition'),
+					});
+				}
+				if(cond[0] == 'member') {
+					var data = await curs.execute("select username from users where username = ?", [cond[1]]);
+					if(!data.length) return res.status(400).json({
+						status: fetchErrorString('사용자 이름이 올바르지 않습니다.'),
 					});
 				}
 				

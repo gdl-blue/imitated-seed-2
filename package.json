@@ -6,6 +6,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "express-session": "^1.17.2",
+    "ip-range-check": "^0.2.0",
     "multer": "^1.4.3",
     "sha3": "^2.1.4",
     "sqlite3": "^5.0.2",
