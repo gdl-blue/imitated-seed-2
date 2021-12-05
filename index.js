@@ -207,43 +207,7 @@ try {
 	process.exit(0);
 })(); } if(_ready) {
 
-function markdown(content) {
-	// ([^제외]*)
-	
-	ret = content;
-	
-	ret = html.escape(ret);
-	
-	ret = ret.replace(/[_][_]([^_]*)[_][_]/gi, '<u>$1</u>');
-	
-	ret = ret.replace(/[*][*][*]([^\*]*)[*][*][*]/gi, '<strong><i>$1</i></strong>');
-	ret = ret.replace(/[*][*]([^\*]*)[*][*]/gi, '<strong>$1</strong>');
-	ret = ret.replace(/[*]([^\*]*)[*]/gi, '<i>$1</i>');
-	
-	ret = ret.replace(/^[-]\s[-]\s[-]$/gim, '<hr />');
-	ret = ret.replace(/^[*]\s[*]\s[*]$/gim, '<hr />');
-	ret = ret.replace(/^[*][*][*][*][*]$/gim, '<hr />');
-	ret = ret.replace(/^[*][*][*]$/gim, '<hr />');
-	ret = ret.replace(/^[-]{3,80}$/gim, '<hr />');
-	
-	//ret = ret.replace(/[*]\s([^\*]*)/gim, '<li>$1</li>');
-	//ret = ret.replace(/[-]\s([^[-]]*)/gim, '<li>$1</li>');
-	
-	ret = ret.replace(/^[#][#][#][#][#][#]\s{0,80}([^\n]*)/gim, '<h6 class=wiki-heading>-. $1</h6>');
-	ret = ret.replace(/^[#][#][#][#][#]\s{0,80}([^\n]*)/gim, '<h5 class=wiki-heading>-. $1</h5>');
-	ret = ret.replace(/^[#][#][#][#]\s{0,80}([^\n]*)/gim, '<h4 class=wiki-heading>-. $1</h4>');
-	ret = ret.replace(/^[#][#][#]\s{0,80}([^\n]*)/gim, '<h3 class=wiki-heading>-. $1</h3>');
-	ret = ret.replace(/^[#][#]\s{0,80}([^\n]*)/gim, '<h2 class=wiki-heading>-. $1</h2>');
-	ret = ret.replace(/^[#]\s{0,80}([^\n]*)/gim, '<h1 class=wiki-heading>-. $1</h1>');
-	
-	// ret = ret.replace(/^([^\n]*)(\r|)\n[=]{4,180}/gi, '<h2 class=wiki-heading>-. $1</h1>');
-	// ret = ret.replace(/^([^\n]*)(\r|)\n[-]{4,180}/gi, '<h1 class=wiki-heading>-. $1</h2>');
-	
-	ret = ret.replace(/[`][`][`]([^[`]]*)[`][`][`]/gi, '<pre>$1</pre>');
-	ret = ret.replace(/[`]([^[`]]*)[`]/gi, '<code>$1</code>');
-	
-	return ret;
-}
+const markdown = require('./namumark.js');
 
 function islogin(req) {
 	if(req.session.username) return true;
@@ -355,16 +319,16 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 	var header = '<html><head>';
 	var skinconfig = require("./skins/" + getSkin() + "/config.json");
 	header += `
-		<title>${title}${subtitle} - ${config.getString('site_name', 'Wiki')}</title>
+		<title>${title}${subtitle} - ${config.getString('site_name', '더 시드')}</title>
 		<meta charset="utf-8">
 		<meta http-equiv="x-ua-compatible" content="ie=edge">
 		<meta http-equiv="x-pjax-version" content="">
 		<meta name="generator" content="the seed">
-		<meta name="application-name" content="` + config.getString('wiki.site_name', 'Wiki') + `">
+		<meta name="application-name" content="` + config.getString('wiki.site_name', '더 시드') + `">
 		<meta name="mobile-web-app-capable" content="yes">
-		<meta name="msapplication-tooltip" content="` + config.getString('wiki.site_name', 'Wiki') + `">
+		<meta name="msapplication-tooltip" content="` + config.getString('wiki.site_name', '더 시드') + `">
 		<meta name="msapplication-starturl" content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', 'FrontPage')) + `">
-		<link rel="search" type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', 'Wiki') + `" href="/opensearch.xml">
+		<link rel="search" type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', '더 시드') + `" href="/opensearch.xml">
 		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 		<link rel="stylesheet" href="/css/diffview.css">
 		<link rel="stylesheet" href="/css/katex.min.css">
@@ -787,7 +751,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			content = '<h2>' + aclmsg + '</h2>';
 			// return res.status(403).send(showError(req, 'insufficient_privileges_read'));
 		} else {
-			content = markdown(rawContent[0].content);
+			content = await markdown(rawContent[0].content, 0, doc + '');
 			const blockdata = await userblocked(doc.title);
 			if(blockdata) {
 				content = `
@@ -1062,6 +1026,31 @@ wiki.post(/^\/edit\/(.*)/, async function saveDocument(req, res) {
 	]);
 	
 	res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
+});
+
+wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
+	const title = req.params[0];
+	const doc = processTitle(title);
+	
+	res.send(`
+		<head>
+			<meta charset=utf8 />
+			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+			<link rel="stylesheet" href="/css/diffview.css">
+			<link rel="stylesheet" href="/css/katex.min.css">
+			<link rel="stylesheet" href="/css/wiki.css">
+			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+			<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
+			<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
+			<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
+			<script type="text/javascript" src="/js/theseed.js?24141115"></script>
+		</head>
+		
+		<body>
+			<h1>${html.escape(doc + '')}</h1>
+			${await markdown(req.body['text'], 0, doc + '')}
+		</body>
+	`);
 });
 
 wiki.get(/^\/new_edit_request\/(.*)$/, async(req, res) => {
@@ -1768,7 +1757,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	if(!state) state = '';
 	
 	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-		return res.send(showError('insufficient_privileges_read'));
+		return res.send(showError(req, 'insufficient_privileges_read'));
 	}
 	
 	var content = '';
@@ -1874,10 +1863,10 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 										rs['hidden'] == '1'
 										? (
 											getperm('hide_thread_comment', ip_check(req))
-											? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content'], rs['ismember']) + '</div>'
+											? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + await markdown(rs['content'], 1) + '</div>'
 											: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 										  )
-										: markdown(rs['content'], rs['ismember'])
+										: await markdown(rs['content'], 1)
 									}
 								</div>
 							</div>
@@ -1939,12 +1928,14 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-		return res.send(showError('insufficient_privileges_read'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'create_thread')) {
-		return res.send(showError(req, 'insufficient_privileges'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'create_thread', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
 	var tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
@@ -1981,8 +1972,9 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	const status = data[0]['status'];
 	const doc = totitle(title, namespace);
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-		return res.send(showError(req, 'insufficient_privileges_read'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
 	var content = `
@@ -2106,12 +2098,14 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	const namespace = data[0]['namespace'];
 	const doc = totitle(title, namespace);
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-		return res.send(showError('insufficient_privileges_read'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'write_thread_comment')) {
-		return res.send(showError(req, 'insufficient_privileges'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'write_thread_comment', 1);
+	if(aclmsg) {
+		return res.status(403).json({ status: aclmsg });
 	}
 	
 	var data = await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
@@ -2147,8 +2141,9 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	const status = data[0]['status'];
 	const doc = totitle(title, namespace);
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-		return res.send(showError(req, 'insufficient_privileges_read'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
 	content = ``;
@@ -2169,7 +2164,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 							rs['hidden'] == '1'
 							? (
 								getperm('hide_thread_comment', ip_check(req))
-								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + markdown(rs['content']) + '</div>'
+								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + await markdown(rs['content'], 1) + '</div>'
 								: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 							  )
 							: (
@@ -2182,7 +2177,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 										? '스레드를 <strong>' + rs['content'] + '</strong> 문서로 이동'
 										: '스레드 주제를 <strong>' + rs['content'] + '</strong>로 변경'
 									)
-								) : markdown(rs['content'])
+								) : await markdown(rs['content'], 1)
 							)
 						}
 					</div>
@@ -3096,7 +3091,7 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 	
 	for(var nsp of fetchNamespaces()) {
 		content += `
-			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', 'Wiki') : nsp}</option>
+			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
 		`;
 	}
 	
