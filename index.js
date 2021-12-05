@@ -394,6 +394,17 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 	return header + output + footer;
 }
 
+const acltype = {
+	read: '읽기',
+	edit: '편집',
+	move: '이동',
+	delete: '삭제',
+	create_thread: '토론 생성',
+	write_thread_comment: '토론 댓글',
+	edit_request: '편집요청',
+	acl: 'ACL',
+};
+
 function fetchErrorString(code) {
 	const codes = {
 		insufficient_privileges: '권한이 부족합니다.',
@@ -426,8 +437,8 @@ function fetchNamespaces() {
 	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', 'wiki', '토론', '휴지통', '투표'];
 }
 
-function showError(req, code) {
-	return render(req, "문제가 발생했습니다!", `<h2>${fetchErrorString(code)}</h2>`);
+function showError(req, code, custom) {
+	return render(req, "문제가 발생했습니다!", `<h2>${custom ? code : fetchErrorString(code)}</h2>`);
 }
 
 function ip_pas(ip = '', ismember = '') {
@@ -445,6 +456,12 @@ async function getacl(req, title, namespace, type, getmsg) {
 	
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
+	var data = await curs.execute("select name from aclgroup_groups");
+	var aclgroup = {};
+	for(var group of data) {
+		var data = await curs.execute("select id, type, username, note, expiration from aclgroup where aclgroup = ?", [group.name]);
+		aclgroup[group.name] = data;
+	}
 	
 	function f(table) {
 		if(!table.length && !flag) {
@@ -540,8 +557,26 @@ async function getacl(req, title, namespace, type, getmsg) {
 				// geoip-lite 모듈사용
 				continue;
 			} else if(row.conditiontype == 'aclgroup') {
-				// 나중에
-				continue;
+				var ag = null;
+				
+				for(let item of aclgroup[row.condition]) {
+					if((item.type == 'ip' && ipRangeCheck(ip_check(req, 1), item.username)) || (islogin(req) && item.type == 'username' && ip_check(req) == item.username)) {
+						ag = item;
+						break;
+					}
+				} if(ag) {
+					if(row.action == 'allow') {
+						r.ret = 1;
+						break;
+					} else if(row.action == 'deny') {
+						r.ret = 0;
+						r.msg = 'ACL그룹 ' + row.condition + ' #' + ag.id + '에 있기 때문에 ' + acltype[type] + ' 권한이 부족합니다.<br />만료일 : ' + (ag.expiration == '0' ? '무기한' : new Date(Number(ag.expiration))) + '<br />사유 : ' + ag.note;
+						break;
+					} else if(row.action == 'gotons') {
+						r = f(ns);
+						break;
+					} else break;
+				}
 			}
 		}
 		
@@ -551,18 +586,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 	const r = f(doc);
 	if(!getmsg) return r.ret;
 	if(!r.ret && !r.msg) {
-		r.msg = `${r.m1}${
-			({
-				read: '읽기',
-				edit: '편집',
-				move: '이동',
-				delete: '삭제',
-				create_thread: '토론 생성',
-				write_thread_comment: '토론 댓글',
-				edit_request: '편집요청',
-				acl: 'ACL',
-			})[type]
-		} 권한이 부족합니다.${r.m2}`;
+		r.msg = `${r.m1}${acltype[type]} 권한이 부족합니다.${r.m2}`;
 		// 해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.
 		if(type == 'edit')
 			r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
@@ -625,7 +649,7 @@ function processTitle(d) {
 	var nslist = fetchNamespaces();
 	if(nslist.includes(ns)) {
 		title = d.replace(ns + ':', '');
-		if(sp[2] && ns == '문서' && nslist.includes(ns[1])) {
+		if(sp[2] !== undefined && ns == '문서' && nslist.includes(sp[1])) {
 			forceShowNamespace = true;
 		}
 	} else {
@@ -649,7 +673,7 @@ function processTitle(d) {
 function totitle(t, ns) {
 	const nslist = fetchNamespaces();
 	var forceShowNamespace = false;
-	if(ns == '문서' && nslist.includes(t.split(':')[0]))
+	if(ns == '문서' && nslist.includes(t.split(':')[0]) && t.split(':')[1] !== undefined)
 		forceShowNamespace = true;
 	
 	return {
@@ -990,6 +1014,17 @@ wiki.post(/^\/edit\/(.*)/, async function saveDocument(req, res) {
 	res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
 });
 
+wiki.get(/^\/new_edit_request\/(.*)$/, async(req, res) => {
+	const title = req.params[0];
+	const doc = processTitle(title);
+	
+	const aclmsg = await getacl(req, doc.title, doc.namespace, 'edit_request', 1);
+	if(aclmsg) return res.send(showError(req, aclmsg, 1));
+	else {
+		res.send(render(req, '편집요청', '편집요청', {}));
+	}
+});
+
 wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
@@ -1137,9 +1172,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 	} else {
 		const disp  = ['읽기', '편집', '이동', '삭제', '토론 생성', '토론 댓글', '편집요청', 'ACL'];
 		var content = ``;
-		var idx = 0;
 		for(var isns of [false, true]) {
-			idx = 0;
 			content += `
 				<h2 class="wiki-heading">${isns ? '이름공간' : '문서'} ACL</h2>
 				<div>
@@ -1147,7 +1180,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 			for(var type of types) {
 				const edit = nseditable || (isns ? nseditable : editable);
 				content += `
-					<h4 class="wiki-heading">${disp[idx]}</h4>
+					<h4 class="wiki-heading">${acltype[type]}</h4>
 					<div class="seed-acl-div" data-type="${type}" data-editable="${edit}" data-isns="${isns}">
 						<div class="table-wrap">
 							<table class="table" style="width:100%">
@@ -1245,7 +1278,6 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 						</div>
 					</div>
 				`;
-				idx++;
 			}
 			content += `
 				</div>
@@ -2539,7 +2571,9 @@ wiki.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
 	res.redirect('/aclgroup');
 });
 
-wiki.get(/^\/aclgroup$/, async(req, res) => {
+wiki.all(/^\/aclgroup$/, async(req, res) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	
 	var data = await curs.execute("select name from aclgroup_groups", []);
 	const editable = hasperm(req, 'aclgroup');
 	
@@ -2606,7 +2640,7 @@ wiki.get(/^\/aclgroup$/, async(req, res) => {
     		</div>
 
     		<div class="btns" style="margin-bottom: 20px;">
-    			<button type="submit" class="btn btn-primary" style="width: 90px;">추가</button>
+    			<button type="submit" class="btn btn-primary" style="width: 90px;" ${!editable ? 'disabled' : ''}>추가</button>
     		</div>
     	</form>
 	`;
@@ -2646,16 +2680,74 @@ wiki.get(/^\/aclgroup$/, async(req, res) => {
 					</tr>
 				</thead>
 				<tbody>
+	`;
+	
+	var tr = '';
+	
+	
+	// 'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
+	await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+	var data = await curs.execute("select id, type, username, expiration, note, date from aclgroup where aclgroup = ? order by cast(id as integer) desc limit 50", [group]);
+	for(var row of data) {
+		tr += `
+			<tr>
+				<td>${row.id}</td>
+				<td>${row.username}</td>
+				<td>${row.note}</td>
+				<td>${generateTime(toDate(row.date), timeFormat)}
+				<td>${!Number(row.expiration) ? '영구' : generateTime(toDate(row.expiration), timeFormat)}
+				<td class="text-center">
+					<form method=post onsubmit="return confirm('정말로?');" action="/aclgroup/remove">
+						<input type=hidden name=type value="${row.type}">
+						<input type=hidden name=username value="${html.escape(row.username)}">
+						<input type=submit class="btn btn-sm btn-danger" value="삭제" />
+					</form>
+				</td>
+			</tr>
+		`;
+	}
+	
+	content += tr;
+	
+	if(!tr) content += `
 					<tr>
 						<td colspan=6>ACL 그룹이 비어있습니다.</td>
 					</tr>
+	`;
+	
+	content += `
 				</tbody>
 			</table>
 		</div>
 	`;
 	
+	var error = false;
+	
+	if(req.method == 'POST') {
+		if(!hasperm(req, 'aclgroup')) return res.status(403).send(showError(req, 'insufficient_privileges'));
+
+		var { mode, username, expire, note } = req.body;
+		if(!['ip', 'username'].includes(mode) || !username || !expire || note === undefined) error = true, content = alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content;
+		else {
+			if(mode == 'ip' && !username.includes('/')) username += '/32';
+			
+			if(mode == 'ip' && !username.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/)) error = true, content = alertBalloon(fetchErrorString('invalid_cidr'), 'danger', true, 'fade in') + content;
+			else {
+				const date = getTime();
+				const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
+				var data = await curs.execute("select username from aclgroup where aclgroup = ? and type = ? and username = ? limit 1", [group, mode, username]);
+				if(data.length) error = true, content = alertBalloon(fetchErrorString('aclgroup_already_exists'), 'danger', true, 'fade in') + content;
+				var data = await curs.execute("select id from aclgroup order by cast(id as integer) desc limit 1");
+				var id = 1;
+				if(data.length) id = Number(data[0].id) + 1;
+				await curs.execute("insert into aclgroup (id, type, username, expiration, note, date, aclgroup) values (?, ?, ?, ?, ?, ?, ?)", [id, mode, username, expiration, note, date, group]);
+				return res.redirect('/aclgroup');
+			}
+		}
+	}
+	
 	res.send(render(req, 'ACLGroup', content, {
-	}, '', _, 'aclgroup'));
+	}, '', error, 'aclgroup'));
 });
 
 wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
