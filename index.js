@@ -2972,6 +2972,14 @@ wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		if(!note) note = '';
 		var data = await curs.execute("select username from users where username = ?", [username]);
 		if(!data.length) return res.send(render(req, '사용자 차단', alertBalloon('계정이 존재하지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
+		if(isNaN(Number(expire))) {
+			return res.send(render(req, '사용자 차단', alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content, {
+			}, '', true, 'suspend_account'));
+		}
+		if(Number(expire) > 29030400) {
+			return res.send(render(req, '사용자 차단', alertBalloon('expire의 값은 29030400 이하이어야 합니다.', 'danger', true, 'fade in') + content, {
+			}, '', true, 'suspend_account'));
+		}
 		if(expire == '-1') {
 			curs.execute("delete from suspend_account where username = ?", [username]);
 			var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
@@ -3164,6 +3172,14 @@ wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 		if(!ip.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/)) error = true, content = alertBalloon(fetchErrorString('invalid_cidr'), 'danger', true, 'fade in') + content;
 		else {
 			const date = getTime();
+			if(isNaN(Number(expire))) {
+				return res.send(render(req, 'IPACL', alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content, {
+				}, '', true, 'ipacl'));
+			}
+			if(Number(expire) > 29030400) {
+				return res.send(render(req, 'IPACL', alertBalloon('expire의 값은 29030400 이하이어야 합니다.', 'danger', true, 'fade in') + content, {
+				}, '', true, 'ipacl'));
+			}
 			const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
 			var data = await curs.execute("select cidr from ipacl where cidr = ? limit 1", [ip]);
 			if(data.length) error = true, content = alertBalloon(fetchErrorString('ipacl_already_exists'), 'danger', true, 'fade in') + content;
@@ -3485,11 +3501,11 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	function parses(s) {
 		s = Number(s);
 		var ret = '';
-		if(!(s%604800)) (ret += parseInt(s / 604800) + '주 '), s = s % 604800;
-		if(!(s%86400)) (ret += parseInt(s / 86400) + '일 '), s = s % 86400;
-		if(!(s%3600)) (ret += parseInt(s / 3600) + '시간 '), s = s % 3600;
-		if(!(s%60)) (ret += parseInt(s / 60) + '분 '), s = s % 60;
-		if(!(s%1)) (ret += parseInt(s / 1) + '초 '), s = s % 1;
+		if(s && s / 604800 >= 1) (ret += parseInt(s / 604800) + '주 '), s = s % 604800;
+		if(s && s / 86400 >= 1) (ret += parseInt(s / 86400) + '일 '), s = s % 86400;
+		if(s && s / 3600 >= 1) (ret += parseInt(s / 3600) + '시간 '), s = s % 3600;
+		if(s && s / 60 >= 1) (ret += parseInt(s / 60) + '분 '), s = s % 60;
+		if(s && s / 1 >= 1) (ret += parseInt(s / 1) + '초 '), s = s % 1;
 		
 		return ret.replace(/\s$/, '');
 	}
