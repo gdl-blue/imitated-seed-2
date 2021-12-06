@@ -2100,7 +2100,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 					<div class=topic-discuss>
 				`;
 				
-				const td = await curs.execute("select id, content, username, time, hidden, hider, status, ismember from res where tnum = ? order by cast(id as integer) asc", [trd.tnum]);
+				const td = await curs.execute("select isadmin, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? order by cast(id as integer) asc", [trd.tnum]);
 				const ltid = Number((await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [trd.tnum]))[0]['id']);
 				
 				var ambx = false;
@@ -2126,7 +2126,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 						<div class=res-wrapper>
 							<div class="res res-type-${rs['status'] == '1' ? 'status' : 'normal'}">
 								<div class="r-head${rs['username'] == fstusr ? " first-author" : ''}">
-									<span class=num>#${rs['id']}</span> ${ip_pas(rs['username'])} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
+									<span class=num>#${rs['id']}</span> ${ip_pas(rs['username'], rs['ismember'], 1).replace('<a ', rs.isadmin == '1' ? '<a style="font-weight: bold;" ' : '<a ')} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
 								</div>
 								
 								<div class="r-body${rs['hidden'] == '1' ? ' r-hidden-body' : ''}">
@@ -2151,6 +2151,12 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			content += `
 				<h3 class="wiki-heading">새 주제 생성</h3>
 				
+				${doc + '' == config.getString('frontpage', 'FrontPage') ? `
+					<div class="alert alert-success alert-dismissible fade in" role="alert">
+						<strong>[경고!]</strong> 이 토론은 ${doc + ''} 문서의 토론입니다. ${doc + ''} 문서와 관련 없는 토론은 각 문서의 토론에서 진행해 주시기 바랍니다. ${doc + ''} 문서와 관련 없는 토론은 삭제될 수 있습니다.
+					</div>
+				` : ''}
+				
 				<form method="post" class="new-thread-form" id="topicForm">
 					<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
 					<div class="form-group">
@@ -2162,11 +2168,9 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 					<label class="control-label" for="contentInput" style="margin-bottom: 0.2rem;">내용 :</label>
 						<textarea name="text" class="form-control" id="contentInput" rows="5"></textarea>
 					</div>
-
 					
 					${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론 주제를 생성합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 					
-
 					<div class="btns">
 						<button id="createBtn" class="btn btn-primary" style="width: 8rem;">전송</button>
 					</div>
@@ -2419,7 +2423,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 	
 	content = ``;
 	
-	var data = await curs.execute("select type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
+	var data = await curs.execute("select isadmin, type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
 	for(var rs of data) {
 		content += `
 			<div class=res-wrapper data-id="${rs['id']}">
@@ -2427,7 +2431,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 					<div class="r-head${rs['username'] == fstusr ? " first-author" : ''}">
 						<span class=num>
 							<a id="${rs['id']}">#${rs['id']}</a>&nbsp;
-						</span> ${ip_pas(rs['username'], rs['ismember'])}${rs['ismember'] == 'author' && await userblocked(rs.username) ? ' <small>(차단된 사용자)</small>' : ''}${rs['ismember'] == 'ip' && await ipblocked(rs.username) ? ' <small>(차단된 아이피)</small>' : ''} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
+						</span> ${ip_pas(rs['username'], rs['ismember'], 1).replace('<a ', rs.isadmin == '1' ? '<a style="font-weight: bold;" ' : '<a ')}${rs['ismember'] == 'author' && await userblocked(rs.username) ? ' <small>(차단된 사용자)</small>' : ''}${rs['ismember'] == 'ip' && await ipblocked(rs.username) ? ' <small>(차단된 아이피)</small>' : ''} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
 					</div>
 					
 					<div class="r-body${rs['hidden'] == '1' ? ' r-hidden-body' : ''}">
@@ -3345,6 +3349,12 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 	`;
 	
 	res.send(render(req, '계정 만들기', content, {}));
+});
+
+wiki.get(/^\/random$/, async(req, res) => {
+	var data = await curs.execute("select title from documents where namespace = '문서' order by random() limit 1");
+	if(!data.length) res.redirect('/');
+	res.redirect('/w/' + encodeURIComponent(data[0].title));
 });
 
 wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
