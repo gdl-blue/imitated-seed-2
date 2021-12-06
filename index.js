@@ -38,12 +38,10 @@ function input(p) {
 const exec = eval;
 
 const { SHA3 } = require('sha3');
- 
-const hash = new SHA3(256);
-
-function sha3(p) {
-	hash.update(p);
-	return hash.digest('hex');
+function sha3(p, b) {
+    const hash = new SHA3(b || 256);
+    hash.update(p);
+    return hash.digest('hex');
 }
 
 // VB6 함수 모방
@@ -90,12 +88,12 @@ function getTime() { return Math.floor(new Date().getTime()); }; const get_time 
 function toDate(t) {
 	var date = new Date(Number(t));
 	
-	var hour = date.getHours(); hour = (hour < 10 ? "0" : "") + hour;
-    var min  = date.getMinutes(); min = (min < 10 ? "0" : "") + min;
-    var sec  = date.getSeconds(); sec = (sec < 10 ? "0" : "") + sec;
-    var year = date.getFullYear();
-    var month = date.getMonth() + 1; month = (month < 10 ? "0" : "") + month;
-    var day  = date.getDate(); day = (day < 10 ? "0" : "") + day;
+	var hour = date.getUTCHours(); hour = (hour < 10 ? "0" : "") + hour;
+    var min  = date.getUTCMinutes(); min = (min < 10 ? "0" : "") + min;
+    var sec  = date.getUTCSeconds(); sec = (sec < 10 ? "0" : "") + sec;
+    var year = date.getUTCFullYear();
+    var month = date.getUTCMonth() + 1; month = (month < 10 ? "0" : "") + month;
+    var day  = date.getUTCDate(); day = (day < 10 ? "0" : "") + day;
 
     return year + "-" + month + "-" + day + " " + hour + ":" + min + ":" + sec;
 }
@@ -373,6 +371,8 @@ const acltype = {
 function fetchErrorString(code) {
 	const codes = {
 		insufficient_privileges: '권한이 부족합니다.',
+		thread_not_found: '토론이 존재하지 않습니다.',
+		invalid_signup_key: '인증 요청이 만료되었거나 올바르지 않습니다.',
 	};
 	
 	if(typeof(codes[code]) == 'undefined') return code;
@@ -399,7 +399,7 @@ function alertBalloon(content, type = 'danger', dismissible = true, classes = ''
 }
 
 function fetchNamespaces() {
-	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', 'wiki', '토론', '휴지통', '투표'];
+	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', config.getString('site_name', '더 시드'), '토론', '휴지통', '투표'];
 }
 
 function showError(req, code, custom) {
@@ -1549,13 +1549,13 @@ wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
 	
 	switch(logtype) {
 		case 'normal_thread':
-			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) desc limit 120");
 		break;case 'old_thread':
-			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) asc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) asc limit 120");
 		break;case 'closed_thread':
-			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'close' order by cast(time as integer) desc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'close' and not deleted = '1' order by cast(time as integer) desc limit 120");
 		break;default:
-			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' order by cast(time as integer) desc limit 120");
+			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) desc limit 120");
 	}
 	
 	for(var trd of trds) {
@@ -2662,9 +2662,11 @@ wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 		</form>
 	`;
 	
+	var error = false;
+	
 	if(req.method == 'POST') {
 		const { group } = req.body;
-		if(!group) content = alertBalloon('ACL그룹의 값은 필수입니다.', 'danger', true, 'fade in') + content;
+		if(!group) error = true, content = alertBalloon('ACL그룹의 값은 필수입니다.', 'danger', true, 'fade in') + content;
 		else {
 			var data = await curs.execute("select name from aclgroup_groups where name = ?", [group]);
 			if(data.length) content = alertBalloon(fetchErrorString('aclgroup_already_exists'), 'danger', true, 'fade in') + content;
@@ -2675,7 +2677,7 @@ wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 		}
 	}
 	
-	res.send(render(req, 'ACL그룹 생성', content, {}, '', false, _));
+	res.send(render(req, 'ACL그룹 생성', content, {}, '', error, _));
 });
 
 wiki.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
