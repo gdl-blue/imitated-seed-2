@@ -192,7 +192,7 @@ try {
 		'suspend_account': ['username', 'date', 'expiration', 'note'],
 		'aclgroup_groups': ['name', 'admin', 'date', 'lastupdate'],
 		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
-		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
+		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
 		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
 	};
 	
@@ -616,7 +616,16 @@ async function getacl(req, title, namespace, type, getmsg) {
 }
 
 function navbtn(cs, ce, s, e) {
-	return '';
+	return `
+		<div class="btn-group" role="group">
+			<a class="btn btn-secondary btn-sm disabled">
+				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
+			</a>
+			<a class="btn btn-secondary btn-sm disabled">
+				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
+			</a>
+		</div>
+	`;
 }
 
 const html = {
@@ -2965,6 +2974,8 @@ wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		if(!data.length) return res.send(render(req, '사용자 차단', alertBalloon('계정이 존재하지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		if(expire == '-1') {
 			curs.execute("delete from suspend_account where username = ?", [username]);
+			var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+			if(data.length) logid = Number(data[0].logid) + 1;
 			insert('block_history', {
 				date: getTime(),
 				type: 'suspend_account',
@@ -2973,6 +2984,7 @@ wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 				ismember: islogin(req) ? 'author' : 'ip',
 				executer: ip_check(req),
 				target: username,
+				logid,
 			});
 			return res.redirect('/admin/suspend_account');
 		}
@@ -2984,6 +2996,8 @@ wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		curs.execute("insert into suspend_account (username, date, expiration, note) values (?, ?, ?, ?)", [username, String(getTime()), expiration, note]);
 		
 		// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
+		var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+		if(data.length) logid = Number(data[0].logid) + 1;
 		insert('block_history', {
 			date: getTime(),
 			type: 'suspend_account',
@@ -2992,6 +3006,7 @@ wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 			ismember: islogin(req) ? 'author' : 'ip',
 			executer: ip_check(req),
 			target: username,
+			logid,
 		});
 		
 		return res.redirect('/admin/suspend_account');
@@ -3005,12 +3020,15 @@ wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
 	if(!req.body['ip']) return res.status(400).send(showError(req, 'validator_required'));
 	await curs.execute("delete from ipacl where cidr = ?", [req.body['ip']]);
 	// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
+	var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+	if(data.length) logid = Number(data[0].logid) + 1;
 	insert('block_history', {
 		date: getTime(),
 		type: 'ipacl_remove',
 		ismember: islogin(req) ? 'author' : 'ip',
 		executer: ip_check(req),
 		target: req.body['ip'],
+		logid,
 	});
 	return res.redirect('/admin/ipacl');
 });
@@ -3153,6 +3171,8 @@ wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 				await curs.execute("insert into ipacl (cidr, al, expiration, note, date) values (?, ?, ?, ?, ?)", [ip, allow_login ? '1' : '0', expiration, note, date]);
 				
 				// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
+				var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+				if(data.length) logid = Number(data[0].logid) + 1;
 				insert('block_history', {
 					date: getTime(),
 					type: 'ipacl_add',
@@ -3161,6 +3181,7 @@ wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 					ismember: islogin(req) ? 'author' : 'ip',
 					executer: ip_check(req),
 					target: ip,
+					logid,
 				});
 				
 				return res.redirect('/admin/ipacl');
@@ -3409,6 +3430,8 @@ wiki.all(/^\/aclgroup$/, async(req, res) => {
 				await curs.execute("insert into aclgroup (id, type, username, expiration, note, date, aclgroup) values (?, ?, ?, ?, ?, ?, ?)", [String(id), mode, username, expiration, note, date, group]);
 				
 				// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
+				var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+				if(data.length) logid = Number(data[0].logid) + 1;
 				insert('block_history', {
 					date: getTime(),
 					type: 'aclgroup_add',
@@ -3419,6 +3442,7 @@ wiki.all(/^\/aclgroup$/, async(req, res) => {
 					ismember: islogin(req) ? 'author' : 'ip',
 					executer: ip_check(req),
 					target: username,
+					logid,
 				});
 				
 				return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
@@ -3432,22 +3456,43 @@ wiki.all(/^\/aclgroup$/, async(req, res) => {
 
 wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
-	var data = await curs.execute("select date, type, aclgroup, id, duration, note, executer, target, ismember from block_history order by cast(date as integer) desc limit 100");
+	var pa = [];
+	if(req.query['target'] && req.query['query'])
+		if(req.query['target'] == 'author') {
+			var qq = 'where executer = ?';
+			pa = [req.query['query']];
+		} else {
+			var qq = 'where note = ? or target = ?';
+			pa = [req.query['query'], req.query['query']];
+		}
+	var data = await curs.execute("select date, type, aclgroup, id, duration, note, executer, target, ismember from block_history " + (qq || '') + " order by cast(date as integer) desc limit 100", pa);
 	var content = `
 		<form method="get">
 			<select name="target">
-				<option value="text">내용</option>
-				<option value="author">실행자</option>
+				<option value="text"${req.query['target'] == 'text' ? ' selected' : ''}>내용</option>
+				<option value="author"${req.query['target'] == 'author' ? ' selected' : ''}>실행자</option>
 			</select>
 			
-			<input name="query" placeholder="검색" type="text" />
+			<input name="query" placeholder="검색" type="text" value="${html.escape(req.query['query']) || ''}" />
 			<input value="검색" type="submit" />
 		</form>
 		
-		<!-- 내비버튼 -->
+		${navbtn(0, 0, 0, 0)}
 		
 		<ul class=wiki-list>
 	`;
+	
+	function parses(s) {
+		s = Number(s);
+		var ret = '';
+		if(!(s%604800)) (ret += parseInt(s / 604800) + '주 '), s = s % 604800;
+		if(!(s%86400)) (ret += parseInt(s / 86400) + '일 '), s = s % 86400;
+		if(!(s%3600)) (ret += parseInt(s / 3600) + '시간 '), s = s % 3600;
+		if(!(s%60)) (ret += parseInt(s / 60) + '분 '), s = s % 60;
+		if(!(s%1)) (ret += parseInt(s / 1) + '초 '), s = s % 1;
+		
+		return ret.replace(/\s$/, '');
+	}
 	
 	for(var item of data) {
 		content += `
@@ -3476,7 +3521,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 				))))))
 			}</i>) ${item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' ? `#${item.id}` : ''} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || (item.type == 'suspend_account' && item.duration != '-1')
-				? `(${item.duration == '0' ? '영구적으로' : `${item.duration} 동안`})`
+				? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})`
 				: ''
 			} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || item.type == 'suspend_account' || item.type == 'grant'
@@ -3489,7 +3534,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	content += `
 		</ul>
 		
-		<!-- 내비버튼 -->
+		${navbtn(0, 0, 0, 0)}
 	`;
 	
 	return res.send(render(req, '차단 내역', content, {}, _, _, 'block_history'));
