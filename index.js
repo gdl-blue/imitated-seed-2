@@ -369,6 +369,7 @@ function fetchErrorString(code) {
 	const codes = {
 		insufficient_privileges: '권한이 부족합니다.',
 		thread_not_found: '토론이 존재하지 않습니다.',
+		edit_request_not_found: '편집 요청을 찾을 수 없습니다.',
 		invalid_signup_key: '인증 요청이 만료되었거나 올바르지 않습니다.',
 		document_not_found: '문서를 찾을 수 없습니다.',
 	};
@@ -1223,6 +1224,73 @@ wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 	}, _, error, 'edit_request'));
 });
 
+wiki.all(/^\/edit_request\/(\d+)\/edit$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	
+	const id = req.params[0];
+	// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate'],
+	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and id = ?", [id]);
+	if(!data.length) return res.send(showError(req, 'edit_request_not_found'));
+	const item = data[0];
+	const doc = totitle(item.title, item.namespace);
+	const title = doc + '';
+	
+	if(!((islogin(req) ? 'author' : 'ip') == item.ismember && item.username == ip_check(req))) {
+		return res.send(showError(req, '자신의 편집 요청만 수정할 수 있습니다.', 1));
+	}
+	
+	const aclmsg = await getacl(req, doc.title, doc.namespace, 'edit_request', 1);
+	if(aclmsg) return res.send(showError(req, aclmsg, 1));
+	
+	var content = `
+		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
+			<input type="hidden" name="token" value="">
+			<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
+
+			<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
+				<li class="nav-item">
+					<a class="nav-link active" data-toggle="tab" href="#edit" role="tab">편집</a>
+				</li>
+				<li class="nav-item">
+					<a id="previewLink" class="nav-link" data-toggle="tab" href="#preview" role="tab">미리보기</a>
+				</li>
+			</ul>
+
+			<div class="tab-content bordered">
+				<div class="tab-pane active" id="edit" role="tabpanel">
+					<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(item.content)}</textarea>
+				</div>
+				<div class="tab-pane" id="preview" role="tabpanel">
+					
+				</div>
+			</div>
+			
+			<div class="form-group" style="margin-top: 1rem;">
+				<label class="control-label" for="summaryInput">요약</label>
+				<input type="text" class="form-control" id="logInput" name="log" value="${html.escape(item.log)}" />
+			</div>
+
+			<label><input checked type="checkbox" name="agree" id="agreeCheckbox" value="Y" />&nbsp;문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong></label>
+			
+			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
+			
+			<div class="btns">
+				<button id="editBtn" class="btn btn-primary" style="width: 100px;">저장</button>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST') {
+		// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype'],
+		await curs.execute("update edit_requests set lastupdate = ?, content = ?, log = ? where id = ?", [getTime(), req.body['text'] || '', req.body['log'] || '', id]);
+		return res.redirect('/edit_request/' + id);
+	}
+	
+	res.send(render(req, doc + ' (편집 요청)', content, {
+		document: doc,
+	}, '', _, 'new_edit_request'));
+});
+
 wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
@@ -1243,18 +1311,6 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 		baserev = data[0].rev;
 	} catch(e) {
 		baserev = 0;
-	}
-	
-	if(req.method == 'POST') {
-		// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype'],
-		
-		var data = await curs.execute("select id from edit_requests order by cast(id as integer) desc limit 1");
-		var id = 1;
-		if(data.length) id = Number(data[0].id) + 1;
-		await curs.execute("insert into edit_requests (title, namespace, id, state, content, baserev, username, ismember, log, date, processor, processortype, lastupdate) values (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, '', '', ?)", 
-														[doc.title, doc.namespace, id, req.body['text'] || '', baserev, ip_check(req), islogin(req) ? 'author' : 'ip', req.body['log'] || '', getTime(), getTime()]);
-		
-		return res.redirect('/edit_request/' + id);
 	}
 	
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
@@ -1299,6 +1355,24 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 			</div>
 		</form>
 	`;
+	
+	if(req.method == 'POST') {
+		// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype'],
+		
+		if(rawContent == req.body['text']) {
+			return res.send(render(req, doc + ' (편집 요청)', alertBalloon('문서 내용이 같습니다.', 'danger', true, 'fade in edit-alert') + content, {
+				document: doc,
+			}, '', true, 'new_edit_request'));
+		}
+		
+		var data = await curs.execute("select id from edit_requests order by cast(id as integer) desc limit 1");
+		var id = 1;
+		if(data.length) id = Number(data[0].id) + 1;
+		await curs.execute("insert into edit_requests (title, namespace, id, state, content, baserev, username, ismember, log, date, processor, processortype, lastupdate) values (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, '', '', ?)", 
+														[doc.title, doc.namespace, id, req.body['text'] || '', baserev, ip_check(req), islogin(req) ? 'author' : 'ip', req.body['log'] || '', getTime(), getTime()]);
+		
+		return res.redirect('/edit_request/' + id);
+	}
 	
 	res.send(render(req, doc + ' (편집 요청)', content, {
 		document: doc,
