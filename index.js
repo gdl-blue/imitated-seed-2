@@ -1281,7 +1281,6 @@ wiki.all(/^\/edit_request\/(\d+)\/edit$/, async(req, res, next) => {
 	`;
 	
 	if(req.method == 'POST') {
-		// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype'],
 		await curs.execute("update edit_requests set lastupdate = ?, content = ?, log = ? where id = ?", [getTime(), req.body['text'] || '', req.body['log'] || '', id]);
 		return res.redirect('/edit_request/' + id);
 	}
@@ -1739,11 +1738,22 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function documentContributionList(req, res) {
 	const ismember = req.params[0];
 	const username = req.params[1];
+	var moredata = [];
 	
 	var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username
 				]);
+	
+	// 2018년 더시드 업데이트로 관리자는 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
+	tt = Number(getTime()) + 12345;
+	if(data.length) tt = Number(data[data.length - 1].time);
+	if(data.length < 100) 
+		moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+				where cast(time as integer) < ? and ismember = ? and username = ? order by cast(time as integer) desc limit ?", [
+					tt, ismember, username, 100 - data.length
+				]);
+	data = data.concat(moredata);
 	
 //			<li><a href="/contribution/${ismember}/${username}/document">[문서]</a></li>
 //			<li><a href="/contribution/${ismember}/${username}/discuss">[토론]</a></li>
@@ -2731,7 +2741,7 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 		<form id="deleteForm" method="post">
             <div class="form-group">
 				<label class="control-label" for="logInput">요약</label>
-				<input type="text" id="logInput" name="send" class="form-control" value="">
+				<input type="text" id="logInput" name="log" class="form-control" />
 			</div>
 			
             <label>
@@ -2755,11 +2765,6 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 		} else if(!req.body['agree']) {
 			content = alertBalloon('agree의 값은 필수입니다.', 'danger', true, 'fade in') + content;
 		} else {
-			const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-			if(!o_o.length) {
-				return res.send(showError(req, 'document_not_found'));
-			}
-			
 			const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 			const recentRev = _recentRev[0];
 			
@@ -2777,6 +2782,116 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	res.send(render(req, doc + ' (삭제)', content, {
 		document: doc,
 	}, '', _, 'delete'));
+});
+
+wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	
+	const title = req.params[0];
+	const doc = processTitle(title);
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
+	}
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
+	}
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'move', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
+	}
+	
+	const o_o = await curs.execute("select title from history where title = ? and namespace = ?", [doc.title, doc.namespace]);
+	if(!o_o.length) {
+		return res.send(showError(req, 'document_not_found'));
+	}
+	
+	// 원래 이랬나...?
+	var content = `
+		<form method="post" id="moveForm">
+			<div>
+				<label>변경할 문서 제목 : </label><br />
+				<input name="title" type="text" style="width: 250px;" id="titleInput" />
+			</div>
+			
+			<div>
+				<label>요약 : </label><br />
+				<input style="width: 600px;" name="log" type="text" id="logInput" />
+			</div>
+			
+			<div>
+				<label>문서를 서로 맞바꾸기 : </label><br />
+				<input type=checkbox name=mode value=swap />
+			</div>
+			
+			<div>
+				<button type="submit">이동</button>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST') {
+		if(doc.namespace == '사용자') {
+			content = alertBalloon(fetchErrorString('disable_user_document'), 'danger', true, 'fade in') + content;
+		} else {
+			var doccontent = '';
+			const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+			if(o_o.length) {
+				doccontent = o_o[0].content;
+			}
+			
+			const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+			const recentRev = _recentRev[0];
+			
+			if(!req.body['title']) {
+				return res.send(render(req, doc + ' (이동)', alertBalloon(fetchErrorString('validator_required'), 'danger', true, 'fade in') + content, {
+					document: doc,
+				}, '', _, 'move'));
+			}
+			
+			const newdoc = processTitle(req.body['title']);
+			
+			var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'read', 1);
+			if(aclmsg) {
+				return res.send(showError(req, aclmsg, 1));
+			}
+			
+			var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'edit', 2);
+			if(aclmsg) {
+				return res.send(showError(req, aclmsg, 1));
+			}
+			
+			if(req.body['mode'] == 'swap') {
+				return res.send(showError(req, 'feature_not_implemented'));
+			} else {
+				const d_d = await curs.execute("select rev from history where title = ? and namespace = ?", [newdoc.title, newdoc.namespace]);
+				if(d_d.length) {
+					return res.send(showError(req, '문서가 이미 존재합니다.', 1));
+				}
+				
+				await curs.execute("update documents set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+				await curs.execute("update acl set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+				curs.execute("update threads set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+				curs.execute("update edit_requests set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+				curs.execute("update history set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+			}
+			
+			curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+							values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+				newdoc.title, newdoc.namespace, doccontent, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '0', req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'move', doc.title + '\n' + newdoc.title
+			]);
+			
+			return res.redirect('/w/' + encodeURIComponent(newdoc + ''));
+		}
+	}
+	
+	res.send(render(req, doc + ' (이동)', content, {
+		document: doc,
+	}, '', _, 'move'));
 });
 
 wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
