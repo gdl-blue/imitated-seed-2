@@ -1756,7 +1756,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function document
 	res.send(render(req, `"${username}" 기여 목록`, content, {}));
 });
 
-wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
+wiki.get(/^\/RecentDiscuss$/, async function recentDicsuss(req, res) {
 	var logtype = req.query['logtype'];
 	if(!logtype) logtype = 'all';
 	
@@ -1791,12 +1791,20 @@ wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
 	switch(logtype) {
 		case 'normal_thread':
 			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) desc limit 120");
-		break;case 'old_thread':
+		break; case 'old_thread':
 			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) asc limit 120");
-		break;case 'closed_thread':
+		break; case 'closed_thread':
 			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'close' and not deleted = '1' order by cast(time as integer) desc limit 120");
-		break;default:
-			trds = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) desc limit 120");
+		break; case 'open_editrequest':
+			trds = await curs.execute("select id, title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where state = 'open' and not deleted = '1' order by cast(date as integer) desc limit 120");
+		break; case 'closed_editrequest':
+			trds = await curs.execute("select id, title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where state = 'closed' and not deleted = '1' order by cast(date as integer) desc limit 120");
+		break; case 'accepted_editrequest':
+			trds = await curs.execute("select id, title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where state = 'accepted' and not deleted = '1' order by cast(date as integer) desc limit 120");
+		break; default:
+			var data1 = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) desc limit 120");
+			var data2 = await curs.execute("select id, title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where state = 'open' and not deleted = '1' order by cast(date as integer) desc limit 120");
+			trds = data1.concat(data2).sort((l, r) => ((r.date || r.time) - (l.date || l.time)));
 	}
 	
 	for(var trd of trds) {
@@ -1805,11 +1813,14 @@ wiki.get('/RecentDiscuss', async function recentDicsuss(req, res) {
 		content += `
 			<tr>
 				<td>
-					<a href="/thread/${trd.tnum}">${html.escape(trd.topic)}</a> (<a href="/discuss/${encodeURIComponent(title)}">${html.escape(title)}</a>)
+					${trd.state
+						? `<a href="/edit_request/${trd.id}">편집 요청 ${html.escape(trd.id)}</a> (<a href="/discuss/${encodeURIComponent(title)}">${html.escape(title)}</a>)`
+						: `<a href="/thread/${trd.tnum}">${html.escape(trd.topic)}</a> (<a href="/discuss/${encodeURIComponent(title)}">${html.escape(title)}</a>)`
+					}
 				</td>
 				
 				<td>
-					${generateTime(toDate(trd.time), timeFormat)}
+					${generateTime(toDate(trd.time || trd.date), timeFormat)}
 				</td>
 			</tr>
 		`;
