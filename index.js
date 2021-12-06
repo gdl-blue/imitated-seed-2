@@ -365,13 +365,16 @@ const acltype = {
 	acl: 'ACL',
 };
 
-function fetchErrorString(code) {
+function fetchErrorString(code, ...params) {
 	const codes = {
 		insufficient_privileges: '권한이 부족합니다.',
 		thread_not_found: '토론이 존재하지 않습니다.',
 		edit_request_not_found: '편집 요청을 찾을 수 없습니다.',
 		invalid_signup_key: '인증 요청이 만료되었거나 올바르지 않습니다.',
 		document_not_found: '문서를 찾을 수 없습니다.',
+		revision_not_found: '해당 리비전을 찾을 수 없습니다.',
+		feature_not_implemented: '사용하려는 기능이 구현되지 않았습니다.',
+		validator_required: params[0] + '의 값은 필수입니다.',
 	};
 	
 	if(typeof(codes[code]) == 'undefined') return code;
@@ -489,7 +492,8 @@ async function getacl(req, title, namespace, type, getmsg) {
 						for(let row of ipacl) {
 							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
 								ret = 1;
-								msg = 'IP가 차단되었습니다.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+								if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+								else msg = 'IP가 차단되었습니다.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
 								break;
 							}
 						}
@@ -1748,7 +1752,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function document
 	// 2018년 더시드 업데이트로 관리자는 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
 	var tt = Number(getTime()) + 12345;
 	if(data.length) tt = Number(data[data.length - 1].time);
-	if(data.length < 100) 
+	if(data.length < 100)
 		moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 				where cast(time as integer) < ? and ismember = ? and username = ? order by cast(time as integer) desc limit ?", [
 					tt, ismember, username, 100 - data.length
@@ -2848,7 +2852,7 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 			const recentRev = _recentRev[0];
 			
 			if(!req.body['title']) {
-				return res.send(render(req, doc + ' (이동)', alertBalloon(fetchErrorString('validator_required'), 'danger', true, 'fade in') + content, {
+				return res.send(render(req, doc + ' (이동)', alertBalloon(fetchErrorString('validator_required', 'title'), 'danger', true, 'fade in') + content, {
 					document: doc,
 				}, '', _, 'move'));
 			}
