@@ -590,7 +590,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 	if(!r.ret && !r.msg) {
 		r.msg = `${r.m1}${acltype[type]} 권한이 부족합니다.${r.m2}`;
 		// 해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.
-		if(type == 'edit')
+		if(type == 'edit' && getmsg != 2)
 			r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
 	}
 	return r.msg;  // 거부되었으면 오류메시지 내용반환 허용은 빈문자열
@@ -1163,7 +1163,7 @@ wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 		} break; case 'closed': {
 			card = `
 				<h4 class="card-title">편집 요청이 닫혔습니다.</h4>
-				<p class="card-text">${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype)}가 편집 요청을 닫았습니다.</p>
+				<p class="card-text">${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1)}가 편집 요청을 닫았습니다.</p>
 				${item.reason ? `<p class="card-text">사유 : ${html.escape(item.reason)}</p>` : ''}
 			`;
 		} break; case 'accepted': {
@@ -2633,16 +2633,19 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-		return res.send(showError(req, 'insuffisient_privileges_read'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'edit')) {
-		return res.send(showError(req, 'insuffisient_privileges_edit'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
-	if(!await getacl(req, doc.title, doc.namespace, 'delete')) {
-		return res.send(showError(req, 'insuffisient_privileges_delete'));
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'delete', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
 	}
 	
 	const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);

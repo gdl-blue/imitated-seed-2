@@ -191,8 +191,8 @@ diffview = {
 					} else if (change == "replace") {
 						botrows.push(node2 = document.createElement("tr"));
 						if (wordlevel) {
-							var baseTextLine = baseTextLines[b];
-							var newTextLine = newTextLines[n];
+							var baseTextLine = baseTextLines[b] || '';
+							var newTextLine = newTextLines[n] || '';
 							var wordrule = /([^\s]+|[a-zA-Z0-9ㄱ-힣_ -]+|.)(?:(?!<)[^\s])?/;
 							var bw = baseTextLine.split(wordrule);
 							var nw = newTextLine.split(wordrule);
