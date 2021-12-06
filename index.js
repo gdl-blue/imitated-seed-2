@@ -404,9 +404,9 @@ function showError(req, code, custom) {
 	return render(req, "문제가 발생했습니다!", `<h2>${custom ? code : fetchErrorString(code)}</h2>`);
 }
 
-function ip_pas(ip = '', ismember = '') {
+function ip_pas(ip = '', ismember = '', nobold) {
 	if(ismember == 'author') {
-		return `<strong><a href="/w/사용자:${encodeURIComponent(ip)}">${html.escape(ip)}</a></strong>`;
+		return `${nobold ? '' : '<strong>'}<a href="/w/사용자:${encodeURIComponent(ip)}">${html.escape(ip)}</a>${nobold ? '' : '</strong>'}`;
 	} else {
 		return `<a href="/contribution/ip/${encodeURIComponent(ip)}/document">${html.escape(ip)}</a>`;
 	}
@@ -994,7 +994,6 @@ wiki.post(/^\/edit\/(.*)/, async function saveDocument(req, res) {
 	}
 	
 	var original = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-	
 	if(!original[0]) original = '';
 	else original = original[0]['content'];
 	
@@ -1077,6 +1076,61 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 	`);
 });
 
+wiki.post(/^\/edit_request\/(\d+)\/close$/, async(req, res, next) => {
+	const id = req.params[0];
+	// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate'],
+	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and id = ?", [id]);
+	if(!data.length) return res.send(showError(req, 'edit_request_not_found'));
+	const item = data[0];
+	const doc = totitle(item.title, item.namespace);
+	if(!(hasperm(req, 'update_thread_status') || ((islogin(req) ? 'author' : 'ip') == item.ismember && item.username == ip_check(req)))) {
+		return res.send(showError(req, 'insufficient_privileges'));
+	}
+	if(item.state != 'open') {
+		return res.send(showError(req, 'edit_request_not_open'));
+	}
+	await curs.execute("update edit_requests set state = 'closed', processor = ?, processortype = ?, processtime = ?, reason = ? where id = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), req.body['close_reason'] || '', id]);
+	return res.redirect('/edit_request/' + id);
+});
+
+wiki.post(/^\/edit_request\/(\d+)\/accept$/, async(req, res, next) => {
+	const id = req.params[0];
+	// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate'],
+	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and id = ?", [id]);
+	if(!data.length) return res.send(showError(req, 'edit_request_not_found'));
+	const item = data[0];
+	const doc = totitle(item.title, item.namespace);
+	var aclmsg = await getacl(req, item.title, item.namespace, 'edit', 1);
+	if(aclmsg) {
+		return res.send(showError(req, aclmsg, 1));
+	}
+	if(item.state != 'open') {
+		return res.send(showError(req, 'edit_request_not_open'));
+	}
+	var rev;
+	var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
+	try {
+		rev = Number(data[0].rev) + 1;
+	} catch(e) {
+		rev = 1;
+	}
+	var original = await curs.execute("select content from documents where title = ? and namespace = ?", [item.title, item.namespace]);
+	if(!original[0]) original = '';
+	else original = original[0]['content'];
+	
+	const rawChanges = item.content.length - original.length;
+	const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
+	
+	await curs.execute("update documents set content = ? where title = ? and namespace = ?", [item.content, item.title, item.namespace]);
+	curs.execute("update stars set lastedit = ? where title = ? and namespace = ?", [getTime(), item.title, item.namespace]);
+	curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, edit_request_id) \
+					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+		item.title, item.namespace, item.content, String(rev), item.username, getTime(), changes, item.log, '0', '-1', item.ismember, 'normal', id
+	]);
+	await curs.execute("update edit_requests set state = 'accepted', processor = ?, processortype = ?, processtime = ?, rev = ? where id = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), String(rev), id]);
+	return res.redirect('/edit_request/' + id);
+});
+
 wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 	const id = req.params[0];
 	// 'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate'],
@@ -1115,13 +1169,13 @@ wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 		} break; case 'accepted': {
 			card = `
 				<h4 class="card-title">편집 요청이 승인되었습니다.</h4>
-				<p class="card-text">${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype)}가 r${item.rev}으로 승인함.</p>
+				<p class="card-text">${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1)}가 r${item.rev}으로 승인함.</p>
 			`;
 		}
 	}
 	
 	var content = `
-		<h3> ${ip_pas(item.username, item.ismember)}가 ${generateTime(toDate(item.date), timeFormat)}에 요청</h3>
+		<h3> ${ip_pas(item.username, item.ismember, 1)}가 ${generateTime(toDate(item.date), timeFormat)}에 요청</h3>
 		<hr />
 		<div class="form-group">
 			<label class="control-label">기준 판</label> r${item.baserev}
@@ -1138,7 +1192,7 @@ wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 						<div class="modal-content">
 							<div class="modal-header">
 								<button type="button" class="close" data-dismiss="modal">×</button> 
-								<h4 class="modal-title" style="border:none">편집 요청 닫기</h4>
+								<h4 class="modal-title">편집 요청 닫기</h4>
 							</div>
 							<div class="modal-body">
 								<p>사유:</p>
@@ -1852,17 +1906,17 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	var data;
 	
 	if(from) {  // 더시드에서 from이 더 우선임
-		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id from history \
 						where title = ? and namespace = ? and (cast(rev as integer) <= ? AND cast(rev as integer) > ?) \
 						order by cast(rev as integer) desc",
 						[doc.title, doc.namespace, Number(from), Number(from) - 30]);
 	} else if(until) {
-		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id from history \
 						where title = ? and namespace = ? and (cast(rev as integer) >= ? AND cast(rev as integer) < ?) \
 						order by cast(rev as integer) desc",
 						[doc.title, doc.namespace, Number(until), Number(until) + 30]);
 	} else {
-		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id from history \
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 30",
 						[doc.title, doc.namespace]);
 	}
@@ -1917,7 +1971,7 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 						
 					};">${row.changes}</span>)
 					
-					${ip_pas(row.username, row.ismember)}
+					${row.edit_request_id ? '<i><a href="/edit_request/' + row.edit_request_id + '">(편집 요청)</a></i>' : ''} ${ip_pas(row.username, row.ismember)}
 					
 					(<span style="color: gray;">${row.log}</span>)
 				</li>
