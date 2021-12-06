@@ -1746,7 +1746,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function document
 				]);
 	
 	// 2018년 더시드 업데이트로 관리자는 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
-	tt = Number(getTime()) + 12345;
+	var tt = Number(getTime()) + 12345;
 	if(data.length) tt = Number(data[data.length - 1].time);
 	if(data.length < 100) 
 		moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
@@ -3133,13 +3133,13 @@ wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 	
 	if(req.method == 'POST') {
 		const { group } = req.body;
-		if(!group) error = true, content = alertBalloon('ACL그룹의 값은 필수입니다.', 'danger', true, 'fade in') + content;
+		if(!group) error = true, content = alertBalloon('그룹 이름의 값은 필수입니다.', 'danger', true, 'fade in') + content;
 		else {
 			var data = await curs.execute("select name from aclgroup_groups where name = ?", [group]);
 			if(data.length) content = alertBalloon(fetchErrorString('aclgroup_already_exists'), 'danger', true, 'fade in') + content;
 			else {
 				await curs.execute("insert into aclgroup_groups (name) values (?)", [group]);
-				return res.redirect('/aclgroup');
+				return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 			}
 		}
 	}
@@ -3173,12 +3173,32 @@ wiki.all(/^\/aclgroup$/, async(req, res) => {
 	}
 	
 	var content = `
+		<div id="aclgroup-create-modal" class="modal fade" role="dialog" style="display: none;" aria-hidden="true">
+			<div class="modal-dialog">
+				<form id="edit-request-close-form" method="post" action="/aclgroup/create">
+					<div class="modal-content">
+						<div class="modal-header">
+							<button type="button" class="close" data-dismiss="modal">×</button> 
+							<h4 class="modal-title">ACL그룹 생성</h4>
+						</div>
+						<div class="modal-body">
+							<p>그룹 이름: </p>
+							<input name="group" type="text"> 
+						</div>
+						<div class="modal-footer"> <button type="submit" class="btn btn-primary" style="width:auto">확인</button> <button type="button" class="btn btn-default" data-dismiss="modal" style="background:#efefef">취소</button> </div>
+					</div>
+				</form>
+			</div>
+		</div>
+	
 		<ul class="nav nav-tabs" style="height: 38px;">
 			${tabs}
 			${editable ? `
-			<li class="nav-item">
-				<a class="nav-link" href="/aclgroup/create">+</a>
-			</li>
+				<span data-toggle="modal" data-target="#aclgroup-create-modal">
+					<li class="nav-item">
+						<a class="nav-link" onclick="return false;" href="/aclgroup/create">+</a>
+					</li>
+				</span>
 			` : ''}
 		</ul>
 
