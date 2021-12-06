@@ -2035,12 +2035,30 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			
 			subtitle = ' (닫힌 토론)';
 			viewname = 'thread_list_close';
+		break; case 'closed_edit_requests':
+			content += '<ul class=wiki-list>';
+			
+			trdlst = await curs.execute("select id from edit_requests where state = 'closed' and not deleted = '1' and title = ? and namespace = ? order by cast(date as integer) desc", [doc.title, doc.namespace]);
+			
+			for(var trd of trdlst) {
+				content += `<li><a href="/edit_request/${trd.id}">편집 요청 ${trd.id}</a></li>`;
+			}
+			
+			content += '</ul>';
+			
+			subtitle = ' (닫힌 편집 요청)';
+			viewname = 'edit_request_list_close';
 		break; default:
 			content += `
 				<h3 class="wiki-heading">편집 요청</h3>
 				<div class=wiki-heading-content>
 					<ul class=wiki-list>
 			`;
+			
+			trdlst = await curs.execute("select id from edit_requests where state = 'open' and not deleted = '1' and title = ? and namespace = ? order by cast(date as integer) desc", [doc.title, doc.namespace]);
+			for(var item of trdlst) {
+				content += `<li><a href="/edit_request/${item.id}">편집 요청 ${item.id}</a></li>`;
+			}
 			
 			content += `
 					</ul>
