@@ -129,6 +129,10 @@ swig.setFilter('encode_doc', function encodeDocURL(input) {
 	return encodeURIComponent(input);
 });
 
+swig.setFilter('avatar_url', function(input) {
+	return 'https://www.gravatar.com/avatar/md5username?d=retro';
+});
+
 swig.setFilter('to_date', toDate);
 
 swig.setFilter('localdate', generateTime);
@@ -250,10 +254,30 @@ const config = {
 	}
 }
 
+const userset = {};
+
+function getUserset(req, str, def = '') {
+    str = str.replace(/^wiki[.]/, '');
+	if(!islogin(req)) return def;
+	const username = ip_check(req);
+	
+    if(!userset[username] || !userset[username][str]) {
+        if(!userset[username]) userset[username] = {};
+        userset[username][str] = def;
+		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
+        return def;
+    }
+    return userset[username][str];
+}
+
 const _ = undefined;
 
-function getSkin() {
-	return hostconfig['skin'];
+function getSkin(req) {
+	const def = config.getString('default_skin', hostconfig.skin);
+	const ret = getUserset(req, 'skin', def);
+	if(ret == 'default') return def;
+	if(!skinList.includes(ret)) return def;
+	return ret;
 }
 
 function getperm(perm, username) {
@@ -295,7 +319,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 	}
 	
 	try {
-		var template = swig.compileFile('./skins/' + getSkin() + '/views/default.html');
+		var template = swig.compileFile('./skins/' + getSkin(req) + '/views/default.html');
 	} catch(e) {
 		print(`[오류!] ${e}`);
 		
@@ -326,7 +350,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 	output = template(templateVariables);
 	
 	var header = '<html><head>';
-	var skinconfig = require("./skins/" + getSkin() + "/config.json");
+	var skinconfig = require("./skins/" + getSkin(req) + "/config.json");
 	header += `
 		<title>${title}${subtitle} - ${config.getString('site_name', '더 시드')}</title>
 		<meta charset="utf-8">
@@ -344,7 +368,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 		<link rel="stylesheet" href="/css/wiki.css">
 	`;
 	for(var i=0; i<skinconfig["auto_css_targets"]['*'].length; i++) {
-		header += '<link rel=stylesheet href="/skins/' + getSkin() + '/' + skinconfig["auto_css_targets"]['*'][i] + '">';
+		header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + skinconfig["auto_css_targets"]['*'][i] + '">';
 	}
 	header += `
 		<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
@@ -354,7 +378,7 @@ function render(req, title = '', content = '', varlist = {}, subtitle = '', erro
 		<script type="text/javascript" src="/js/theseed.js?24141115"></script>
 	`;
 	for(var i=0; i<skinconfig["auto_js_targets"]['*'].length; i++) {
-		header += '<script type="text/javascript" src="/skins/' + getSkin() + '/' + skinconfig["auto_js_targets"]['*'][i]['path'] + '"></script>';
+		header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + skinconfig["auto_js_targets"]['*'][i]['path'] + '"></script>';
 	}
 	
 	header += skinconfig['additional_heads'];
@@ -638,6 +662,16 @@ const html = {
 		return content;
 	}
 }
+
+var skinList = [];
+function cacheSkinList() {
+    skinList = [];
+    
+    for(var dir of fs.readdirSync('./skins', { withFileTypes: true }).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name)) {
+        skinList.push(dir);
+    }
+}
+cacheSkinList();
 
 wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function dropSkinFile(req, res) {
 	const skinname = req.params[0];
@@ -3557,13 +3591,97 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	return res.send(render(req, '차단 내역', content, {}, _, _, 'block_history'));
 });
 
+wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
+	if(!['GET', 'POST'].includes(req.method)) return next();
+	if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fmypage');
+	
+	const defskin = config.getString('default_skin', hostconfig['skin']);
+	var myskin = getUserset(req, 'skin', 'default');
+	
+	var skopt = '';
+	
+	for(var skin of skinList) {
+		var opt = `<option value="${skin}" ${getUserset(req, 'skin', 'default') == skin ? 'selected' : ''}>${skin}</option>`;
+		skopt += opt;
+	}
+	
+	var error = false;
+	
+	var content = `
+		<form method=post>
+			<div class=form-group>
+				<label>사용자 이름: </label><br />
+				<input type=text name=username readonly class=form-control value="${html.escape(ip_check(req))}" />
+			</div>
+			
+			<div class=form-group>
+				<label>전자우편 주소: </label><br />
+				<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email', ''))}" />
+			</div>
+			
+			<div class=form-group>
+				<label>암호: </label><br />
+				<input type=password name=password class=form-control />
+			</div>
+			
+			<div class=form-group>
+				<label>암호 확인: </label><br />
+				<input type=password name=password_check class=form-control />
+				${req.method == 'POST' && req.body['password'] && req.body['password'] != req.body['password_check'] ? (error = true, `<p class=error-desc>패스워드 확인이 올바르지 않습니다.</p>`) : ''}
+			</div>
+			
+			<div class=form-group>
+				<label>스킨: </label><br />
+				<select name=skin class=form-control>
+					<option value=default ${myskin == 'default' ? 'selected' : ''}>기본스킨 (${defskin})</option>
+					${skopt}
+				</select>
+				${req.method == 'POST' && !skinList.concat(['default']).includes(req.body['skin']) ? (error = true, `<p class=error-desc>${fetchErrorString('invalid_skin')}</p>`) : ''}
+			</div>
+			
+			<div class=form-group>
+				<label>Google Authenticator<label>
+				<a class="btn btn-info" href="/member/activate_otp">활성화</a>
+			</div>
+			
+			<div class=btns>
+				<button type=reset class="btn btn-secondary">초기화</button>
+				<button type=submit class="btn btn-primary">변경</button>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST' && !error) {
+		for(var item of ['skin']) {
+			await curs.execute("delete from user_settings where username = ? and key = ?", [ip_check(req), item]);
+			await curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [ip_check(req), item, req.body[item] || '']);
+			userset[ip_check(req)][item] = req.body[item] || '';
+		}
+		
+		if(req.body['password']) {
+			await curs.execute("update users set password = ? where username = ?", [sha3(req.body['password']), ip_check(req)]);
+		}
+		
+		return res.redirect('/member/mypage');
+	}
+	
+	return res.send(render(req, '내 정보', content, {}, _, error, 'mypage'));
+});
+
+wiki.get(/^\/member\/logout$/, async(req, res, next) => {
+	var desturl = req.query['redirect'];
+	if(!desturl) desturl = '/';
+	delete req.session.username;
+	res.redirect(desturl);
+});
+
 wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 	if(!['GET', 'POST'].includes(req.method)) return next();
 	
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	
-	if(islogin(req)) { res.redirect(desturl); return; }
+	if(islogin(req)) return res.redirect(desturl);
 	
 	var id = '1', pw = '1';
 	
@@ -3684,8 +3802,8 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 	await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
 	
 	const key = req.params[0];
-	await curs.execute("select key from account_creation where key = ?", [key]);
-	if(!curs.fetchall().length) {
+	var credata = await curs.execute("select email from account_creation where key = ?", [key]);
+	if(!credata.length) {
 		return res.send(showError(req, 'invalid_signup_key'));
 	}
 	
@@ -3719,6 +3837,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 			req.session.username = id;
 			
 			await curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
+			await curs.execute("insert into user_settings (username, key, value) values (?, 'email', ?)", [id, credata[0].email]);
 			await curs.execute("insert into documents (title, namespace, content) values (?, '사용자', '')", [id]);
 			await curs.execute("insert into history (title, namespace, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
 							values (?, '사용자', '', '1', ?, ?, '0', '', '0', '', 'create', 'author')", [
@@ -3771,8 +3890,9 @@ wiki.get(/^\/random$/, async(req, res) => {
 });
 
 wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
+	const nslist = fetchNamespaces();
 	var ns = req.query['namespace'];
-	if(!ns) ns = '문서';
+	if(!ns || !nslist.includes(ns)) ns = '문서';
 	
 	var content = `
 		<fieldset class="recent-option">
@@ -3783,7 +3903,7 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 					
 	`;
 	
-	for(var nsp of fetchNamespaces()) {
+	for(var nsp of nslist) {
 		content += `
 			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
 		`;
@@ -3937,6 +4057,13 @@ wiki.use(function(req, res, next) {
 			permlist[prm['username']] = [prm['perm']];
 		else
 			permlist[prm['username']].push(prm['perm']);
+	}
+	
+	var data = await curs.execute("select username, key, value from user_settings");
+        
+	for(var set of data) {
+		if(!userset[set.username]) userset[set.username] = {};
+		userset[set.username][set.key] = set.value;
 	}
 	
 	const server = wiki.listen(hostconfig['port'], hostconfig['host']);  // 서버실행
