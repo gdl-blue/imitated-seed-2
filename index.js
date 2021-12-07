@@ -274,7 +274,7 @@ const _ = undefined;
 
 function getSkin(req) {
 	const def = config.getString('default_skin', hostconfig.skin);
-	const ret = getUserset(req, 'skin', def);
+	const ret = getUserset(req, 'skin', 'default');
 	if(ret == 'default') return def;
 	if(!skinList.includes(ret)) return def;
 	return ret;
@@ -1019,6 +1019,8 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		return res.status(403).send(await showError(req, aclmsg, 1));
 	}
 	
+	if(req.method == 'POST' && isNaN(Number(req.body['baserev']))) return res.send(await showError(req, 'invalid_value'));
+	
 	if(['특수기능', '투표', '토론'].includes(doc.namespace)) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
 	
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
@@ -1039,9 +1041,9 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	var textarea = `<textarea id="textInput" name="text" wrap="soft" class="form-control">${(req.method == 'POST' ? req.body['text'] : rawContent).replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`;
 	
 	content = `
-		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
+		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${html.escape(doc + '')}" data-recaptcha="0">
 			<input type="hidden" name="token" value="">
-			<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
+			<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${html.escape(ip_check(req))}">
 			<input type="hidden" name="baserev" value="${req.method == 'POST' ? (req.body['baserev'] || baserev) : baserev}">
 
 			<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
@@ -1055,7 +1057,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 
 			<div class="tab-content bordered">
 				<div class="tab-pane active" id="edit" role="tabpanel">
-					$TEXTAREA
+					&<$TEXTAREA>
 				</div>
 				<div class="tab-pane" id="preview" role="tabpanel">
 					
@@ -1069,7 +1071,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		error = true;
 		content = `
 			${alertBalloon(aclmsg, 'danger', true, 'fade in edit-alert')}
-		` + content.replace('$TEXTAREA', textarea).replace('<textarea', '<textarea readonly=readonly') + `
+		` + content.replace('&<$TEXTAREA>', textarea).replace('<textarea', '<textarea readonly=readonly') + `
 			</form>
 		`;
 		httpstat = 403;
@@ -1114,7 +1116,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			</form>
 		`;
 	} if(aclmsg && req.method == 'POST') {
-		return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon(aclmsg, 'danger', true, 'fade in edit-alert') + content.replace('$TEXTAREA', textarea), {
+		return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon(aclmsg, 'danger', true, 'fade in edit-alert') + content.replace('&<$TEXTAREA>', textarea), {
 			document: doc,
 		}, '', true, 'edit'));
 	}
@@ -1125,7 +1127,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		if(!original[0]) ex = 0, original = '';
 		else original = original[0]['content'];
 		const text = req.body['text'];
-		if(original == text && ex) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon('문서 내용이 같습니다.', 'danger', true, 'fade in edit-alert') + content.replace('$TEXTAREA', textarea), {
+		if(original == text && ex) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon('문서 내용이 같습니다.', 'danger', true, 'fade in edit-alert') + content.replace('&<$TEXTAREA>', textarea), {
 			document: doc,
 		}, '', true, 'edit'));
 		const rawChanges = text.length - original.length;
@@ -1143,7 +1145,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon('편집 도중에 다른 사용자가 먼저 편집을 했습니다.', 'danger', true, 'fade in edit-alert') + `
 				${diff(oc, text, 'r' + baserev, '사용자 입력')}
 				<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>
-			` + content.replace('$TEXTAREA', `<textarea id="textInput" name="text" wrap="soft" class="form-control">${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`), {
+			` + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class="form-control">${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`), {
 				document: doc,
 			}, _, true, 'edit'));
 		}
@@ -1152,7 +1154,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		
 		var data = await curs.execute("select title from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		if(!data.length) {
-			if(['파일', '사용자'].includes(doc.namespace)) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon(fetchErrorString('invalid_namespace'), 'danger', true, 'fade in edit-alert') + content.replace('$TEXTAREA', textarea), {
+			if(['파일', '사용자'].includes(doc.namespace)) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon(fetchErrorString('invalid_namespace'), 'danger', true, 'fade in edit-alert') + content.replace('&<$TEXTAREA>', textarea), {
 				document: doc,
 			}, '', true, 'edit'));
 			
@@ -1171,7 +1173,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		return res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
 	}
 	
-	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', content.replace('$TEXTAREA', textarea), {
+	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', content.replace('&<$TEXTAREA>', textarea), {
 		document: doc,
 	}, '', error, 'edit'));
 });
@@ -1199,6 +1201,120 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 			${await markdown(req.body['text'], 0, doc + '')}
 		</body>
 	`);
+});
+
+wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	const title = req.params[0];
+	const doc = processTitle(title);
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.status(403).send(await showError(req, aclmsg, 1));
+	}
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
+	if(aclmsg) {
+		return res.status(403).send(await showError(req, aclmsg, 1));
+	}
+	
+	const rev = req.query['rev'];
+	if(!rev || isNaN(Number(rev))) {
+		return res.send(await showError(req, 'revision_not_found'));
+	}
+	
+	const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+	if(!_recentRev.length) {
+		return res.send(await showError(req, 'document_not_found'));
+	}
+	
+	const dbdata = await curs.execute("select content, advance, flags from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
+	if(!dbdata.length) {
+		return res.send(await showError(req, 'revision_not_found'));
+	}
+	const revdata   = dbdata[0];
+	const recentRev = _recentRev[0];
+	
+	if(req.method == 'GET' && ['move', 'delete', 'acl', 'revert'].includes(revdata.advance)) {
+		return res.send(await showError(req, '이 리비전으로 되돌릴 수 없습니다.', 1));
+	}
+	
+	
+	var content = `
+		<form method=post>
+			<div class=form-group>
+				<textarea class=form-control rows=15 readonly>${revdata.content.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
+			</div>
+		
+			<div class=form-group>
+				<label>요약</label><br>
+				<input type=text class=form-control name=log />
+			</div>
+			
+			<div class=btns>
+				<button type=submit class="btn btn-primary" style="width: 100px;">확인</button>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST') {
+		if(recentRev.content == revdata.content) {
+			return res.send(await showError(req, '문서 내용이 같습니다.', 1));
+		}
+		
+		await curs.execute("update documents set content = ? where title = ? and namespace = ?", [revdata.content, doc.title, doc.namespace]);
+		const rawChanges = revdata.content.length - recentRev.content.length;
+		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+			doc.title, doc.namespace, revdata.content, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), (rawChanges > 0 ? '+' : '') + rawChanges, req.body['log'], '0', '-1', islogin(req) ? 'author' : 'ip', 'revert', rev
+		]);
+		
+		return res.redirect('/w/' + encodeURIComponent(doc + ''));
+	}
+	
+	res.send(await render(req, doc + ' (r' + rev + '로 되돌리기)', content, {
+		rev: rev,
+		text: revdata.content,
+		document: doc,
+	}, _, _, 'revert'))
+});
+
+wiki.get(/^\/diff\/(.*)/, async (req, res) => {
+	const title  = req.params[0];
+	const doc    = processTitle(title);
+	const rev    = req.query ['rev'];
+	const oldrev = req.query ['oldrev'];
+	
+	if(!rev || !oldrev || Number(rev) <= Number(oldrev)) {
+		return res.send(await showError(req, 'revision_not_found'));
+	}
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		return res.status(403).send(await showError(req, aclmsg, 1));
+	}
+	
+	var dbdata = await curs.execute("select content from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
+	if(!dbdata.length) {
+		return res.send(await showError(req, 'revision_not_found'));
+	}
+	const revdata = dbdata[0];
+	var dbdata = await curs.execute("select content from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, oldrev]);
+	if(!dbdata.length) {
+		return res.send(await showError(req, 'revision_not_found'));
+	}
+	const oldrevdata = dbdata[0];
+	
+	const diffoutput = diff(oldrevdata.content, revdata.content, 'r' + oldrev, 'r' + rev);
+	
+	var content = diffoutput;
+	
+	res.send(await render(req, doc + ' (비교)', content, {
+		rev: rev,
+		oldrev: oldrev,
+		diffoutput: diffoutput,
+		document: doc,
+	}, _, _, 'diff'))
 });
 
 wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
@@ -2191,7 +2307,7 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 						(<a rel=nofollow href="/w/${encodeURIComponent(title)}?rev=${row.rev}">보기</a> |
 							<a rel=nofollow href="/raw/${encodeURIComponent(title)}?rev=${row.rev}" data-npjax="true">RAW</a> |
 							<a rel=nofollow href="/blame/${encodeURIComponent(title)}?rev=${row.rev}">Blame</a> |
-							<a rel=nofollow href="/revert/${encodeURIComponent(title)}?rev=${row.rev}">이 리비젼으로 되돌리기</a>${
+							<a rel=nofollow href="/revert/${encodeURIComponent(title)}?rev=${row.advance == 'revert' ? Number(row.flags) : row.rev}">이 리비젼으로 되돌리기</a>${
 								Number(row.rev) > 1
 								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
 								: ''
