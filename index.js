@@ -7,6 +7,22 @@ const perms = [
 	'login_history', 'delete_thread', 'nsacl', 'aclgroup',
 ];
 
+const find = (obj, fnc) => {
+    if(typeof(obj) != 'object') {
+        throw TypeError(`Cannot find from ${typeof(obj)}`);
+    }
+    
+    if(typeof(fnc) != 'function') {
+        throw TypeError(`${fnc} is not a function`);
+    }
+    
+    for(i in obj) {
+        if(fnc(obj[i])) return i;
+    }
+    
+    return -1;
+};
+
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
 
@@ -3263,6 +3279,114 @@ wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 	}
 	
 	return res.send(await render(req, '사용자 차단', content, {}, '', false, 'suspend_account'));
+});
+
+wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	const username = req.query['username'];
+	
+	if(!getperm('grant', ip_check(req))) {
+		res.send(await showError(req, 'insufficient_privileges'));
+		return;
+	}
+	
+	var content = `
+		<form method=get>
+			<div class=form-group>
+				<label>유저 이름: </label><br />
+				<input type=text class=form-control name=username value="${html.escape(username ? username : '')}" />
+			</div>
+			
+			<div class=btns>
+				<button type=submit class="btn btn-info" style="width: 100px;">확인</button>
+			</div>
+		</form>
+	`;
+	
+	if(!username) {
+		return res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
+	}
+	
+	var data = await curs.execute("select username from users where username = ?", [username]);
+	if(!data.length) {
+		return res.send(await showError(req, 'user_not_found'));
+	}
+	
+	var chkbxs = '';
+	
+	for(var prm of perms) {
+		if(!getperm('developer', ip_check(req), 1) && 'developer' == (prm)) continue;
+		
+		chkbxs += `
+			${prm} <input type=checkbox ${getperm(prm, username, 1) ? 'checked' : ''} name=permissions value="${prm}" /><br />
+		`;
+	}
+	
+	content += `
+		<h3>사용자 ${html.escape(username)}</h3>
+	
+		<form method=post>
+			<div class=form-group>
+				${chkbxs}
+			</div>
+			
+			<div class=btns>
+				<button type=submit class="btn btn-info" style="width: 100px;">확인</button>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST') {
+		if(!username) {
+			return res.send(await showError(req, 'validator_required'));
+		}
+		
+		var data = await curs.execute("select username from users where username = ?", [username]);
+		if(!data.length) {
+			return res.send(await showError(req, 'user_not_found'));
+		}
+		
+		var prmval = req.body['permissions'];
+		if(!prmval || !prmval.find) prmval = [prmval];
+		
+		var logstring = '';
+		
+		for(var prm of perms) {
+			if(!getperm('developer', ip_check(req), 1) && 'developer' == (prm)) continue;
+			
+			if(getperm(prm, username, 1) && (typeof(prmval.find(item => item == prm)) == 'undefined')) {
+				logstring += '-' + prm + ' ';
+				if(permlist[username]) permlist[username].splice(find(permlist[username], item => item == prm), 1);
+				curs.execute("delete from perms where perm = ? and username = ?", [prm, username]);
+			}
+			else if(!getperm(prm, username, 1) && (typeof(prmval.find(item => item == prm)) != 'undefined')) {
+				logstring += '+' + prm + ' ';
+				if(!permlist[username]) permlist[username] = [prm];
+				else permlist[username].push(prm);
+				curs.execute("insert into perms (perm, username) values (?, ?)", [prm, username]);
+			}
+		}
+		
+		if(!logstring.length) {
+			return res.send(await render(req, '권한 부여', alertBalloon(fetchErrorString('no_change'), 'danger', true, 'fade in') + content, {}, _, true, 'grant'));
+		}
+		
+		var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+		if(data.length) logid = Number(data[0].logid) + 1;
+		insert('block_history', {
+			date: getTime(),
+			type: 'grant',
+			note: logstring,
+			ismember: islogin(req) ? 'author' : 'ip',
+			executer: ip_check(req),
+			target: username,
+			logid,
+		});
+		
+		return res.redirect('/admin/grant?username=' + encodeURIComponent(username));
+	}
+	
+	res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
 });
 
 wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
