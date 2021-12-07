@@ -405,19 +405,34 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				<meta name="msapplication-starturl" content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', 'FrontPage')) + `">
 				<link rel="search" type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', '더 시드') + `" href="/opensearch.xml">
 				<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-				<link rel="stylesheet" href="/css/diffview.css">
-				<link rel="stylesheet" href="/css/katex.min.css">
-				<link rel="stylesheet" href="/css/wiki.css">
+				${hostconfig.use_external_css ? `
+					<link rel="stylesheet" href="https://theseed.io/css/diffview.css">
+					<link rel="stylesheet" href="https://theseed.io/css/katex.min.css">
+					<link rel="stylesheet" href="https://theseed.io/css/wiki.css">
+				` : `
+					<link rel="stylesheet" href="/css/diffview.css">
+					<link rel="stylesheet" href="/css/katex.min.css">
+					<link rel="stylesheet" href="/css/wiki.css">
+				`}
 			`;
 			for(var i=0; i<skinconfig["auto_css_targets"]['*'].length; i++) {
 				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + skinconfig["auto_css_targets"]['*'][i] + '">';
 			}
 			header += `
-				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-				<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
-				<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
-				<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
-				<script type="text/javascript" src="/js/theseed.js?24141115"></script>
+				${hostconfig.use_external_css ? `
+					<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+					<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+					<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
+					<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
+					<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
+					
+				` : `
+					<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+					<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
+					<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
+					<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
+					<script type="text/javascript" src="/js/theseed.js?24141115"></script>
+				`}
 			`;
 			for(var i=0; i<skinconfig["auto_js_targets"]['*'].length; i++) {
 				header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + skinconfig["auto_js_targets"]['*'][i]['path'] + '"></script>';
@@ -820,6 +835,12 @@ function redirectToFrontPage(req, res) {
 	res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
 }
 
+wiki.get(/^\/License$/, async(req, res) => {
+	return res.send(await render(req, '라이선스', `
+	
+	` + await readFile('./skins/' + getSkin(req) + '/license.html'), {}, _, _, 'license'));
+});
+
 wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
@@ -1015,7 +1036,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		baserev = 0;
 	}
 	
-	var textarea = `<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(req.method == 'POST' ? req.body['text'] : rawContent)}</textarea>`;
+	var textarea = `<textarea id="textInput" name="text" wrap="soft" class="form-control">${(req.method == 'POST' ? req.body['text'] : rawContent).replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`;
 	
 	content = `
 		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
@@ -1059,7 +1080,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 					<input type="text" class="form-control" id="logInput" name="log" value="${req.method == 'POST' ? html.escape(req.body['log']) : ''}" />
 				</div>
 
-				<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y"${req.method == 'POST' && req.body['agree'] == 'Y' ? ' checked' : ''}>&nbsp;문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong></label>
+				<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y"${req.method == 'POST' && req.body['agree'] == 'Y' ? ' checked' : ''}>&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
 				
 				${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 				
@@ -1122,7 +1143,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon('편집 도중에 다른 사용자가 먼저 편집을 했습니다.', 'danger', true, 'fade in edit-alert') + `
 				${diff(oc, text, 'r' + baserev, '사용자 입력')}
 				<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>
-			` + content.replace('$TEXTAREA', `<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(rawContent)}</textarea>`), {
+			` + content.replace('$TEXTAREA', `<textarea id="textInput" name="text" wrap="soft" class="form-control">${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`), {
 				document: doc,
 			}, _, true, 'edit'));
 		}
@@ -1401,7 +1422,7 @@ wiki.all(/^\/edit_request\/(\d+)\/edit$/, async(req, res, next) => {
 				<input type="text" class="form-control" id="logInput" name="log" value="${html.escape(item.log)}" />
 			</div>
 
-			<label><input checked type="checkbox" name="agree" id="agreeCheckbox" value="Y" />&nbsp;문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong></label>
+			<label><input checked type="checkbox" name="agree" id="agreeCheckbox" value="Y" />&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
@@ -1464,7 +1485,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 
 			<div class="tab-content bordered">
 				<div class="tab-pane active" id="edit" role="tabpanel">
-					<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(rawContent)}</textarea>
+					<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;'))}</textarea>
 				</div>
 				<div class="tab-pane" id="preview" role="tabpanel">
 					
@@ -3783,14 +3804,14 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		var invalidpw = !invalidusername && !data.length;
 		
 		if(!invalidusername && !invalidpw) {
-			curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
-	
+			if(!hostconfig.disable_login_history) {
+				curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+				conn.run("delete from useragents where username = ?", [id], () => {
+					curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+				});
+			}
+			
 			req.session.username = id;
-			
-			conn.run("delete from useragents where username = ?", [id], () => {
-				curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
-			});
-			
 			return res.redirect(desturl);
 		}
 	}
@@ -3850,24 +3871,28 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 	var bal = '';
 	var error = false;
 	
+	if(hostconfig.disable_email) req.body['email'] = '';
+	
 	if(req.method == 'POST') {
-		if(!req.body['email'] || req.body['email'].match(/[@]/g).length != 1) {
+		if(!hostconfig.disable_email && (!req.body['email'] || req.body['email'].match(/[@]/g).length != 1)) {
 			var invalidemail = 1;
 		} else {
 			var data = await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
-			if(data.length) var duplicate = 1;
+			if(!hostconfig.disable_email && data.length) var duplicate = 1;
 			else {
 				var data = await curs.execute("select value from user_settings where key = 'email' and value = ?", [req.body['email']]);
-				if(data.length) var userduplicate = 1;
+				if(!hostconfig.disable_email && data.length) var userduplicate = 1;
 				else {
 					if(emailfilter) {
 						var data = await curs.execute("select address from email_filters where address = ?", [req.body['email'].split('@')[1]]);
-						if(!data.length) error = true, bal = alertBalloon('이메일 허용 목록에 있는 이메일이 아닙니다.', 'danger', true, 'fade in');
+						if(!hostconfig.disable_email && !data.length) error = true, bal = alertBalloon('이메일 허용 목록에 있는 이메일이 아닙니다.', 'danger', true, 'fade in');
 					}
 					if(!error) {
 						await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
 						const key = rndval('abcdef1234567890', 64);
 						curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
+						
+						if(hostconfig.disable_email) return res.redirect('/member/signup/' + key);
 						
 						return res.send(await render(req, '계정 만들기', `
 							<p>
@@ -3895,7 +3920,10 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 		<form method=post class=signup-form>
 			<div class=form-group>
 				<label>전자우편 주소</label><br>
-				<input type=email name=email class=form-control />
+				${hostconfig.disable_email ? `
+					<input type=hidden name=email value="" />
+					비활성화됨
+				` : `<input type=email name=email class=form-control />`}
 				${duplicate ? (error = true, `<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>`) : ''}
 				${userduplicate ? (error = true, `<p class=error-desc>이메일이 이미 존재합니다.</p>`) : ''}
 				${invalidemail ? (error = true, `<p class=error-desc>이메일의 값을 형식에 맞게 입력해주세요..</p>`) : ''}
@@ -3963,8 +3991,10 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 							values (?, '사용자', '', '1', ?, ?, '0', '', '0', '', 'create', 'author')", [
 								id, getTime(), id
 							]);
-			await curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
-			await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+			if(!hostconfig.disable_login_history) {
+				await curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+				await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+			}
 			await curs.execute("delete from account_creation where key = ?", [key]);
 			
 			return res.send(await render(req, '계정 만들기', `
