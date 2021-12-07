@@ -2567,7 +2567,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 							)
 						}
 					</div>
-				</div>`;
+		`;
 		if(getperm('hide_thread_comment', ip_check(req))) {
 			content += `
 				<div class="combo admin-menu">
@@ -2576,6 +2576,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 			`;
 		}
 		content += `
+				</div>
 			</div>
 		`;
 	}
@@ -3773,8 +3774,6 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 	var ns = req.query['namespace'];
 	if(!ns) ns = '문서';
 	
-	var data = await curs.execute("select title from documents where namespace = ? order by random() limit 20", [ns]);
-	
 	var content = `
 		<fieldset class="recent-option">
 			<form class="form-inline" method=get>
@@ -3803,10 +3802,18 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 		<ul class=wiki-list>
 	`;
 	
-	for(var i of data)
-        content += '<li><a href="/w/' + encodeURIComponent(totitle(i.title, ns)) + '">' + html.escape(i['title']) + '</a></li>';
-	
-	content += '</ul>';
+	var cnt = 0, li = '';
+	while(cnt < 20) {
+		let data = await curs.execute("select title from documents where namespace = ? order by random() limit 20", [ns]);
+		if(!data.length) break;
+		for(let i of data) {
+			li += '<li><a 	href="/w/' + encodeURIComponent(totitle(i.title, ns)) + '">' + html.escape(totitle(i.title, ns) + '') + '</a></li>';
+			cnt++;
+			if(cnt > 19) break;
+		}
+		if(cnt > 19) break;
+	}
+	content += (li || '<li><a href="/w/' + encodeURIComponent(config.getString('frontpage', 'FrontPage')) + '">' + html.escape(config.getString('frontpage', 'FrontPage')) + '</a></li>') + '</ul>';
 	
 	res.send(render(req, 'RandomPage', content, {}));
 });
