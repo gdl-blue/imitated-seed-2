@@ -1512,11 +1512,10 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
-	if(['특수기능', '투표', '토론'].includes(doc.namespace)) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
 	await curs.execute("delete from acl where not expiration = '0' and cast(expiration as integer) < ?", [getTime()]);
-	
 	const title = req.params[0];
 	const doc = processTitle(title);
+	if(['특수기능', '투표', '토론'].includes(doc.namespace)) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
 	const editable = Boolean(await getacl(req, doc.title, doc.namespace, 'acl'));
 	const nseditable = hasperm(req, 'nsacl');
 	const types = ['read', 'edit', 'move', 'delete', 'create_thread', 'write_thread_comment', 'edit_request', 'acl'];
