@@ -3607,6 +3607,18 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 	
 	var error = false;
 	
+	var emailfilter = '';
+	if(config.getString('email_filter_enabled', 'false') == 'true') {
+		emailfilter = `
+			<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
+			<ul class=wiki-list>
+		`;
+		for(var item of await curs.execute("select address from email_filters")) {
+			emailfilter += '<li>' + item.address + '</li>';
+		}
+		emailfilter += '</ul>';
+	}
+	
 	var content = `
 		<form method=post>
 			<div class=form-group>
@@ -3617,6 +3629,7 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 			<div class=form-group>
 				<label>전자우편 주소: </label><br />
 				<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email', ''))}" />
+				${emailfilter}
 			</div>
 			
 			<div class=form-group>
@@ -3748,38 +3761,71 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 	
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
+	var emailfilter = '';
+	if(config.getString('email_filter_enabled', 'false') == 'true') {
+		emailfilter = `
+			<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
+			<ul class=wiki-list>
+		`;
+		for(var item of await curs.execute("select address from email_filters")) {
+			emailfilter += '<li>' + item.address + '</li>';
+		}
+		emailfilter += '</ul>';
+	}
+	
+	var bal = '';
+	var error = false;
+	
 	if(req.method == 'POST') {
-		var data = await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
-		if(data.length) var duplicate = 1;
-		
-		if(!duplicate) {
-			await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
-			const key = rndval('abcdef1234567890', 64);
-			curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
-			
-			return res.send(render(req, '계정 만들기', `
-				<p>
-					이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
-				</p>
+		if(!req.body['email'] || req.body['email'].match(/[@]/g).length != 1) {
+			var invalidemail = 1;
+		} else {
+			var data = await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
+			if(data.length) var duplicate = 1;
+			else {
+				var data = await curs.execute("select value from user_settings where key = 'email' and value = ?", [req.body['email']]);
+				if(data.length) var userduplicate = 1;
+				else {
+					if(emailfilter) {
+						var data = await curs.execute("select address from email_filters where address = ?", [req.body['email'].split('@')[1]]);
+						if(!data.length) error = true, bal = alertBalloon('이메일 허용 목록에 있는 이메일이 아닙니다.', 'danger', true, 'fade in');
+					}
+					if(!error) {
+						await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
+						const key = rndval('abcdef1234567890', 64);
+						curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
+						
+						return res.send(render(req, '계정 만들기', `
+							<p>
+								이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
+							</p>
 
-				<ul class=wiki-list>
-					<li>간혹 메일이 도착하지 않는 경우가 있습니다. 이 경우, 스팸함을 확인해주시기 바랍니다.</li>
-					<li>인증 메일은 24시간동안 유효합니다.</li>
-				</ul>
-				
-				<p style="font-weight: bold; color: red;">
-					[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
-				</p>
-			`, {}));
+							<ul class=wiki-list>
+								<li>간혹 메일이 도착하지 않는 경우가 있습니다. 이 경우, 스팸함을 확인해주시기 바랍니다.</li>
+								<li>인증 메일은 24시간동안 유효합니다.</li>
+							</ul>
+							
+							<p style="font-weight: bold; color: red;">
+								[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
+							</p>
+						`, {}));
+					}
+				}
+			}
 		}
 	}
 	
 	var content = `
+		${bal}
+		
 		<form method=post class=signup-form>
 			<div class=form-group>
 				<label>전자우편 주소</label><br>
 				<input type=email name=email class=form-control />
-				${duplicate ? `<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>` : ''}
+				${duplicate ? (error = true, `<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>`) : ''}
+				${userduplicate ? (error = true, `<p class=error-desc>이메일이 이미 존재합니다.</p>`) : ''}
+				${invalidemail ? (error = true, `<p class=error-desc>이메일의 값을 형식에 맞게 입력해주세요..</p>`) : ''}
+				${emailfilter}
 			</div>
 			
 			<p>
@@ -3793,7 +3839,7 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 		</form>
 	`;
 	
-	res.send(render(req, '계정 만들기', content, {}));
+	res.send(render(req, '계정 만들기', content, {}, _, error, 'signup'));
 });
 
 wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next) {
