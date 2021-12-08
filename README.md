@@ -10,3 +10,11 @@
   - [buma](https://github.com/LiteHell/theseed-skin-buma/tree/d77eef50a77007da391c5082b4b94818db372417), [liberty](https://github.com/namuwiki/theseed-skin-liberty/tree/153cf78f70206643ec42e856aff8280dc21eb2c0) 등 원하는 스킨을 내려받고 skins 디렉토리에 스킨 이름으로 하위디렉토리를 만들어 복사한다.
 - `npm i`를 실행한다.
 - `node index`를 실행한다.
+
+## 숨겨진 설정
+- config.json 수정으로 숨겨진 설정을 제어할 수 있다.
+  - `disable_email`: 전자우편 인증을 끈다.
+  - `disable_login_history`: 로그인 내역을 기록하지 않게 한다.
+  - `use_external_js`: theseed.js, jQuery 등을 [https://theseed.io](https://theseed.io)에서 불러온다.
+  - `use_external_css`: wiki.css 등을 [https://theseed.io](https://theseed.io)에서 불러온다.
+  - `allow_account_deletion`: 계정 탈퇴를 허용한다.
