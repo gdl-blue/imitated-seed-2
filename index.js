@@ -248,7 +248,7 @@ function getUsername(req, forceIP = 0) {
 		return req.session.username;
 	} else {
 		if(req.headers['x-forwarded-for']) {
-			return req.headers['x-forwarded-for'];
+			return req.headers['x-forwarded-for'].split(',')[0];
 		} else {
 			return req.connection.remoteAddress;
 		}
@@ -435,7 +435,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + skinconfig["auto_css_targets"]['*'][i] + '">';
 			}
 			header += `
-				${hostconfig.use_external_css ? `
+				${hostconfig.use_external_js ? `
 					<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
 					<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
 					<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
@@ -523,6 +523,7 @@ async function showError(req, code, custom) {
 
 function ip_pas(ip = '', ismember = '', nobold) {
 	if(ismember == 'author') {
+		if(!ip) return `<del style="color: gray;"><i>(삭제된 사용자)</i></del>`;
 		return `${nobold ? '' : '<strong>'}<a href="/w/사용자:${encodeURIComponent(ip)}">${html.escape(ip)}</a>${nobold ? '' : '</strong>'}`;
 	} else {
 		return `<a href="/contribution/ip/${encodeURIComponent(ip)}/document">${html.escape(ip)}</a>`;
@@ -2019,7 +2020,7 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 	res.send(await render(req, '최근 변경내역', content, {}));
 });
 
-wiki.get(/^\/contribution\/(ip|author)\/(.*)\/document/, async function documentContributionList(req, res) {
+wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function documentContributionList(req, res) {
 	const ismember = req.params[0];
 	const username = req.params[1];
 	var moredata = [];
@@ -2202,7 +2203,7 @@ wiki.get(/^\/RecentDiscuss$/, async function recentDicsuss(req, res) {
 	res.send(await render(req, "최근 토론", content, {}));
 });
 
-wiki.get(/^\/contribution\/(ip|author)\/(.*)\/discuss/, async function discussionLog(req, res) {
+wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss/, async function discussionLog(req, res) {
 	const ismember = req.params[0];
 	const username = req.params[1];
 	
@@ -3292,9 +3293,9 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	
 	var content = `
 		<form method=get>
-			<div class=form-group>
+			<div>
 				<label>유저 이름: </label><br />
-				<input type=text class=form-control name=username value="${html.escape(username ? username : '')}" />
+				<input type=text class=form-control style="width: 250px;" name=username value="${html.escape(username ? username : '')}" />
 			</div>
 			
 			<div class=btns>
@@ -3326,7 +3327,7 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 		<h3>사용자 ${html.escape(username)}</h3>
 	
 		<form method=post>
-			<div class=form-group>
+			<div>
 				${chkbxs}
 			</div>
 			
@@ -3926,6 +3927,64 @@ wiki.get('/settings', async(req, res) => {
     res.send(await render(req, '스킨 설정', '이 스킨은 설정 기능을 지원하지 않습니다.', { __isSkinSettingsPage: 1 }));
 });
 
+if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, async(req, res, next) => {
+	if(!['GET', 'POST'].includes(req.method)) return next();
+	if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fdelete_account');
+	const username = ip_check(req);
+	var error = false;
+	
+	var { password } = (await curs.execute("select password from users where username = ?", [username]))[0];
+	
+	var content = `
+		<form method=post onsubmit="return confirm('마지막 경고입니다. 탈퇴하려면 [확인]을 누르십시오.');">
+			<p>계정을 삭제하면 문서 역사에서 당신의 사용자 이름이 익명화됩니다. 문서 배포 라이선스가 퍼블릭 도메인이 아닌 경우 가급적 탈퇴는 자제해주세요.</p>
+			
+			<div class=form-group>
+				<label>사용자 이름을 확인해주세요 (${html.escape(username)}):</label><br />
+				<input type=text name=username class=form-control placeholder="${html.escape(username)}" />
+				${!error && req.method == 'POST' && req.body['username'] != username ? (error = true, `<p class=error-desc>자신의 사용자 이름을 입력해주세요.</p>`) : ''}
+			</div>
+			
+			<div class=form-group>
+				<label>비밀번호 확인:</label><br />
+				<input type=password name=password class=form-control />
+				${!error && req.method == 'POST' && sha3(req.body['password'] + '') != password ? (error = true, `<p class=error-desc>비밀번호를 확인해주세요.</p>`) : ''}
+			</div>
+			
+			<div class=btns>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<button type=submit class="btn btn-danger">삭제</button>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<a class="btn btn-secondary" href="/">취소</a>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST' && !error) {
+		await curs.execute("delete from users where username = ?", [username]);
+		await curs.execute("delete from perms where username = ?", [username]);
+		await curs.execute("delete from suspend_account where username = ?", [username]);
+		await curs.execute("delete from user_settings where username = ?", [username]);
+		await curs.execute("delete from acl where title = ? and namespace = '사용자'", [username]);
+		await curs.execute("delete from documents where title = ? and namespace = '사용자'", [username]);
+		await curs.execute("delete from history where title = ? and namespace = '사용자'", [username]);
+		await curs.execute("delete from login_history where username = ?", [username]);
+		await curs.execute("delete from stars where username = ?", [username]);
+		await curs.execute("delete from useragents where username = ?", [username]);
+		await curs.execute("update history set username = '' where username = ? and ismember = 'author'", [username]);
+		await curs.execute("update res set username = '' where username = ? and ismember = 'author'", [username]);
+		delete req.session.username;
+		return res.send(await render(req, '계정 삭제', `
+			<p><strong>${html.escape(username)}</strong>님 안녕히 가십시오.</p>
+		`, {}, _, false, 'delete_account'));
+	}
+	
+	return res.send(await render(req, '계정 삭제', content, {}, _, error, 'delete_account'));
+});
+
 wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 	if(!['GET', 'POST'].includes(req.method)) return next();
 	if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fmypage');
@@ -4248,7 +4307,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 			<div class=form-group>
 				<label>사용자 ID</label><br>
 				<input class=form-control name="username" type="text" />
-				${duplicate ? `<p class=error-desc>해당 사용자가 이미 존재합니다.</p>` : ''}
+				${duplicate ? `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>` : ''}
 				${!duplicate && !id.length ? `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>` : ''}
 			</div>
 
@@ -4456,8 +4515,34 @@ wiki.use(function(req, res, next) {
 		userset[set.username][set.key] = set.value;
 	}
 	
+	const https = require('https');
+	setInterval(function() {
+		https.request({
+			host: 'go2021.glitch.me',
+			path: '/w/FrontPage',
+			headers: {
+				'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:68.9) Gecko/20100101 Goanna/4.6 Firefox/68.9 Mypal/28.12.0',
+			},
+		}, function(res) {
+			
+		}).end();
+	}, 1000 * 60);
+	
 	const server = wiki.listen(hostconfig['port'], hostconfig['host']);  // 서버실행
 	print(String(hostconfig['host']) + ":" + String(hostconfig['port']) + "에 실행 중. . .");
 })();
+
+const https = require('https');
+setInterval(function() {
+  https.request({
+    host: 'go2021.glitch.me',
+    path: '/w/FrontPage',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:68.9) Gecko/20100101 Goanna/4.6 Firefox/68.9 Mypal/28.12.0',
+    },
+  }, function(res) {
+
+  }).end();
+}, 1000 * 60);
 
 }
