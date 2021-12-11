@@ -4570,34 +4570,8 @@ wiki.use(function(req, res, next) {
 		userset[set.username][set.key] = set.value;
 	}
 	
-	const https = require('https');
-	setInterval(function() {
-		https.request({
-			host: 'go2021.glitch.me',
-			path: '/w/FrontPage',
-			headers: {
-				'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:68.9) Gecko/20100101 Goanna/4.6 Firefox/68.9 Mypal/28.12.0',
-			},
-		}, function(res) {
-			
-		}).end();
-	}, 1000 * 60);
-	
 	const server = wiki.listen(hostconfig['port'], hostconfig['host']);  // 서버실행
 	print(String(hostconfig['host']) + ":" + String(hostconfig['port']) + "에 실행 중. . .");
 })();
-
-const https = require('https');
-setInterval(function() {
-  https.request({
-    host: 'go2021.glitch.me',
-    path: '/w/FrontPage',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:68.9) Gecko/20100101 Goanna/4.6 Firefox/68.9 Mypal/28.12.0',
-    },
-  }, function(res) {
-
-  }).end();
-}, 1000 * 60);
-
+	
 }
