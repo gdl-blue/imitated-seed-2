@@ -1,5 +1,7 @@
 // 병아리 엔진: 개인 the seed 모방 프로젝트
 
+const http = require('http');
+
 const perms = [
 	'admin', 'ipacl', 'suspend_account', 'developer', 'hideip', 'update_thread_document',
 	'update_thread_status', 'update_thread_topic', 'hide_thread_comment', 'grant',
@@ -188,6 +190,8 @@ try {
 		host: input("호스트 주소: "),
 		port: input("포트 번호: "),
 		skin: input("기본 스킨 이름: "),
+		search_host: input("검색서버 호스트: "),
+		search_port: input("검색서버 포트: "),
 	};
 	
 	const tables = {
@@ -862,6 +866,50 @@ wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
 
+wiki.get(/^\/complete\/(.*)/, (req, res) => {
+	// 초성검색은 나중에
+	const query = req.params[0];
+	const doc = processTitle(query);
+	curs.execute("select title, namespace from documents where title like ? || '%' and namespace = ? limit 10", [doc.title, doc.namespace])
+		.then(data => {
+			var ret = [];
+			for(var i of data) {
+				ret.push(i.title);
+			}
+			return res.json(ret);
+		})
+		.catch(e => {
+			print(e.stack);
+			return res.status(500).json([]);
+		});
+});
+
+wiki.get(/^\/go\/(.*)/, (req, res) => {
+	const query = req.params[0];
+	const doc = processTitle(query);
+	curs.execute("select title, namespace from documents where title = ? and namespace = ? COLLATE NOCASE", [doc.title, doc.namespace])
+		.then(data => {
+			if(data.length) return res.redirect('/w/' + totitle(data[0].title, data[0].namespace));
+			else return res.redirect('/search/' + query);
+		})
+		.catch(e => {
+			return res.redirect('/search/' + query);
+		});
+});
+
+wiki.get(/^\/search\/(.*)/, (req, res) => {
+	const query = req.params[0];
+	http.request({
+		host: hostconfig.search_host,
+		port: hostconfig.search_port,
+		path: '/',
+	}, async res => {
+		res.send(await render(req, '"' + query + '" 검색 결과', '검색 결과 화면', {}, _, _, 'search'));
+	}).on('error', async e => {
+		res.send(await showError(req, 'searchd_fail'));
+	}).end();
+});
+
 wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
 	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
@@ -1269,7 +1317,7 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 			</div>
 			
 			<div class=btns>
-				<button type=submit class="btn btn-primary" style="width: 100px;">확인</button>
+				<button type=submit class="btn btn-primary">되돌리기</button>
 			</div>
 		</form>
 	`;
@@ -4261,66 +4309,73 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 	
 	var id = '1', pw = '1', pw2 = '1';
 	
+	var content = '';
+	var error = false;
+	
 	if(req.method == 'POST') {
 		id = req.body['username'];
 		pw = req.body['password'];
 		pw2 = req.body['password_check'];
 		
-		var data = await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
-		if(data.length) {
-			var duplicate = 1;
-		}
-		if(id.length && !duplicate && pw.length && pw == pw2) {
-			permlist[id] = [];
-			
-			var data = await curs.execute("select username from users");
-			if(!data.length) {
-				for(var perm of perms) {
-					curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
-					permlist[id].push(perm);
+		if(req.method == 'POST' && (hostconfig.reserved_usernames || []).includes(id)) {
+			error = true, content = alertBalloon('\'' + id + '\'은(는) 예약된 이름입니다.', 'danger', false) + content;
+		} else {
+			var data = await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
+			if(data.length) {
+				var duplicate = 1;
+			}
+			if(id.length && !duplicate && pw.length && pw == pw2) {
+				permlist[id] = [];
+				
+				var data = await curs.execute("select username from users");
+				if(!data.length) {
+					for(var perm of perms) {
+						curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
+						permlist[id].push(perm);
+					}
 				}
+				
+				req.session.username = id;
+				
+				await curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
+				await curs.execute("insert into user_settings (username, key, value) values (?, 'email', ?)", [id, credata[0].email]);
+				await curs.execute("insert into documents (title, namespace, content) values (?, '사용자', '')", [id]);
+				await curs.execute("insert into history (title, namespace, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
+								values (?, '사용자', '', '1', ?, ?, '0', '', '0', '', 'create', 'author')", [
+									id, getTime(), id
+								]);
+				if(!hostconfig.disable_login_history) {
+					await curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+					await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+				}
+				await curs.execute("delete from account_creation where key = ?", [key]);
+				
+				return res.send(await render(req, '계정 만들기', `
+					<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
+				`, {}));
 			}
-			
-			req.session.username = id;
-			
-			await curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
-			await curs.execute("insert into user_settings (username, key, value) values (?, 'email', ?)", [id, credata[0].email]);
-			await curs.execute("insert into documents (title, namespace, content) values (?, '사용자', '')", [id]);
-			await curs.execute("insert into history (title, namespace, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
-							values (?, '사용자', '', '1', ?, ?, '0', '', '0', '', 'create', 'author')", [
-								id, getTime(), id
-							]);
-			if(!hostconfig.disable_login_history) {
-				await curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
-				await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
-			}
-			await curs.execute("delete from account_creation where key = ?", [key]);
-			
-			return res.send(await render(req, '계정 만들기', `
-				<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
-			`, {}));
 		}
 	}
 	
-	var content = `
+	content += `
 		<form class=signup-form method=post>
 			<div class=form-group>
 				<label>사용자 ID</label><br>
-				<input class=form-control name="username" type="text" />
-				${duplicate ? `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>` : ''}
-				${!duplicate && !id.length ? `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>` : ''}
+				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
+				${duplicate ? (error = true, `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>`) : ''}
+				${!duplicate && !id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호</label><br>
 				<input class=form-control name="password" type="password" />
-				${!duplicate && id.length && !pw.length ? `<p class=error-desc>암호의 값은 필수입니다.</p>` : ''}
+				${!duplicate && id.length && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호 확인</label><br>
 				<input class=form-control name="password_check" type="password" />
-				${!duplicate && id.length && pw.length && pw != pw2 ? `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>` : ''}
+				${!duplicate && id.length && pw.length && pw != pw2 ? (error = true, `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
 			<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
@@ -4329,7 +4384,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 		</form>
 	`;
 	
-	res.send(await render(req, '계정 만들기', content, {}));
+	res.send(await render(req, '계정 만들기', content, {}, _, error, 'signup'));
 });
 
 wiki.get(/^\/random$/, async(req, res) => {
