@@ -1,6 +1,7 @@
 // 병아리 엔진: 개인 the seed 모방 프로젝트
 
 const http = require('http');
+const path = require('path');
 
 const perms = [
 	'admin', 'ipacl', 'suspend_account', 'developer', 'hideip', 'update_thread_document',
@@ -111,9 +112,10 @@ function insert(table, obj) {
 
 const express = require('express');
 const session = require('express-session');
-const swig = require('swig'); // swig 호출
+const swig = require('swig');  // swig 호출
 
 const wiki = express();
+wiki.disable('x-powered-by');
 
 function getTime() { return Math.floor(new Date().getTime()); }; const get_time = getTime;
 
@@ -172,7 +174,7 @@ const fs = require('fs');
 
 wiki.use(bodyParser.json());
 wiki.use(bodyParser.urlencoded({ extended: true }));
-wiki.use(upload.array()); 
+wiki.use(upload.any()); 
 wiki.use(express.static('public'));
 
 var wikiconfig = {};
@@ -190,8 +192,8 @@ try {
 		host: input("호스트 주소: "),
 		port: input("포트 번호: "),
 		skin: input("기본 스킨 이름: "),
-		search_host: input("검색서버 호스트: "),
-		search_port: input("검색서버 포트: "),
+		// search_host: input("검색서버 호스트: "),
+		// search_port: input("검색서버 포트: "),
 	};
 	
 	const tables = {
@@ -218,6 +220,7 @@ try {
 		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
 		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
 		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
+		'files': ['title', 'namespace', 'hash'],
 	};
 	
 	for(var table in tables) {
@@ -537,12 +540,15 @@ function ip_pas(ip = '', ismember = '', nobold) {
 async function ipblocked(ip) {
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
+	var msg = '';
 	
 	for(let row of ipacl) {
 		if(ipRangeCheck(ip, row.cidr)) {
-			return 1;
+			if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+			else msg = 'IP가 차단되었습니다.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+			return msg;
 		}
-	} return 0;
+	} return false;
 }
 
 async function userblocked(username) {
@@ -866,6 +872,31 @@ wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
 
+wiki.get('/sidebar.json', (req, res) => {
+	curs.execute("select time, title, namespace from history where namespace = '문서' order by cast(time as integer) desc limit 1000")
+	.then(async dbdata => {
+		var ret = [], cnt = 0, used = [];
+		for(var item of dbdata) {
+			if(used.includes(item.title)) continue;
+			used.push(item.title);
+			
+			const del = (await curs.execute("select title from documents where title = ? and namespace = ?", [item.title, item.namespace])).length;
+			ret.push({
+				document: totitle(item.title, item.namespace) + '',
+				status: (del ? 'normal' : 'delete'),
+				date: Math.floor(Number(item.time) / 1000),
+			});
+			cnt++;
+			if(cnt > 20) break;
+		}
+		res.json(ret);
+	})
+	.catch(e => {
+		print(e.stack);
+		res.json('[]');
+	});
+});
+
 wiki.get(/^\/complete\/(.*)/, (req, res) => {
 	// 초성검색은 나중에
 	const query = req.params[0];
@@ -874,7 +905,7 @@ wiki.get(/^\/complete\/(.*)/, (req, res) => {
 		.then(data => {
 			var ret = [];
 			for(var i of data) {
-				ret.push(i.title);
+				ret.push(totitle(i.title, i.namespace) + '');
 			}
 			return res.json(ret);
 		})
@@ -887,7 +918,7 @@ wiki.get(/^\/complete\/(.*)/, (req, res) => {
 wiki.get(/^\/go\/(.*)/, (req, res) => {
 	const query = req.params[0];
 	const doc = processTitle(query);
-	curs.execute("select title, namespace from documents where title = ? and namespace = ? COLLATE NOCASE", [doc.title, doc.namespace])
+	curs.execute("select title, namespace from documents where lower(title) = ? and lower(namespace) = ? COLLATE NOCASE", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
 		.then(data => {
 			if(data.length) return res.redirect('/w/' + totitle(data[0].title, data[0].namespace));
 			else return res.redirect('/search/' + query);
@@ -961,7 +992,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				` + content;
 			}
 			
-			if(rev) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
+			// if(rev) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 			
 			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 			lstedt = Number(data[0].time);
@@ -1666,7 +1697,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 
 			<div class="tab-content bordered">
 				<div class="tab-pane active" id="edit" role="tabpanel">
-					<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;'))}</textarea>
+					<textarea id="textInput" name="text" wrap="soft" class="form-control">${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
 				</div>
 				<div class="tab-pane" id="preview" role="tabpanel">
 					
@@ -1678,7 +1709,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 				<input type="text" class="form-control" id="logInput" name="log" value="">
 			</div>
 
-			<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong></label>
+			<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</strong></label>
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
@@ -3885,6 +3916,134 @@ wiki.all(/^\/aclgroup$/, async(req, res) => {
 	}, '', error, 'aclgroup'));
 });
 
+wiki.all(/^\/Upload$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	
+	const licelst = await curs.execute("select title from documents where namespace = '틀' and title like '이미지 라이선스/%' order by title");
+	const catelst = await curs.execute("select title from documents where namespace = '분류' and title like '파일/%' order by title");
+	
+	var liceopts = '', cateopts = '';
+	
+	for(var lice of licelst) {
+		liceopts += `<option value="${html.escape('' + totitle(lice.title, '틀'))}"${lice.title == '이미지 라이선스/제한적 이용' ? ' selected' : ''}>${html.escape(lice.title.replace('이미지 라이선스/', ''))}</option>`;
+	}
+	for(var cate of catelst) {
+		cateopts += `<option value="${html.escape('' + totitle(cate.title, '분류'))}">${html.escape(cate.title.replace('파일/', ''))}</option>`;
+	}
+	
+	var content = '';
+	
+	content = `
+		<form method="post" id="uploadForm" enctype="multipart/form-data" accept-charset="utf8">
+			<div class=form-group>
+				<input type=hidden name=baserev value="0" />
+				<input type="file" id="fileInput" name="file" hidden="" />
+				<input type=hidden name=identifier value="${islogin(req) ? 'm' : 'i'}:${html.escape(ip_check(req))}" />
+				
+				<div class="row">
+					<div class="col-xs-12 col-md-7 form-group">
+						<label class="control-label" for="fakeFileInput">파일 선택</label>
+						<div class="input-group">
+							<input type="text" class="form-control" id="fakeFileInput" readonly="" />
+							<span class="input-group-btn">
+								<button class="btn btn-secondary" type="button" id="fakeFileButton">Select</button>
+							</span>
+						</div>
+					</div>
+				</div>
+				
+				<div class="row">
+					<div class="col-xs-12 col-md-7 form-group">
+						<label class="control-label" for="fakeFileInput">파일 이름</label>
+						<input type="text" class="form-control" name="document" id=documentInput value="${html.escape(req.method == 'POST' ? req.body['document'] : '')}" />
+					</div>
+				</div>
+
+				<textarea name="text" type="text" rows="25" id="textInput" class=form-control>${(req.method == 'POST' ? req.body['text'] : '').replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
+				
+				<div class=row>
+					<div class="col-xs-12 col-md-5 form-group">
+						<label class="control-label" for="licenseSelect">라이선스</label><br />
+						<select id=licenseSelect class=form-control>${ liceopts }</select>
+					</div>
+				</div>
+				
+				<p style="font-weight: boid; color: red;">[주의!] 파일문서의 라이선스(문서 본문)와 올리는 파일의 라이선스는 다릅니다. 파일의 라이선스를 올바르게 지정하였는지 확인하세요.</p>
+				
+				<div class=row>
+					<div class="col-xs-12 col-md-5 form-group">
+						<label class="control-label" for="categorySelect">분류</label><br />
+						<select id=categorySelect class=form-control>
+							<option value>선택</option>
+							${cateopts}
+						</select>
+					</div>
+				</div>
+				
+				<div class="form-group">
+					<label class="control-label">요약</label>
+					<input type="text" id="logInput" class="form-control" name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
+				</div>
+				
+				<p>${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</p>
+				
+				${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
+				
+				<div class="btns">
+					<button id="uploadBtn" type="submit" class="btn btn-primary">올리기</button>
+				</div>
+		</form>
+		
+		<script>uploadInit();</script>
+	`;
+	
+	var error = false;
+	
+	if(req.method == 'POST') {
+		var file = req.files[0];
+		if(!file) return res.send(await render(req, '파일 올리기', alertBalloon('파일이 업로드되지 않았습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		var title = req.body['document'];
+		if(!title) return res.send(await render(req, '파일 올리기', alertBalloon(fetchErrorString('validator_required', 'document'), 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		var doc = processTitle(title);
+		if(doc.namespace != '파일') return res.send(await render(req, '파일 올리기', alertBalloon('업로드는 파일 이름 공간에서만 가능합니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		if(path.extname(doc.title) != path.extname(file.originalname)) return res.send(await render(req, '파일 올리기', alertBalloon('문서 이름과 확장자가 맞지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
+		if(aclmsg) return res.send(await render(req, '파일 올리기', alertBalloon(aclmsg, 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		
+		var request = http.request({
+			method: 'POST', 
+			host: hostconfig.image_host,
+			port: hostconfig.image_port,
+			path: '/upload',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+		}, async res => {
+			var data = '';
+			res.on('data', chunk += data);
+			res.on('end', async () => {
+				data = JSON.parse(data);
+				if(data.status != 'success') return res.send(await render(req, '파일 올리기', alertBalloon('파일이 업로드되지 않았습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, '']);  // sha224 해쉬화 필요
+				return res.redirect('/w/' + totitle(doc.title, doc.namespace));
+			});
+		}).on('error', async e => {
+			return res.send(await render(req, '파일 올리기', alertBalloon('파일 서버가 사용가능하지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		});
+		request.write(JSON.stringify({
+			filename: file.originalname,
+			document: title,
+			mimetype: file.mimetype,
+			file: file.buffer.toString('base64'),
+		}));
+		request.end();
+		
+		return;
+	}
+	
+	res.send(await render(req, '파일 올리기', content, {}, _, error, 'upload'));
+});
+
 wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
 	var pa = [];
@@ -4163,20 +4322,22 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		}
 	}
 	
+	var error = false;
+	
 	var content = `
 		<form class=login-form method=post>
 			<div class=form-group>
 				<label>Username</label><br>
-				<input class=form-control name="username" type="text">
-				${!id.length ? `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>` : ''}
-				${id.length && invalidusername ? `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>` : ''}
+				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
+				${!id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
+				${id.length && invalidusername ? (error = true, `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>`) : ''}
 			</div>
 
 			<div class=form-group>
 				<label>Password</label><br>
-				<input class=form-control name="password" type="password">
-				${id.length && !invalidusername && !pw.length ? `<p class=error-desc>암호의 값은 필수입니다.</p>` : ''}
-				${id.length && !invalidusername && invalidpw ? `<p class=error-desc>암호가 올바르지 않습니다.</p>` : ''}
+				<input class=form-control name="password" type="password" />
+				${id.length && !invalidusername && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
+				${id.length && !invalidusername && invalidpw ? (error = true, `<p class=error-desc>암호가 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
 			<div class="checkbox" style="display: inline-block;">
@@ -4192,7 +4353,7 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		</form>
 	`;
 	
-	res.send(await render(req, '로그인', content, {}));
+	res.send(await render(req, '로그인', content, {}, _, error, 'login'));
 });
 
 wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) {
@@ -4221,7 +4382,11 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 	if(hostconfig.disable_email) req.body['email'] = '';
 	
 	if(req.method == 'POST') {
-		if(!hostconfig.disable_email && (!req.body['email'] || req.body['email'].match(/[@]/g).length != 1)) {
+		var blockmsg = await ipblocked(ip_check(req, 1));
+		if(blockmsg) {
+			error = true;
+			bal = alertBalloon(blockmsg, 'danger', true, 'fade in');
+		} else if(!hostconfig.disable_email && (!req.body['email'] || req.body['email'].match(/[@]/g).length != 1)) {
 			var invalidemail = 1;
 		} else {
 			var data = await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
@@ -4318,7 +4483,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 		pw2 = req.body['password_check'];
 		
 		if(req.method == 'POST' && (hostconfig.reserved_usernames || []).includes(id)) {
-			error = true, content = alertBalloon('\'' + id + '\'은(는) 예약된 이름입니다.', 'danger', false) + content;
+			error = true, content = alertBalloon('\'' + id + '\'은(는) 예약된 이름입니다.', 'danger', true, 'fade in') + content;
 		} else {
 			var data = await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
 			if(data.length) {
@@ -4573,5 +4738,5 @@ wiki.use(function(req, res, next) {
 	const server = wiki.listen(hostconfig['port'], hostconfig['host']);  // 서버실행
 	print(String(hostconfig['host']) + ":" + String(hostconfig['port']) + "에 실행 중. . .");
 })();
-	
+
 }
