@@ -2105,8 +2105,8 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function document
 	var moredata = [];
 	
 	var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
-					Number(getTime()) - 2592000000, ismember, username
+				where cast(time as integer) >= ? and ismember = ? and lower(username) = ? order by cast(time as integer) desc", [
+					Number(getTime()) - 2592000000, ismember, username.toLowerCase()
 				]);
 	
 	// 2018년 더시드 업데이트로 관리자는 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
@@ -2114,8 +2114,8 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function document
 	if(data.length) tt = Number(data[data.length - 1].time);
 	if(data.length < 100)
 		moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-				where cast(time as integer) < ? and ismember = ? and username = ? order by cast(time as integer) desc limit ?", [
-					tt, ismember, username, 100 - data.length
+				where cast(time as integer) < ? and ismember = ? and lower(username) = ? order by cast(time as integer) desc limit ?", [
+					tt, ismember, username.toLowerCase(), 100 - data.length
 				]);
 	data = data.concat(moredata);
 	
@@ -2287,8 +2287,8 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss/, async function discussio
 	const username = req.params[1];
 	
 	var dd = await curs.execute("select id, tnum, time, username, ismember from res \
-				where cast(time as integer) >= ? and ismember = ? and username = ? order by cast(time as integer) desc", [
-					Number(getTime()) - 2592000000, ismember, username
+				where cast(time as integer) >= ? and ismember = ? and lower(username) = ? order by cast(time as integer) desc", [
+					Number(getTime()) - 2592000000, ismember, username.toLowerCase()
 				]);
 	
 //			<li><a href="/contribution/${ismember}/${username}/document">[문서]</a></li>
@@ -4300,16 +4300,19 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 	var id = '1', pw = '1';
 	
 	if(req.method == 'POST') {
-		id = req.body['username'];
-		pw = req.body['password'];
+		id = req.body['username'] || '';
+		pw = req.body['password'] || '';
 		
-		var data = await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
-		var invalidusername = !data.length;
+		var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
+		var invalidusername = !id || !data.length;
+		var usr = data;
 		
-		var data = await curs.execute("select username, password from users where username = ? and password = ?", [id, sha3(pw)]);
-		var invalidpw = !invalidusername && !data.length;
+		var data = await curs.execute("select username, password from users where lower(username) = ? and password = ? COLLATE NOCASE", [id.toLowerCase(), sha3(pw)]);
+		var invalidpw = !invalidusername && (!data.length || !pw);
 		
 		if(!invalidusername && !invalidpw) {
+			id = usr[0].username;
+			
 			if(!hostconfig.disable_login_history) {
 				curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
 				conn.run("delete from useragents where username = ?", [id], () => {
@@ -4478,14 +4481,14 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 	var error = false;
 	
 	if(req.method == 'POST') {
-		id = req.body['username'];
-		pw = req.body['password'];
-		pw2 = req.body['password_check'];
+		id = req.body['username'] || '';
+		pw = req.body['password'] || '';
+		pw2 = req.body['password_check'] || '';
 		
 		if(req.method == 'POST' && (hostconfig.reserved_usernames || []).includes(id)) {
 			error = true, content = alertBalloon('\'' + id + '\'은(는) 예약된 이름입니다.', 'danger', true, 'fade in') + content;
 		} else {
-			var data = await curs.execute("select username from users where username = ? COLLATE NOCASE", [id]);
+			var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
 			if(data.length) {
 				var duplicate = 1;
 			}
