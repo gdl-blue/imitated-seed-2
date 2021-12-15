@@ -545,7 +545,7 @@ async function ipblocked(ip) {
 	for(let row of ipacl) {
 		if(ipRangeCheck(ip, row.cidr)) {
 			if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
-			else msg = 'IP가 차단되었습니다.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+			else msg = 'IP가 차단되었습니다. <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
 			return msg;
 		}
 	} return false;
@@ -617,7 +617,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
 								ret = 1;
 								if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
-								else msg = 'IP가 차단되었습니다.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+								else msg = 'IP가 차단되었습니다. <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
 								break;
 							}
 						}
@@ -2524,7 +2524,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			`;
 			
 			var cnt = 0;
-			trdlst = await curs.execute("select topic, tnum from threads where title = ? and namespace = ? and status = 'normal' and not deleted = '1' order by cast(time as integer) desc", [doc.title, doc.namespace]);
+			trdlst = await curs.execute("select topic, tnum from threads where title = ? and namespace = ? and not status = 'close' and not deleted = '1' order by cast(time as integer) desc", [doc.title, doc.namespace]);
 			
 			for(var trd of trdlst) {
 				content += `<li><a href="#${++cnt}">${cnt}</a>. <a href="/thread/${trd.tnum}">${html.escape(trd.topic)}</a></li>`;
@@ -2790,12 +2790,12 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	
 	content += `
 		<form id=new-thread-form method=post>
-			<textarea class=form-control rows=5 name=text ${['close', 'pause'].includes(status) ? 'disabled' : ''}>${status == 'pause' ? 'pause 상태입니다.' : (status == 'close' ? '닫힌 토론입니다.' : '')}</textarea>
+			<textarea class=form-control${['close', 'pause'].includes(status) ? ' readonly disabled' : ''} rows=5 name=text>${status == 'pause' ? 'pause 상태입니다.' : (status == 'close' ? '닫힌 토론입니다.' : '')}</textarea>
 		
 			${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론에 참여합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
 			<div class=btns>
-				<button type=submit class="btn btn-primary" style="width: 120px;">전송</button>
+				<button type=submit class="btn btn-primary" style="width: 120px;"${['close', 'pause'].includes(status) ? ' disabled' : ''}>전송</button>
 			</div>
 		</form>
 	`;
@@ -2829,6 +2829,10 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'write_thread_comment', 1);
 	if(aclmsg) {
 		return res.status(403).json({ status: aclmsg });
+	}
+	
+	if(['close', 'pause'].includes(status)) {
+		return res.status(403).json({});
 	}
 	
 	var data = await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
@@ -2998,11 +3002,11 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 	}
 	
 	var newdoc = req.body['document'];
-	if(!newdoc.length) {
-		return res.send('');
-	}
+	if(!newdoc.length) return res.send('');
 	
-	curs.execute("update threads set title = ? where tnum = ?", [newdoc, tnum]);
+	var dd = processTitle(newdoc);
+	
+	curs.execute("update threads set title = ?, namespace = ? where tnum = ?", [dd.title, dd.namespace, tnum]);
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'document')", [
 						String(rescount + 1), newdoc, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
