@@ -2772,7 +2772,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		content += `
         	<form method="post" id="thread-document-form">
         		[ADMIN] 쓰레드 이동
-        		<input type="text" name="document" value="${title}">
+        		<input type="text" name="document" value="${doc}">
         		<button id="changeBtn" class="d_btn type_blue">변경</button>
         	</form>
 		`;
