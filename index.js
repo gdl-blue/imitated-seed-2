@@ -2,12 +2,26 @@
 
 const http = require('http');
 const path = require('path');
+const geoip = require('geoip-lite');
+const inputReader = require('wait-console-input'); // 입력받는 라이브러리
+const timeFormat = 'Y-m-d H:i:s';
+const { SHA3 } = require('sha3');
+const sqlite3 = require('sqlite3').verbose(); // SQLite 라이브러리 호출
+const express = require('express');
+const session = require('express-session');
+const swig = require('swig');  // swig 호출
+const ipRangeCheck = require("ip-range-check");
+const bodyParser = require('body-parser');
+const multer = require('multer');
+const diff = require('./cemerick-jsdifflib.js');
+const fs = require('fs');
+const markdown = require('./namumark.js');
 
-const perms = [
-	'admin', 'ipacl', 'suspend_account', 'developer', 'hideip', 'update_thread_document',
-	'update_thread_status', 'update_thread_topic', 'hide_thread_comment', 'grant',
-	'editable_other_user_document', 'no_force_recaptcha', 'disable_two_factor_login',
-	'login_history', 'delete_thread', 'nsacl', 'aclgroup',
+var perms = [
+	'delete_thread', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
+	'update_thread_status', 'acl', 'nsacl', 'hide_thread_comment', 'grant', 'no_force_recaptcha', 
+	'disable_two_factor_login', 'login_history', 'update_thread_document', 'update_thread_topic', 
+	'aclgroup', 'api_access', 
 ];
 
 const find = (obj, fnc) => {
@@ -45,10 +59,6 @@ function rndval(chars, length) {
 	return result;
 }
 
-const timeFormat = 'Y-m-d H:i:s';
-
-const inputReader = require('wait-console-input'); // 입력받는 라이브러리
-
 function input(p) {
 	prt(p); // 일부러 이렇게. 바로하면 한글 깨짐.
 	return inputReader.readLine('');
@@ -56,7 +66,6 @@ function input(p) {
 
 const exec = eval;
 
-const { SHA3 } = require('sha3');
 function sha3(p, b) {
     const hash = new SHA3(b || 256);
     hash.update(p);
@@ -68,7 +77,6 @@ function Split(str, del) { return str.split(del); }; const split = Split;
 function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
 function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
 
-const sqlite3 = require('sqlite3').verbose(); // SQLite 라이브러리 호출
 const conn = new sqlite3.Database('./wikidata.db', (err) => {}); // 데이타베이스 연결
 
 // 파이선 SQLite 모방
@@ -109,10 +117,6 @@ function insert(table, obj) {
 	} sql = sql.replace(/[,]\s$/, '') + ')';
 	return curs.execute(sql, arr);
 }
-
-const express = require('express');
-const session = require('express-session');
-const swig = require('swig');  // swig 호출
 
 const wiki = express();
 wiki.disable('x-powered-by');
@@ -165,12 +169,7 @@ wiki.use(session({
 	}
 }));
 
-const ipRangeCheck = require("ip-range-check");
-const bodyParser = require('body-parser');
-const multer = require('multer');
-const diff = require('./cemerick-jsdifflib.js');
 const upload = multer();
-const fs = require('fs');
 
 wiki.use(bodyParser.json());
 wiki.use(bodyParser.urlencoded({ extended: true }));
@@ -188,12 +187,26 @@ var revision = 0;
 try {
 	hostconfig = require('./config.json'); 
 	_ready = 1; 
-  if(hostconfig.theseed_version) {
-    var sp = hostconfig.theseed_version.split('.');
-    major = Number(sp[0]);
-    minor = Number(sp[1]);
-    revision = Number(sp[2]);
-  }
+	if(hostconfig.theseed_version) {
+		var sp = hostconfig.theseed_version.split('.');
+		major = Number(sp[0]);
+		minor = Number(sp[1]);
+		revision = Number(sp[2]);
+		
+		if(minor >= 18) {
+			perms = perms.filter(item => !['ipacl', 'suspend_account'].includes(item));
+		} else {
+			perms = perms.filter(item => !['aclgroup'].includes(item));
+		}
+		
+		if(minor >= 2) {
+			perms = perms.filter(item => !['acl'].includes(item));
+		}
+		
+		if(minor < 20) {
+			perms = perms.filter(item => !['api_access'].includes(item));
+		}
+	}
 } catch(e) { (async function() {
 	print("병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n");
 	
@@ -252,8 +265,6 @@ try {
 	print('\n준비 완료되었습니다. 엔진을 다시 시작하십시오.');
 	process.exit(0);
 })(); } if(_ready) {
-
-const markdown = require('./namumark.js');
 
 function islogin(req) {
 	if(req.session.username) return true;
@@ -656,8 +667,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						var data = await curs.execute("select time from history where title = ? and namespace = '사용자' and username = ? and ismember = 'author' and advance = 'create' order by cast(rev as integer) asc limit 1", [ip_check(req), ip_check(req)]);
 						if(data.length) {
 							data = data[0];
-							if(new Date().getTime() >= Number(data.time) + 1296000000)
-								ret = 1;
+							if(new Date().getTime() >= Number(data.time) + 1296000000) ret = 1;
 						}
 					} break; case 'blocked_ipacl': {
 						if(minor < 18) for(let row of ipacl) {
@@ -691,6 +701,8 @@ async function getacl(req, title, namespace, type, getmsg) {
 						
 						ret = 1;
 					} break; case 'contributor': {
+						if(minor < 7) break;
+						
 						var data = await curs.execute("select rev from history where username = ? and ismember = ?", [ip_check(req), islogin(req) ? 'author' : 'ip']);
 						if(!data.length) break;
 						
@@ -726,6 +738,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 					} else if(row.action == 'deny') {
 						r.ret = 0;
 						r.msg = msg;
+						r.m1 = aclperms[row.condition] || row.condition;
 						break;
 					} else if(row.action == 'gotons' && minor >= 18) {
 						r = await f(ns);
@@ -758,9 +771,19 @@ async function getacl(req, title, namespace, type, getmsg) {
 						break;
 					} else break;
 				}
-			} else if(row.conditiontype == 'geoip') {
-				// geoip-lite 모듈사용
-				continue;
+			} else if(row.conditiontype == 'geoip' && (minor >= 6 || (minor == 5 && revision >= 9))) {
+				if(geoip.lookup(ip_check(req, 1)).country == row.condition) {
+					if(row.action == 'allow') {
+						r.ret = 1;
+						break;
+					} else if(row.action == 'deny') {
+						r.ret = 0;
+						break;
+					} else if(row.action == 'gotons' && minor >= 18) {
+						r = await f(ns);
+						break;
+					} else break;
+				}
 			} else if(row.conditiontype == 'aclgroup' && minor >= 18) {
 				var ag = null;
 				
@@ -791,12 +814,12 @@ async function getacl(req, title, namespace, type, getmsg) {
 	const r = await f(doc);
 	if(!getmsg) return r.ret;
 	if(!r.ret && !r.msg) {
-		r.msg = `${r.m1}${acltype[type]} 권한이 부족합니다.${r.m2}`;
-		if(minor >= 6 || (minor == 5 && revision >= 9)) r.msg += '해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.';
+		r.msg = `${r.m1 && minor >= 7 ? r.m1 + '이기 때문에 ' : ''}${acltype[type]} 권한이 부족합니다.${r.m2 && minor >= 7 ? r.m2.replace(/\sOR\s$/, '') + '(이)여야 합니다.' : ''}`;
+		if(minor >= 6 || (minor == 5 && revision >= 9)) r.msg += `해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.`;
 		if(type == 'edit' && getmsg != 2)
 			r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
 	}
-	return r.msg;  // 거부되었으면 오류메시지 내용반환 허용은 빈문자열
+	return r.msg;  // 거부되었으면 오류 메시지 내용 반환, 허용은 빈 문자열
 }
 
 function navbtn(cs, ce, s, e) {
@@ -833,7 +856,7 @@ function cacheSkinList() {
 }
 cacheSkinList();
 
-wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function dropSkinFile(req, res) {
+wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function sendSkinFile(req, res) {
 	const skinname = req.params[0];
 	const filepath = req.params[1];
 	
@@ -933,7 +956,7 @@ function edittype(type, ...flags) {
 }
 
 function redirectToFrontPage(req, res) {
-	res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
+	res.redirect('/w/' + (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')));
 }
 
 wiki.get(/^\/License$/, async(req, res) => {
@@ -975,7 +998,7 @@ wiki.get(/^\/complete\/(.*)/, (req, res) => {
 	// 초성검색은 나중에
 	const query = req.params[0];
 	const doc = processTitle(query);
-	curs.execute("select title, namespace from documents where title like ? || '%' and namespace = ? limit 10", [doc.title, doc.namespace])
+	curs.execute("select title, namespace from documents where lower(title) like ? || '%' and lower(namespace) = ? limit 10", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
 		.then(data => {
 			var ret = [];
 			for(var i of data) {
@@ -992,7 +1015,7 @@ wiki.get(/^\/complete\/(.*)/, (req, res) => {
 wiki.get(/^\/go\/(.*)/, (req, res) => {
 	const query = req.params[0];
 	const doc = processTitle(query);
-	curs.execute("select title, namespace from documents where lower(title) = ? and lower(namespace) = ? COLLATE NOCASE", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
+	curs.execute("select title, namespace from documents where lower(title) = ? and lower(namespace) = ?", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
 		.then(data => {
 			if(data.length) return res.redirect('/w/' + totitle(data[0].title, data[0].namespace));
 			else return res.redirect('/search/' + query);
@@ -1017,7 +1040,7 @@ wiki.get(/^\/search\/(.*)/, (req, res) => {
 
 wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
-	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('frontpage', 'FrontPage'));
+	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')));
 	const doc = processTitle(title);
 	const { rev } = req.query;
 	
@@ -1356,14 +1379,29 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 		<head>
 			<meta charset=utf8 />
 			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+		${hostconfig.use_external_css ? `
+			<link rel="stylesheet" href="https://theseed.io/css/diffview.css">
+			<link rel="stylesheet" href="https://theseed.io/css/katex.min.css">
+			<link rel="stylesheet" href="https://theseed.io/css/wiki.css">
+		` : `
 			<link rel="stylesheet" href="/css/diffview.css">
 			<link rel="stylesheet" href="/css/katex.min.css">
 			<link rel="stylesheet" href="/css/wiki.css">
+		`}
+		${hostconfig.use_external_js ? `
+			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+			<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+			<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
+			<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
+			<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
+			
+		` : `
 			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
 			<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
 			<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
 			<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
 			<script type="text/javascript" src="/js/theseed.js?24141115"></script>
+		`}
 		</head>
 		
 		<body>
@@ -1498,14 +1536,29 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 		<head>
 			<meta charset=utf8 />
 			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+		${hostconfig.use_external_css ? `
+			<link rel="stylesheet" href="https://theseed.io/css/diffview.css">
+			<link rel="stylesheet" href="https://theseed.io/css/katex.min.css">
+			<link rel="stylesheet" href="https://theseed.io/css/wiki.css">
+		` : `
 			<link rel="stylesheet" href="/css/diffview.css">
 			<link rel="stylesheet" href="/css/katex.min.css">
 			<link rel="stylesheet" href="/css/wiki.css">
+		`}
+		${hostconfig.use_external_js ? `
+			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+			<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+			<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
+			<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
+			<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
+			
+		` : `
 			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
 			<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
 			<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
 			<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
 			<script type="text/javascript" src="/js/theseed.js?24141115"></script>
+		`}
 		</head>
 		
 		<body>
@@ -1881,7 +1934,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				if(Number(expire) === NaN) return res.status(400).send('');
 				const cond = condition.split(':');
 				if(cond.length != 2) return res.status(400).send('');
-				if(!['perm', 'ip', 'member', 'geoip'].concat(minor >= 18 ? ['aclgroup'] : []).includes(cond[0])) return res.status(400).send('');
+				if(!['perm', 'ip', 'member'].concat((minor >= 6 || (minor == 5 && revision >= 9)) ? ['geoip'] : []).concat(minor >= 18 ? ['aclgroup'] : []).includes(cond[0])) return res.status(400).send('');
 				if(isNS) var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.namespace]);
 				else var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.title, doc.namespace]);
 				if(data.length) return res.status(400).json({
@@ -2015,7 +2068,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 										<option value="perm">권한</option>
 										<option value="member">사용자</option>
 										<option value="ip">아이피</option>
-										<option value="geoip">GeoIP</option>
+										${(minor >= 6 || (minor == 5 && revision >= 9)) ? `<option value="geoip">GeoIP</option>` : ''}
 										${minor >= 18 ? `<option value="aclgroup">ACL그룹</option>` : ''}
 									</select>
 									<select class="seed-acl-add-condition-value-perm form-control" id="permTextWTC">
@@ -2177,11 +2230,11 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function document
 	var moredata = [];
 	
 	var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-				where cast(time as integer) >= ? and ismember = ? and lower(username) = ? order by cast(time as integer) desc", [
+				where cast(time as integer) >= ? and ismember = ? " + (username ? "and lower(username) = ?" : "and (lower(username) like % || ?)") + " order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username.toLowerCase()
 				]);
 	
-	// 2018년 더시드 업데이트로 관리자는 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
+	// 2018년 더시드 업데이트로 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
 	var tt = Number(getTime()) + 12345;
 	if(data.length) tt = Number(data[data.length - 1].time);
 	if(data.length < 100 && minor >= 8)
@@ -2190,9 +2243,6 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function document
 					tt, ismember, username.toLowerCase(), 100 - data.length
 				]);
 	data = data.concat(moredata);
-	
-//			<li><a href="/contribution/${ismember}/${username}/document">[문서]</a></li>
-//			<li><a href="/contribution/${ismember}/${username}/discuss">[토론]</a></li>
 	
 	var content = `
 		<p>최근 30일동안의 기여 목록 입니다.</p>
@@ -2924,7 +2974,7 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	res.json({});
 });
 
-wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
+wiki.get('/thread/:tnum/:id', async function sendThreadData(req, res) {
 	const tnum = req.param("tnum");
 	const tid = req.param("id");
 	
@@ -3388,8 +3438,9 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		if(!expire) return res.send(await render(req, '사용자 차단', alertBalloon('차단 기간이 올바르지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		if(!username) return res.send(await render(req, '사용자 차단', alertBalloon('사용자 이름의 값은 필수입니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		if(!note) note = '';
-		var data = await curs.execute("select username from users where username = ?", [username]);
+		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
 		if(!data.length) return res.send(await render(req, '사용자 차단', alertBalloon('계정이 존재하지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
+		username = data[0].username;
 		if(isNaN(Number(expire))) {
 			return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content, {
 			}, '', true, 'suspend_account'));
@@ -3443,7 +3494,7 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 
 wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
-	const username = req.query['username'];
+	var username = req.query['username'];
 	
 	if(!getperm('grant', ip_check(req))) {
 		res.send(await showError(req, 'insufficient_privileges'));
@@ -3467,10 +3518,10 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 		return res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
 	}
 	
-	var data = await curs.execute("select username from users where username = ?", [username]);
+	var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
 	if(!data.length) {
 		return res.send(await showError(req, 'user_not_found'));
-	}
+	} username = data[0].username;
 	
 	var chkbxs = '';
 	
@@ -4104,7 +4155,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 			res.on('end', async () => {
 				data = JSON.parse(data);
 				if(data.status != 'success') return res.send(await render(req, '파일 올리기', alertBalloon('파일이 업로드되지 않았습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
-				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, '']);  // sha224 해쉬화 필요
+				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, '']);  // sha224 해시화 필요
 				return res.redirect('/w/' + totitle(doc.title, doc.namespace));
 			});
 		}).on('error', async e => {
@@ -4165,6 +4216,8 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	}
 	
 	for(var item of data) {
+		if(['aclgroup_add', 'aclgroup_remove'].includes(item.type) && minor < 18) continue;
+		
 		content += `
 			<li>${generateTime(toDate(item.date), timeFormat)} ${ip_pas(item.executer, item.ismember)} 사용자가 ${item.target} <i>(${
 				item.type == 'aclgroup_add'
