@@ -9,7 +9,7 @@
 - skins 디렉토리를 만든다.
   - [buma](https://github.com/LiteHell/theseed-skin-buma/tree/d77eef50a77007da391c5082b4b94818db372417), [liberty](https://github.com/namuwiki/theseed-skin-liberty/tree/153cf78f70206643ec42e856aff8280dc21eb2c0) 등 원하는 스킨을 내려받고 skins 디렉토리에 스킨 이름으로 하위디렉토리를 만들어 복사한다.
 - `npm i`를 실행한다.
-- `node index`를 실행한다.
+- `node server`를 실행한다.
 
 ## 숨겨진 설정
 - config.json 수정으로 숨겨진 설정을 제어할 수 있다.
