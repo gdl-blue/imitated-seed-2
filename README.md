@@ -15,6 +15,7 @@
 - config.json 수정으로 숨겨진 설정을 제어할 수 있다.
   - `disable_email`: 전자우편 인증을 끈다.
   - `disable_login_history`: 로그인 내역을 기록하지 않게 한다.
-  - `use_external_js`: theseed.js, jQuery 등을 [https://theseed.io](https://theseed.io)에서 불러온다.
-  - `use_external_css`: wiki.css 등을 [https://theseed.io](https://theseed.io)에서 불러온다.
+  - `use_external_js`: theseed.js, jQuery 등을 [theseed.io](https://theseed.io)에서 불러온다.
+  - `use_external_css`: wiki.css 등을 [theseed.io](https://theseed.io)에서 불러온다.
   - `allow_account_deletion`: 계정 탈퇴를 허용한다.
+  - `theseed_version`: 문자열로 모방할 the seed 엔진의 버전을 지정한다. 예를 들어, "4.4.2"로 할 경우, v4.4.3에 추가된 쓰레드 주제/문서 변경 기능을 사용할 수 없고, "4.18.0"으로 할 경우 IPACL과 사용자 차단 기능이 비활성화되고 ACLGroup가 활성화되며 ACL에서 이름공간ACL 실행 action를 사용할 수 있다.
