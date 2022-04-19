@@ -1,8 +1,11 @@
 {
+  "engines": {
+    "node": "12"
+  },
   "name": "imitated-seed-v2",
   "version": "4.12.0",
-  "description": "더 시드 엔진 4.12.0 모방 엔진",
-  "main": "index.js",
+  "description": "더 시드 모방 엔진.",
+  "main": "server.js",
   "dependencies": {
     "express": "^4.17.1",
     "express-session": "^1.17.2",
@@ -18,7 +21,7 @@
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index"
+    "start": "node server"
   },
   "repository": {
     "type": "git",
