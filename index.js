@@ -19,7 +19,7 @@ const find = (obj, fnc) => {
         throw TypeError(`${fnc} is not a function`);
     }
     
-    for(i in obj) {
+    for(var i in obj) {
         if(fnc(obj[i])) return i;
     }
     
@@ -94,7 +94,7 @@ const curs = {
 	},
 	fetchall: function fetchSQLData() {
 		return conn.sd;
-	}
+	},
 };
 
 function insert(table, obj) {
@@ -182,9 +182,18 @@ var permlist = {};
 var _ready = 0;
 
 var hostconfig;
+var major = 4;
+var minor = 12;
+var revision = 0;
 try {
 	hostconfig = require('./config.json'); 
 	_ready = 1; 
+  if(hostconfig.theseed_version) {
+    var sp = hostconfig.theseed_version.split('.');
+    major = Number(sp[0]);
+    minor = Number(sp[1]);
+    revision = Number(sp[2]);
+  }
 } catch(e) { (async function() {
 	print("병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n");
 	
@@ -195,7 +204,8 @@ try {
 		// search_host: input("검색서버 호스트: "),
 		// search_port: input("검색서버 포트: "),
 	};
-	
+	//
+  
 	const tables = {
 		'documents': ['title', 'content', 'namespace'],
 		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags'],
@@ -227,7 +237,7 @@ try {
 		var sql = '';
 		sql = `CREATE TABLE ${table} ( `;
 		
-		for(col of tables[table]) {
+		for(var col of tables[table]) {
 			sql += `${col} TEXT DEFAULT '', `;
 		}
 		
@@ -485,6 +495,22 @@ const acltype = {
 	acl: 'ACL',
 };
 
+const aclperms = {
+	any: '아무나',
+	member: '로그인된 사용자',
+	admin: '관리자',
+	member_signup_15days_ago: '가입한지 15일 지난 사용자',
+	suspend_account: (minor >= 18 ? undefined : '차단된 사용자'),
+	blocked_ipacl: (minor >= 18 ? undefined : '차단된 아이피'),
+	document_contributor: '해당 문서 기여자',
+	contributor: (minor >= 7 ? '위키 기여자' : undefined),
+	match_username_and_document_title: ((minor >= 6 || (minor == 5 && revision >= 9)) ? '문서 제목과 사용자 이름이 일치' : undefined),
+};
+
+const exaclperms = [
+	'member', 'member_signup_15days_ago', 'document_contributor', 'contributor',
+];
+
 function fetchErrorString(code, ...params) {
 	const codes = {
 		insufficient_privileges: '권한이 부족합니다.',
@@ -525,7 +551,7 @@ function fetchNamespaces() {
 }
 
 async function showError(req, code, custom) {
-	return await render(req, "문제가 발생했습니다!", `<h2>${custom ? code : fetchErrorString(code)}</h2>`);
+	return await render(req, minor >= 13 ? '오류' : '문제가 발생했습니다!', `${minor >= 13 ? '<div>' : '<h2>'}${custom ? code : fetchErrorString(code)}${minor >= 13 ? '</div>' : '</h2>'}`);
 }
 
 function ip_pas(ip = '', ismember = '', nobold) {
@@ -544,8 +570,8 @@ async function ipblocked(ip) {
 	
 	for(let row of ipacl) {
 		if(ipRangeCheck(ip, row.cidr)) {
-			if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
-			else msg = 'IP가 차단되었습니다. <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+			if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 ' + (minor < 11 ? '본인이 반달을 했다기 보다는 해당 통신사를 쓰는' : '같은 인터넷 공급업체를 사용하는') + ' 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+			else msg = 'IP가 차단되었습니다.' + (minor < 6 ? ' <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.' : '') + '<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
 			return msg;
 		}
 	} return false;
@@ -601,11 +627,32 @@ async function getacl(req, title, namespace, type, getmsg) {
 					case 'any': {
 						ret = 1;
 					} break; case 'member': {
-						if(islogin(req)) ret = 1;
+						if(!islogin(req)) break;
+						
+						var blocked = await userblocked(ip_check(req));
+						if(blocked) break;
+						for(let row of ipacl) {
+							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
+								blocked = 1;
+								break;
+							}
+						} if(blocked) break;
+						
+						ret = 1;
 					} break; case 'admin': {
 						if(hasperm(req, 'admin')) ret = 1;
 					} break; case 'member_signup_15days_ago': {
 						if(!islogin(req)) break;
+						
+						var blocked = await userblocked(ip_check(req));
+						if(blocked) break;
+						for(let row of ipacl) {
+							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
+								blocked = 1;
+								break;
+							}
+						} if(blocked) break;
+						
 						var data = await curs.execute("select time from history where title = ? and namespace = '사용자' and username = ? and ismember = 'author' and advance = 'create' order by cast(rev as integer) asc limit 1", [ip_check(req), ip_check(req)]);
 						if(data.length) {
 							data = data[0];
@@ -613,7 +660,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 								ret = 1;
 						}
 					} break; case 'blocked_ipacl': {
-						for(let row of ipacl) {
+						if(minor < 18) for(let row of ipacl) {
 							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
 								ret = 1;
 								if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
@@ -623,6 +670,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						}
 					} break; case 'suspend_account': {
 						if(!islogin(req)) break;
+						if(minor >= 18) break;
 						const data = await userblocked(ip_check(req));
 						if(data) {
 							ret = 1;
@@ -630,12 +678,38 @@ async function getacl(req, title, namespace, type, getmsg) {
 						}
 					} break; case 'document_contributor': {
 						var data = await curs.execute("select rev from history where title = ? and namespace = ? and username = ? and ismember = ?", [title, namespace, ip_check(req), islogin(req) ? 'author' : 'ip']);
-						if(data.length) ret = 1;
+						if(!data.length) break;
+						
+						var blocked = await userblocked(ip_check(req));
+						if(blocked) break;
+						for(let row of ipacl) {
+							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
+								blocked = 1;
+								break;
+							}
+						} if(blocked) break;
+						
+						ret = 1;
 					} break; case 'contributor': {
 						var data = await curs.execute("select rev from history where username = ? and ismember = ?", [ip_check(req), islogin(req) ? 'author' : 'ip']);
-						if(data.length) ret = 1;
+						if(!data.length) break;
+						
+						var blocked = await userblocked(ip_check(req));
+						if(blocked) break;
+						for(let row of ipacl) {
+							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
+								blocked = 1;
+								break;
+							}
+						} if(blocked) break;
+						
+						ret = 1;
 					} break; case 'match_username_and_document_title': {
-						if(islogin(req) && ip_check(req) == title.split('/')[0]) ret = 1;
+						if(minor >= 11) {
+							if(islogin(req) && ip_check(req) == title.split('/')[0]) ret = 1;
+						} else {
+							if(islogin(req) && ip_check(req) == title) ret = 1;
+						}
 					} break; case 'ip': {
 						if(!islogin(req)) ret = 1;
 					} break; case 'bot': {
@@ -653,7 +727,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						r.ret = 0;
 						r.msg = msg;
 						break;
-					} else if(row.action == 'gotons') {
+					} else if(row.action == 'gotons' && minor >= 18) {
 						r = await f(ns);
 						break;
 					} else break;
@@ -666,7 +740,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 					} else if(row.action == 'deny') {
 						r.ret = 0;
 						break;
-					} else if(row.action == 'gotons') {
+					} else if(row.action == 'gotons' && minor >= 18) {
 						r = await f(ns);
 						break;
 					} else break;
@@ -679,7 +753,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 					} else if(row.action == 'deny') {
 						r.ret = 0;
 						break;
-					} else if(row.action == 'gotons') {
+					} else if(row.action == 'gotons' && minor >= 18) {
 						r = await f(ns);
 						break;
 					} else break;
@@ -687,7 +761,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 			} else if(row.conditiontype == 'geoip') {
 				// geoip-lite 모듈사용
 				continue;
-			} else if(row.conditiontype == 'aclgroup') {
+			} else if(row.conditiontype == 'aclgroup' && minor >= 18) {
 				var ag = null;
 				
 				for(let item of aclgroup[row.condition]) {
@@ -703,7 +777,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						r.ret = 0;
 						r.msg = 'ACL그룹 ' + row.condition + ' #' + ag.id + '에 있기 때문에 ' + acltype[type] + ' 권한이 부족합니다.<br />만료일 : ' + (ag.expiration == '0' ? '무기한' : new Date(Number(ag.expiration))) + '<br />사유 : ' + ag.note;
 						break;
-					} else if(row.action == 'gotons') {
+					} else if(row.action == 'gotons' && minor >= 18) {
 						r = await f(ns);
 						break;
 					} else break;
@@ -718,7 +792,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 	if(!getmsg) return r.ret;
 	if(!r.ret && !r.msg) {
 		r.msg = `${r.m1}${acltype[type]} 권한이 부족합니다.${r.m2}`;
-		// 해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.
+		if(minor >= 6 || (minor == 5 && revision >= 9)) r.msg += '해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.';
 		if(type == 'edit' && getmsg != 2)
 			r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
 	}
@@ -768,7 +842,7 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function dropSkinFile(req, res) {
 	
 	var rootp = './skins/' + skinname + '/static';
 	var cnt = 0;
-	for(dir of afn) {
+	for(var dir of afn) {
 		rootp += '/' + dir;
 	}
 	
@@ -864,7 +938,7 @@ function redirectToFrontPage(req, res) {
 
 wiki.get(/^\/License$/, async(req, res) => {
 	return res.send(await render(req, '라이선스', `
-	
+		<p>모방 타겟 the seed 버전: v${major}.${minor}.${revision}</p>
 	` + await readFile('./skins/' + getSkin(req) + '/license.html'), {}, _, _, 'license'));
 });
 
@@ -967,10 +1041,10 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	try {
 		const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
 		if(aclmsg) {
+			if(minor < 5 || (minor == 5 && revision < 7)) return res.status(403).send(await showError(req, 'insufficient_privileges_read'));
 			httpstat = 403;
 			error = true;
 			content = '<h2>' + aclmsg + '</h2>';
-			// return res.status(403).send(await showError(req, 'insufficient_privileges_read'));
 		} else {
 			content = await markdown(rawContent[0].content, 0, doc + '');
 			const blockdata = await userblocked(doc.title);
@@ -992,7 +1066,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				` + content;
 			}
 			
-			// if(rev) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
+			if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 			
 			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 			lstedt = Number(data[0].time);
@@ -1117,7 +1191,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	
 	if(req.method == 'POST' && isNaN(Number(req.body['baserev']))) return res.send(await showError(req, 'invalid_value'));
 	
-	if(['특수기능', '투표', '토론'].includes(doc.namespace)) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
+	if(['특수기능', '투표', '토론'].includes(doc.namespace) || ((minor < 6 || (minor == 7 && revision < 3)) && doc.title.includes('://'))) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
 	
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	if(!rawContent[0]) rawContent = '';
@@ -1339,7 +1413,7 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 	var content = `
 		<form method=post>
 			<div class=form-group>
-				<textarea class=form-control rows=15 readonly>${revdata.content.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
+				<textarea class=form-control rows=25 readonly>${revdata.content.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
 			</div>
 		
 			<div class=form-group>
@@ -1803,17 +1877,17 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 		
 		switch(mode) {
 			case 'insert': {
-				if(!['allow', 'deny'].concat(isNS ? [] : ['gotons']).includes(action)) return res.status(400).send('');
+				if(!['allow', 'deny'].concat(isNS || minor < 18 ? [] : ['gotons']).includes(action)) return res.status(400).send('');
 				if(Number(expire) === NaN) return res.status(400).send('');
 				const cond = condition.split(':');
 				if(cond.length != 2) return res.status(400).send('');
-				if(!['perm', 'ip', 'member', 'geoip', 'aclgroup'].includes(cond[0])) return res.status(400).send('');
+				if(!['perm', 'ip', 'member', 'geoip'].concat(minor >= 18 ? ['aclgroup'] : []).includes(cond[0])) return res.status(400).send('');
 				if(isNS) var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.namespace]);
 				else var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.title, doc.namespace]);
 				if(data.length) return res.status(400).json({
 					status: fetchErrorString('acl_already_exists'),
 				});
-				if(cond[0] == 'aclgroup') {
+				if(cond[0] == 'aclgroup' && minor >= 18) {
 					var data = await curs.execute("select name from aclgroup_groups where name = ?", [cond[1]]);
 					if(!data.length) return res.status(400).json({
 						status: fetchErrorString('invalid_aclgroup'),
@@ -1926,6 +2000,12 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					</table>
 				`;
 				if(edit) {
+					var aclpermopt = '';
+					for(var prm in aclperms) {
+						if(!aclperms[prm]) continue;
+						aclpermopt += `<option value=${prm}>${aclperms[prm]}${minor >= 18 ? '' : (exaclperms.includes(prm) ? ' [*]' : '')}</option>`;
+					}
+					
 					content += `
 						<div class="form-inline">
 							<div class="form-group">
@@ -1936,19 +2016,11 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 										<option value="member">사용자</option>
 										<option value="ip">아이피</option>
 										<option value="geoip">GeoIP</option>
-										<option value="aclgroup">ACL그룹</option>
+										${minor >= 18 ? `<option value="aclgroup">ACL그룹</option>` : ''}
 									</select>
 									<select class="seed-acl-add-condition-value-perm form-control" id="permTextWTC">
-										<option value="any">아무나</option>
-										<option value="member">로그인된 사용자 [*]</option>
-										<option value="admin">관리자</option>
-										<option value="member_signup_15days_ago">가입한지 15일 지난 사용자 [*]</option>
-										<option value="suspend_account">차단된 사용자</option>
-										<option value="blocked_ipacl">차단된 아이피</option>
-										<option value="document_contributor">해당 문서 기여자 [*]</option>
-										<option value="contributor">위키 기여자 [*]</option>
-										<option value="match_username_and_document_title">문서 제목과 사용자 이름이 일치</option>
-										</select>
+										${aclpermopt}
+									</select>
 									<input class="seed-acl-add-condition-value form-control" style="display: none;" type="text"> 
 								</div>
 							</div>
@@ -1958,7 +2030,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 									<select class="seed-acl-add-action form-control">
 										<option value="allow">허용</option>
 										<option value="deny">거부</option>
-										${isns ? '' : `<option value="gotons">이름공간ACL 실행</option>`}
+										${isns || minor < 18 ? '' : `<option value="gotons">이름공간ACL 실행</option>`}
 									</select>
 								</div>
 							</div>
@@ -1988,7 +2060,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 							</div>
 							<button type="submit" class="btn btn-primary seed-acl-add-btn">추가</button> 
 						</div>
-						<small>[*] 차단된 사용자는 포함되지 않습니다.</small>
+						${minor >= 18 ? '' : `<small>[*] 차단된 사용자는 포함되지 않습니다.</small>`}
 					`;
 				} content += `
 						</div>
@@ -2112,7 +2184,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function document
 	// 2018년 더시드 업데이트로 관리자는 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
 	var tt = Number(getTime()) + 12345;
 	if(data.length) tt = Number(data[data.length - 1].time);
-	if(data.length < 100)
+	if(data.length < 100 && minor >= 8)
 		moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 				where cast(time as integer) < ? and ismember = ? and lower(username) = ? order by cast(time as integer) desc limit ?", [
 					tt, ismember, username.toLowerCase(), 100 - data.length
@@ -2768,7 +2840,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		`;
 	}
 	
-	if(getperm('update_thread_document', ip_check(req))) {
+	if(getperm('update_thread_document', ip_check(req)) && (minor >= 5 || (minor == 4 && revision >= 3))) {
 		content += `
         	<form method="post" id="thread-document-form">
         		[ADMIN] 쓰레드 이동
@@ -2778,7 +2850,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 		`;
 	}
 	
-	if(getperm('update_thread_topic', ip_check(req))) {
+	if(getperm('update_thread_topic', ip_check(req)) && (minor >= 5 || (minor == 4 && revision >= 3))) {
 		content += `
         	<form method="post" id="thread-topic-form">
         		[ADMIN] 쓰레드 주제 변경
@@ -2834,6 +2906,10 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	if(['close', 'pause'].includes(status)) {
 		return res.status(403).json({});
 	}
+  
+  if(!req.body['text']) {
+    return res.status(400).json({});
+  }
 	
 	var data = await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
 	const lid = Number(data[0]['id']);
@@ -2883,7 +2959,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 					<div class="r-head${rs['username'] == fstusr ? " first-author" : ''}">
 						<span class=num>
 							<a id="${rs['id']}">#${rs['id']}</a>&nbsp;
-						</span> ${ip_pas(rs['username'], rs['ismember'], 1).replace('<a ', rs.isadmin == '1' ? '<a style="font-weight: bold;" ' : '<a ')}${rs['ismember'] == 'author' && await userblocked(rs.username) ? ' <small>(차단된 사용자)</small>' : ''}${rs['ismember'] == 'ip' && await ipblocked(rs.username) ? ' <small>(차단된 아이피)</small>' : ''} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
+						</span> ${ip_pas(rs['username'], rs['ismember'], 1).replace('<a ', rs.isadmin == '1' ? '<a style="font-weight: bold;" ' : '<a ')}${rs['ismember'] == 'author' && await userblocked(rs.username) ? ` <small>(${(minor >= 12 || (minor == 11 && revision >= 3)) ? '차단됨' : '차단된 사용자'})</small>` : ''}${rs['ismember'] == 'ip' && await ipblocked(rs.username) ? ` <small>(${(minor >= 12 || (minor == 11 && revision >= 3)) ? '차단됨' : '차단된 아이피'})</small>` : ''} <span style="float: right;">${generateTime(toDate(rs['time']), timeFormat)}</span>
 					</div>
 					
 					<div class="r-body${rs['hidden'] == '1' ? ' r-hidden-body' : ''}">
@@ -2898,7 +2974,7 @@ wiki.get('/thread/:tnum/:id', async function dropThreadData(req, res) {
 								rs['status'] == 1
 								? (
 									rs.type == 'status'
-									? '스레드 상태를 <strong>' + rs['content'] + '</strong>로 변경'
+									? ((minor >= 5 || (minor == 4 && revision >= 3)) ? ('스레드 상태를 <strong>' + rs['content'] + '</strong>로 변경') : ('토픽 상태를 ' + rs['content'] + '로 변경'))
 									: (
 										rs.type == 'document'
 										? '스레드를 <strong>' + rs['content'] + '</strong> 문서로 이동'
@@ -3263,7 +3339,7 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 	}, '', _, 'move'));
 });
 
-wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
+if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!hasperm(req, 'suspend_account')) return res.status(403).send(await showError(req, 'insufficient_privileges'));
 	
@@ -3473,7 +3549,7 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
 });
 
-wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
+if(minor < 18) wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
 	if(!hasperm(req, 'ipacl')) return res.status(403).send(await showError(req, 'insufficient_privileges'));
 	if(!req.body['ip']) return res.status(400).send(await showError(req, 'validator_required'));
 	await curs.execute("delete from ipacl where cidr = ?", [req.body['ip']]);
@@ -3491,7 +3567,7 @@ wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
 	return res.redirect('/admin/ipacl');
 });
 
-wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
+if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!hasperm(req, 'ipacl')) return res.status(403).send(await showError(req, 'insufficient_privileges'));
 	
@@ -3659,7 +3735,7 @@ wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	}, '', error, 'ipacl'));
 });
 
-wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
+if(minor >= 18) wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'insufficient_privileges'));
 	
@@ -3694,7 +3770,7 @@ wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 	res.send(await render(req, 'ACL그룹 생성', content, {}, '', error, _));
 });
 
-wiki.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
+if(minor >= 18) wiki.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
 	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'insufficient_privileges'));
 	const { group } = req.body;
 	if(!group) return res.redirect('/aclgroup');
@@ -3702,7 +3778,7 @@ wiki.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
 	res.redirect('/aclgroup');
 });
 
-wiki.all(/^\/aclgroup$/, async(req, res) => {
+if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
 	var data = await curs.execute("select name from aclgroup_groups", []);
@@ -3972,7 +4048,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 					</div>
 				</div>
 				
-				<p style="font-weight: boid; color: red;">[주의!] 파일문서의 라이선스(문서 본문)와 올리는 파일의 라이선스는 다릅니다. 파일의 라이선스를 올바르게 지정하였는지 확인하세요.</p>
+				<p style="font-weight: bold; color: red;">[주의!] 파일문서의 라이선스(문서 본문)와 올리는 파일의 라이선스는 다릅니다. 파일의 라이선스를 올바르게 지정하였는지 확인하세요.</p>
 				
 				<div class=row>
 					<div class="col-xs-12 col-md-5 form-group">
