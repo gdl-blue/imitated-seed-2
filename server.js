@@ -17,6 +17,9 @@ const diff = require('./cemerick-jsdifflib.js');
 const fs = require('fs');
 const jsdom = require('jsdom');
 const jquery = require('jquery');
+const { JSDOM } = jsdom;
+
+const updatecode = 2;
 
 var perms = [
 	'delete_thread', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
@@ -170,7 +173,7 @@ wiki.use(session({
 	}
 }));
 
-class stack {
+class Stack {
 	constructor() {
 		this.internalArray = [];
 	}
@@ -271,6 +274,8 @@ try {
 		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
 		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
 		'files': ['title', 'namespace', 'hash'],
+		'backlink': ['title', 'namespace', 'link', 'linkns', 'type'],
+		'classic_acl': ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
 	};
 	
 	for(var table in tables) {
@@ -293,8 +298,10 @@ try {
 	process.exit(0);
 })(); } if(_ready) {
 
-async function markdown(content, discussion = 0, title = '') {
+async function markdown(content, discussion = 0, title = '', flags = '') {
 	// markdown 아니고 namumark
+	flags = flags || '';
+	flags = flags.split(' ');
 	
 	function parseTable(content) {
 		var data = '\n' + content + '\n';
@@ -555,74 +562,153 @@ async function markdown(content, discussion = 0, title = '') {
 		return ret;
 	}
 	
-	var footnotes = new stack();
-	var blocks    = new stack();
+	var footnotes = new Stack();
+	var blocks    = new Stack();
 	
 	var fnNames = {};
 	var fnNums  = 0;
 	var fnNum   = 0;
 	
-	var data = content;
+	var cates = '';
+	var data  = content;
+	var doc   = processTitle(title);
 	
 	data = html.escape(data);
+	const xref = flags.includes('backlinkinit');
+	
+	// 역링크 초기화
+	if(xref) {
+		await curs.execute("delete from backlink where title = ? and namespace = ?", [doc.title, doc.namespace]);
+	}
 	
 	if(!data.includes('\n') && data.includes('\r')) data = data.replace(/\r/g, '\n');
 	if(data.includes('\n') && data.includes('\r')) data = data.replace(/\r\n/g, '\n');
 	
+	// 한 글자 리터럴
 	for(let esc of (data.match(/(?:\\)(.)/g) || [])) {
 		const match = data.match(/(?:\\)(.)/);
 		data = data.replace(esc, '<spannw class=nowiki>' + match[1] + '</spannw>');
 	}
 	
-	for(let link of (data.match(/\[\[(((?!\]\]).)+)\]\]/g) || [])) {
-		const dest = link.match(/\[\[(((?!\]\]).)+)\]\]/)[1].replace(/[&]amp[;]/g, '&').replace(/[&]lt[;]/g, '<').replace(/[&]gt[;]/g, '>').replace(/[&]quot[;]/g, '"');
-		if(dest.includes('|')) {
-			var ddata = await curs.execute("select content from documents where title = ?", [dest.split('|')[0]]);
-			const notexist = !ddata.length ? ' not-exist' : '';
-			const sl = dest.split('|')[0] == title ? ' self-link' : '';
-			data = data.replace(link, '<a ' + (dest.startsWith('http://') || dest.startsWith('https://') ? 'target=_blank ' : '') + 'class="wiki-link-' + (dest.startsWith('http://') || dest.startsWith('https://') ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (dest.startsWith('http://') || dest.startsWith('https://') ? '' : '/w/') + '' + (dest.startsWith('http://') || dest.startsWith('https://') ? html.escape : encodeURIComponent)(dest.split('|')[0]) + '">' + html.escape(dest.split('|')[1]) + '</a>');
-		} else {
-			var ddata = await curs.execute("select content from documents where title = ?", [dest.split('|')[0]]);
-			const notexist = !ddata.length ? ' not-exist' : '';
-			const sl = dest == title ? ' self-link' : '';
-			data = data.replace(link, '<a ' + (dest.startsWith('http://') || dest.startsWith('https://') ? 'target=_blank ' : '') + 'class="wiki-link-' + (dest.startsWith('http://') || dest.startsWith('https://') ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (dest.startsWith('http://') || dest.startsWith('https://') ? '' : '/w/') + '' + (dest.startsWith('http://') || dest.startsWith('https://') ? html.escape : encodeURIComponent)(dest) + '">' + html.escape(dest) + '</a>');
+	// 한 줄 리터럴
+	data = data.replace(/{{{(((?!}}}).)*)}}}/g, '<nowikiblock><code>$1</code></nowikiblock>');
+	
+	// 블록 (접기, CSS, ...)
+	for(let block of (data.match(/({{{(.*)$|[}][}][}])/gim) || [])) {
+		if(block == '}}}') {
+			if(!blocks.size()) continue;
+			var od = data;
+			data = data.replace('}}}', '' + blocks.top());
+			if(od == data) data = data.replace('\n}}}', '' + blocks.top());
+			blocks.pop();
+			
+			continue;
 		}
-	}
-	
-	data = data.replace(/{{{[#](((?!\s)[a-zA-Z0-9])+)\s(((?!}}}).)+)}}}/g, '<font color="$1">$3</font>');
-	data = data.replace(/{{{(((?!}}}).)*)}}}/g, '<code>$1</code>');
-	
-	for(let block of (data.match(/{{{(.*)$/gim) || [])) {
+		
 		const h = block.match(/{{{(.*)$/im)[1];
 		
-		if(h.match(/^[#][!]folding/)) {
+		if(h.match(/^[#][!]folding/)) {  // 접기
 			blocks.push('</dd></dl>');
 			const title = h.match(/^[#][!]folding\s(.*)$/)[1];
-			data = data.replace('{{{' + h, '<dl class=wiki-folding><dt>' + title + '</dt><dd>');
-		} else if(h.match(/^[#][!]wiki/)) {
+			data = data.replace('{{{' + h + '\n', '<dl class=wiki-folding><dt>' + title + '</dt><dd>');
+		} else if(h.match(/^[#][!]wiki/)) {  // 위키문법 & CSS
 			blocks.push('</div>');
 			const style = (h.match(/style=&quot;(((?!&quot;).)*)&quot;/) || ['', '', ''])[1];
-			data = data.replace('{{{' + h, '<div class=wiki-style style="' + style.replace(/&amp;quot;/g, '&quot;') + '">');
-		} else if(h.match(/^[#][!]random/)) {
+			data = data.replace('{{{' + h + '\n', '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">');
+		} else if(h.match(/^[#][!]html/)) {  // HTML
+			blocks.push('</rawhtml></nowikiblock>');
+			data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
+		} else {  // 리터럴
+			blocks.push('</pre></nowikiblock>');
+			var od = data;
+			data = data.replace('{{{\n', '<nowikiblock><pre>');
+			if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
+		}
+		
+		/* else if(h.match(/^[#][!]random/)) {  // 무작위표시
 			blocks.push('</span>');
 			const per = Number((h.match(/^[#][!]random (\d+)/) || ['', '1000'])[1]) || 1000;
 			if(Math.random() <= per / 1000) {
-				data = data.replace('{{{' + h, '<span>');
+				data = data.replace('{{{' + h + '\n', '<span>');
 			} else {
-				data = data.replace('{{{' + h, '<span class=random-block style="display: none;">');
+				data = data.replace('{{{' + h + '\n', '<span class=random-block style="display: none;">');
 			}
-		} else {
-			blocks.push('</code></pre>');
-			
-			data = data.replace('{{{' + h, '<pre><code>');
+		} */
+	}
+	
+	// #!html 문법
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
+	const whattr = {
+		'*': ['style'],
+		span: ['class'],
+		a: ['href', 'class'],
+		font: ['color', 'size', 'face'],
+	};
+	for(var item of document.querySelectorAll('rawhtml')) {
+		item.innerHTML = item.textContent.replace(/\n/g, '<br>');
+		for(var el of item.getElementsByTagName('*')) {
+			if(whtags.includes(el.tagName.toLowerCase())) {
+				for(var attr of el.attributes) {
+					if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
+						
+					} else el.removeAttribute(attr.name);
+				}
+			} else el.outerHTML = el.innerHTML;
+		} item.outerHTML = item.innerHTML;
+	}
+	// 리터럴 (제대로 된 방법은 아니겠지만 이게 젤 쉬었어...)
+	const nwblocks = {};
+	for(var item of document.querySelectorAll('nowikiblock')) {
+		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
+		nwblocks[key] = item.innerHTML;
+		item.outerHTML = key;
+	}
+	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
+	
+	// 링크
+	for(let link of (data.match(/\[\[(((?!\]\]).)+)\]\]/g) || [])) {
+		var _dest = link.match(/\[\[(((?!\]\]).)+)\]\]/)[1].replace(/[&]amp[;]/g, '&').replace(/[&]lt[;]/g, '<').replace(/[&]gt[;]/g, '>').replace(/[&]quot[;]/g, '"');
+		var dest, disp;
+		if(_dest.includes('|')) {
+			dest = _dest.split('|')[0];
+			disp = _dest.split('|')[1];
+		} else dest = disp = _dest;
+		
+		const external = dest.startsWith('http://') || dest.startsWith('https://');
+		
+		if(dest.startsWith('분류:') && !discussion) {  // 분류
+			cates += `<li><a href="/w/${encodeURIComponent(dest)}">${html.escape(dest.replace('분류:', ''))}</a></li>`;
+			if(xref) {
+				curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'category')", [doc.title, doc.namespace, dest.replace('분류:', ''), '분류']);
+			}
+			data = data.replace(link, '');
+			continue;
+		} if(dest.startsWith('파일:') && !discussion) {  // 그림
+			// 나중에 구현할랭
+			data = data.replace(link, '');
+			continue;
+		}
+		
+		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
+		
+		var ddata = await curs.execute("select content from documents where title = ?", [dest]);
+		const notexist = !ddata.length ? ' not-exist' : '';
+		const sl = dest == title ? ' self-link' : '';
+		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + '">' + html.escape(disp) + '</a>');
+		
+		// 역링크
+		if(xref && !external) {
+			var linkdoc = processTitle(dest);
+			// await X
+			curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'link')", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace]);
 		}
 	}
 	
-	for(let cbl of (data.match(/}}}/g) || [])) {
-		data = data.replace(cbl, '' + blocks.top());
-		blocks.pop();
-	}
-
+	// 글자색
+	data = data.replace(/{{{[#](((?!\s)[a-zA-Z0-9])+)\s(((?!}}}).)+)}}}/g, '<font color="$1">$3</font>');
+	
+	// 문단
 	data = '<div>\n' + data;
 
 	var maxszz = 2;
@@ -636,7 +722,6 @@ async function markdown(content, discussion = 0, title = '') {
 	if(data.match(/^==\s.*\s==$/m)) maxszz = 2;
 	if(data.match(/^=\s.*\s=$/m)) maxszz = 1;
 	
-	// 사실 내가 봐도 이건 너무...
 	for(let heading of (data.match(/^(=\s(((?!=).)*)\s=|==\s(((?!==).)*)\s==|===\s(((?!===).)*)\s===|====\s(((?!====).)*)\s====|=====\s(((?!=====).)*)\s=====|======\s(((?!======).)*)\s======)$/gm) || [])) {
 		const h1 = heading.match(/^=\s(((?!=).)*)\s=$/m);
 		const h2 = heading.match(/^==\s(((?!==).)*)\s==$/m);
@@ -743,10 +828,10 @@ async function markdown(content, discussion = 0, title = '') {
 	data = data.replace('<div>\n', '<div>');
 	data = data.replace(/<div class=wiki[-]heading[-]content>\n/g, '<div class=wiki-heading-content>');
 	
-	// data = data.replace(/{{{[#][!]wiki style[=][&]quot[;](((?![&]quot[;]).)+)[&]quot[;]\n(((?!}}}).)+)}}}/gi, '<div style="$1">$3</div>');
-	
-	data = data.replace(/^[-]{4,}$/gim, '<hr />');
+	// 수평줄
+	data = data.replace(/^[-]{4,9}$/gim, '<hr />');
 
+	// 글자 꾸미기
 	data = data.replace(/['][']['](((?![']['][']).)+)[']['][']/g, '<strong>$1</strong>');
 	data = data.replace(/[']['](((?!['][']).)+)['][']/g, '<i>$1</i>');
 	data = data.replace(/~~(((?!~~).)+)~~/g, '<del>$1</del>');
@@ -754,50 +839,19 @@ async function markdown(content, discussion = 0, title = '') {
 	data = data.replace(/__(((?!__).)+)__/g, '<u>$1</u>');
 	data = data.replace(/[,][,](((?![,][,]).)+)[,][,]/g, '<sub>$1</sub>');
 	data = data.replace(/[^][^](((?![^][^]).)+)[^][^]/g, '<sup>$1</sup>');
-
-	data = data.replace(/{{[|](((?![|]}}).)+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
-/*
-	if(!discussion) {
-		try{for(let htmlb of data.match(/{{{[#][!]html(((?!}}}).)*)}}}/gim)) {
-			var htmlcode = htmlb.match(/{{{[#][!]html(((?!}}}).)*)}}}/im)[1];
-			try{for(let tag of htmlcode.match(/[&]lt[;](((?!(\s|[&]gt[;])).)+)/gi)) {
-				const thistag = tag.match(/[&]lt[;](((?!(\s|[&]gt[;])).)+)/i)[1];
-				if(thistag.startsWith('/')) continue;
-				
-				//print('[' + thistag + ']')
-				
-				if(
-					![
-						'b', 'strong', 'em', 'i', 's', 'del', 'strike',
-						'input', 'textarea', 'progress', 'div', 'span', 'p',
-						'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ins', 'u', 'sub',
-						'sup', 'small', 'big', 'br', 'hr', 'abbr', 'wbr', 'blockquote',
-						'q', 'dfn', 'pre', 'ruby', 'ul', 'li', 'ol', 'dir', 'menu',
-						'dl', 'dt', 'dd', 'a', 'button',' output', 'datalist', 'select',
-						'option', 'fieldset', 'legend', 'label', 'basefont', 'center',
-						'font', 'tt', 'kbd', 'code', 'samp', 'blink', 'marquee', 'multicol',
-						'nobr', 'noembed', 'xmp', 'isindex'].includes(thistag)
-				) { 
-					htmlcode = htmlcode.replace('&lt;' + thistag, '&lt;span');
-					htmlcode = htmlcode.replace('&lt;/' + thistag + '&gt;', '&lt;/span&gt;');
-				}
-			}}catch(e){}
-			htmlcode = htmlcode.replace(/&lt;(.+)\s(.*)on(((?![=]).)+)[=]["](.*)["](.*)&gt;/gi, '&lt;$1 $2 $5&gt;');
-			
-			data = data.replace(htmlb, htmlcode.replace(/[&]amp[;]/gi, '&').replace(/[&]quot[;]/gi, '"').replace(/[&]gt[;]/gi, '>').replace(/[&]lt[;]/gi, '<'));
-		}}catch(e){}
-	}*/
 	
+	// 글상자
+	if(minor < 7 || (minor == 7 && revision <= 4)
+		data = data.replace(/{{[|](((?![|]}}).)+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
+	
+	// 매크로
 	data = data.replace(/\[br\]/gi, '&lt;br&gt;');
 	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat));
 	data = data.replace(/\[(tableofcontents|목차)\]/gi, tochtml);
 	
-	const { JSDOM } = jsdom;
-	const { window } = new JSDOM();
-	const { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
 	
-	// 하위 블록(wiki style, folding, ...)이 없는 것부터 표를 렌더링하면 중첩 표 가능
-	// 재귀 함수의 원리
+	// 표렌더
 	function f(el) {
 		const blks = el.querySelectorAll('dl.wiki-folding > dd, div.wiki-style, span.random-block, blockquote.wiki-quote');
 		if(blks.length) {
@@ -812,17 +866,61 @@ async function markdown(content, discussion = 0, title = '') {
 	
 	f(document);
 	
+	// 한 글자 리터럴 처리
 	for(let item of document.querySelectorAll('spannw.nowiki')) {
 		item.outerHTML = item.innerHTML;
 	}
 	
 	data = document.querySelector('body').innerHTML;
 	
+	// 개행처리
 	data = data.replace(/<br>/g, '\n');
 	
-	// data = parseTable(data);
+	if(!discussion) data = '<div class=wiki-inner-content>' + data + '</div>';
+	
+	data = data.replace(/<div>\n/, '<div>').replace(/\n<\/div><h(\d)/g, '</div><h$1').replace(/\n/g, '<br />');
+	
+	// 사용자 문서 틀
+	if(!discussion) {
+		const blockdata = await userblocked(doc.title);
+		if(blockdata) {
+			data = `
+				<div style="border-width: 5px 1px 1px; border-style: solid; border-color: red gray gray; padding: 10px; margin-bottom: 10px;" onmouseover="this.style.borderTopColor=\'blue\';" onmouseout="this.style.borderTopColor=\'red\';">
+					<span style="font-size:14pt">이 사용자는 차단된 사용자입니다.</span><br /><br />
+					이 사용자는 ${generateTime(toDate(blockdata.date), timeFormat)}에 ${blockdata.expiration == '0' ? '영구적으로' : (generateTime(toDate(blockdata.expiration), timeFormat) + '까지')} 차단되었습니다.<br />
+					차단 사유: ${html.escape(blockdata.note)}
+				</div>
+			` + data;
+		}
+		if(doc.namespace == '사용자' && getperm('admin', doc.title)) {
+			data = `
+				<div style="border-width: 5px 1px 1px; border-style: solid; border-color: orange gray gray; padding: 10px; margin-bottom: 10px;" onmouseover="this.style.borderTopColor=\'red\';" onmouseout="this.style.borderTopColor=\'orange\';">
+					<span style="font-size:14pt">이 사용자는 특수 권한을 가지고 있습니다.</span>
+				</div>
+			` + data;
+		}
+	}
+	if(!discussion) data = '<div class="wiki-content clearfix">' + data + '</div>';
+	
+	// 분류
+	if(cates) {
+		data = `
+			<div class=wiki-category>
+				<h2>분류</h2>
+				<ul>${cates}</ul>
+			</div>
+		` + data;
+	} else if(doc.namespace != '사용자' && !discussion) {
+		data = alertBalloon('이 문서는 분류가 되어 있지 않습니다. <a href="/w/분류:분류">분류:분류</a>에서 적절한 분류를 찾아 문서를 분류해주세요!', 'info', false) + data;
+	}
+	
+	// 리터럴블록 복구
+	for(var item in nwblocks) {
+		data = data.replace(item, nwblocks[item]);
+	}
 	
 	/*
+	// 각주
 	do {
 		const fn = data.match(/\[[*]\s(((?!\]).)*)/i);
 		if(fn) {
@@ -842,7 +940,7 @@ async function markdown(content, discussion = 0, title = '') {
 	// print(data);
 	// print('----------');
 	
-	return data.replace(/<div>\n/, '<div>').replace(/\n<\/div><h(\d)/g, '</div><h$1').replace(/\n/g, '<br />');
+	return data;
 }
 
 function islogin(req) {
@@ -953,6 +1051,18 @@ async function exists(p) {
     });
 }
 
+async function requireAsync(p) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(p, (e, r) => {
+            if(e) {
+                reject(e);
+            } else {
+                resolve( JSON.parse(r.toString()) );
+            }
+        });
+    });
+}
+
 async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = false, viewname = '') {
 	const skinInfo = {
 		title: title + subtitle,
@@ -986,7 +1096,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 	var output;
 	
 	return new Promise((resolve, reject) => {
-        swig.compileFile(templatefn, {}, (e, r) => {
+        swig.compileFile(templatefn, {}, async(e, r) => {
             if(e) {
 				print(`[오류!] ${e}`);
 				return resolve(`
@@ -1015,7 +1125,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 			output = r(templateVariables);
 			
 			var header = '<html><head>';
-			var skinconfig = require("./skins/" + getSkin(req) + "/config.json");
+			var skinconfig = await requireAsync("./skins/" + getSkin(req) + "/config.json");
 			header += `
 				<title>${title}${subtitle} - ${config.getString('site_name', '더 시드')}</title>
 				<meta charset="utf-8">
@@ -1646,7 +1756,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				}
 			} else content = await markdown(rawContent[0].content, 0, doc + '');
 			
-			content = '<div class=wiki-inner-content>' + content + '</div>';
+			/*content = '<div class=wiki-inner-content>' + content + '</div>';
 			
 			const blockdata = await userblocked(doc.title);
 			if(blockdata) {
@@ -1667,7 +1777,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				` + content;
 			}
 			
-			content = '<div class=wiki-content clearfix>' + content + '</div>';
+			content = '<div class=wiki-content clearfix>' + content + '</div>';*/
 			
 			if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 			if(req.query['from']) {
@@ -1948,6 +2058,8 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			doc.title, doc.namespace, text, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
 		]);
 		
+		markdown(text, 0, doc + '', 'backlinkinit');
+		
 		return res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
 	}
 	
@@ -1959,6 +2071,16 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
+	
+	var skinconfig = await requireAsync("./skins/" + getSkin(req) + "/config.json");
+	var header = '';
+	for(var i=0; i<skinconfig["auto_css_targets"]['*'].length; i++) {
+		header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + skinconfig["auto_css_targets"]['*'][i] + '">';
+	}
+	for(var i=0; i<skinconfig["auto_js_targets"]['*'].length; i++) {
+		header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + skinconfig["auto_js_targets"]['*'][i]['path'] + '"></script>';
+	}
+	header += skinconfig['additional_heads'];
 	
 	res.send(`
 		<head>
@@ -1987,13 +2109,115 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 			<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
 			<script type="text/javascript" src="/js/theseed.js?24141115"></script>
 		`}
+			${header}
 		</head>
 		
 		<body>
-			<h1>${html.escape(doc + '')}</h1>
-			${await markdown(req.body['text'], 0, doc + '')}
+			<h1 class=title>${html.escape(doc + '')}</h1>
+			<div class=wiki-article>
+				${await markdown(req.body['text'], 0, doc + '')}
+			</div>
 		</body>
 	`);
+});
+
+wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) => {
+	const title = req.params[0];
+	const doc = processTitle(title);
+	const flag  = req.query['flag'] || '0';
+	const ns = req.query['namespace'] || '문서';
+	const type = (
+		flag == '1' ? (
+			'link'
+		) : (
+			flag == '2' ? (
+				'file'
+			) : (
+				flag == '4' ? (
+					'include'
+				) : flag == '8' ? (
+					'redirect'
+				) : 'all'
+			)
+		)
+	);
+	
+	const dbdata = await curs.execute("select title, namespace from backlink where link = ? and linkns = ?" + (flag != '0' ? " and type = ?" : ''), [doc.title, doc.namespace].concat(flag != '0' ? [type] : []));
+	const _nslist = dbdata.map(item => item.namespace);
+	const nslist = fetchNamespaces().filter(item => _nslist.includes(item));
+	const counts = {};
+	var nsopt = '';
+	for(var item of nslist) {
+		nsopt += `<option value="${item}">${item} (${dbdata.map(x => x.namespace == item).length})</option>`;
+	}
+	const data = dbdata.filter(item => item.namespace == ns);
+	
+	var content = `
+		<fieldset class=recent-option>
+			<form class=form-inline method=get>
+				<div class=form-group>
+					<label class=control-label>이름공간 :</label>
+					
+					<select class=form-control name=namespace>${nsopt}</select>
+					
+					<select class=form-control name=flag>
+						<option value=0>(전체)</option>
+						<option value=1>link</option>
+						<option value=2>file</option>
+						<option value=4>include</option>
+						<option value=8>redirect</option>
+					</select>
+				</div>
+				
+				<div class="form-group btns">
+					<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
+				</div>
+			</form>
+		</fieldset>
+		
+		<div class=wiki-category-container>
+	`;
+	
+	var indexes = {};
+	const ha = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ', String.fromCharCode(55204)];
+	for(var item of data) {
+		var chk = 0;
+		for(var i in ha)
+			if(item.title[0].charCodeAt(0) >= ha[i].charCodeAt(0) && item.title[0].charCodeAt(0) < ha[i+1].charCodeAt(0)) {
+				if(!indexes[ha[i]]) indexes[ha[i]] = [];
+				indexes[ha[i]].push(item);
+				chk = 1;
+				break;
+			}
+		if(!chk) {
+			if(!indexes[item.title[0]]) indexes[item.title[0]] = [];
+			indexes[item.title[0]].push(item);
+		}
+	}
+	
+	for(var idx of Object.keys(indexes).sort()) {
+		content += `
+			<div>
+				<h3>${html.escape(idx)}</h3>
+				<ul class=wiki-list>
+		`;
+		for(var item of indexes[idx])
+			content += `
+				<li>
+					<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(totitle(item.title, item.namespace) + '')}</a>
+				</li>
+			`;
+		content += '</ul></div>';
+	}
+	
+	content += `
+			</ul>
+		</div>
+	`;
+	
+	res.send(await render(req, title + '의 역링크', content, {
+		document: doc,
+	}, _, _, 'xref'));
 });
 
 wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
@@ -2117,6 +2341,16 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 	const item = data[0];
 	const doc = totitle(item.title, item.namespace);
 	
+	var skinconfig = await requireAsync("./skins/" + getSkin(req) + "/config.json");
+	var header = '';
+	for(var i=0; i<skinconfig["auto_css_targets"]['*'].length; i++) {
+		header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + skinconfig["auto_css_targets"]['*'][i] + '">';
+	}
+	for(var i=0; i<skinconfig["auto_js_targets"]['*'].length; i++) {
+		header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + skinconfig["auto_js_targets"]['*'][i]['path'] + '"></script>';
+	}
+	header += skinconfig['additional_heads'];
+	
 	return res.send(`
 		<head>
 			<meta charset=utf8 />
@@ -2144,11 +2378,14 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 			<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
 			<script type="text/javascript" src="/js/theseed.js?24141115"></script>
 		`}
+			${header}
 		</head>
 		
 		<body>
-			<h1>${html.escape(doc + '')}</h1>
-			${await markdown(item.content, 0, doc + '')}
+			<h1 class=title>${html.escape(doc + '')}</h1>
+			<div class=wiki-article>
+				${await markdown(item.content, 0, doc + '')}
+			</div>
 		</body>
 	`);
 });
@@ -2205,6 +2442,7 @@ wiki.post(/^\/edit_request\/(\d+)\/accept$/, async(req, res, next) => {
 		item.title, item.namespace, item.content, String(rev), item.username, getTime(), changes, item.log, '0', '-1', item.ismember, 'normal', id
 	]);
 	await curs.execute("update edit_requests set state = 'accepted', processor = ?, processortype = ?, processtime = ?, rev = ? where id = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), String(rev), id]);
+	markdown(text, 0, doc + '', 'backlinkinit');
 	return res.redirect('/edit_request/' + id);
 });
 
@@ -5455,6 +5693,16 @@ wiki.use(function(req, res, next) {
 		if(!userset[set.username]) userset[set.username] = {};
 		userset[set.username][set.key] = set.value;
 	}
+	
+	// break문 X
+	switch(Number(config.getString('update_code', '1'))) {
+		case 1: { try {
+			await curs.execute("create table backlink (title text default '', namespace text default '', link text default '', linkns text default '', type text default 'link')");
+			await curs.execute("create table classic_acl (title text default '', namespace text default '', blockkorea text default '', blockbot text default '', read text default '', edit text default '', delete text default '', discuss text default '', move text default '')");
+		} catch(e) {} }
+	}
+	await curs.execute("update config set value = ? where key = 'update_code'", [String(updatecode)]);
+	wikiconfig.update_code = String(updatecode);
 	
 	// 서버실행
 	if(hostconfig.defaulthost)
