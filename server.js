@@ -1,15 +1,15 @@
-// 병아리 엔진: 개인 the seed 모방 프로젝트
+// 병아리 엔진 - the seed 모방 프로젝트
 
 const http = require('http');
 const path = require('path');
 const geoip = require('geoip-lite');
-const inputReader = require('wait-console-input'); // 입력받는 라이브러리
+const inputReader = require('wait-console-input');
 const timeFormat = 'Y-m-d H:i:s';
 const { SHA3 } = require('sha3');
-const sqlite3 = require('sqlite3').verbose(); // SQLite 라이브러리 호출
+const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
 const session = require('express-session');
-const swig = require('swig');  // swig 호출
+const swig = require('swig');
 const ipRangeCheck = require("ip-range-check");
 const bodyParser = require('body-parser');
 const multer = require('multer');
@@ -19,8 +19,10 @@ const jsdom = require('jsdom');
 const jquery = require('jquery');
 const { JSDOM } = jsdom;
 
+// 업데이트 수준
 const updatecode = 2;
 
+// 사용지 권한
 var perms = [
 	'delete_thread', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
 	'update_thread_status', 'acl', 'nsacl', 'hide_thread_comment', 'grant', 'no_force_recaptcha', 
@@ -28,6 +30,7 @@ var perms = [
 	'aclgroup', 'api_access', 
 ];
 
+// 배열에서 찾기
 const find = (obj, fnc) => {
     if(typeof(obj) != 'object') {
         throw TypeError(`Cannot find from ${typeof(obj)}`);
@@ -44,15 +47,18 @@ const find = (obj, fnc) => {
     return -1;
 };
 
+// 로그출력
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
 
+// 삐
 function beep(cnt = 1) { // 경고음 재생
 	for(var i=1; i<=cnt; i++)
 		prt("");
 }
 
 // https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
+// 무작위 문자열 생성
 function rndval(chars, length) {
 	var result           = '';
 	var characters       = chars;
@@ -63,16 +69,18 @@ function rndval(chars, length) {
 	return result;
 }
 
-function input(p) {
-	prt(p); // 일부러 이렇게. 바로하면 한글 깨짐.
+// 입력받기
+function input(prpt) {
+	prt(prpt); // 일부러 이렇게. 바로하면 한글 깨짐.
 	return inputReader.readLine('');
 }
 
 const exec = eval;
 
-function sha3(p, b) {
-    const hash = new SHA3(b || 256);
-    hash.update(p);
+// SHA-3 암호화
+function sha3(str, bit) {
+    const hash = new SHA3(bit || 256);
+    hash.update(str);
     return hash.digest('hex');
 }
 
@@ -109,6 +117,7 @@ const curs = {
 	},
 };
 
+// 데이타 베이스에 추가
 function insert(table, obj) {
 	var arr = [];
 	var sql = 'insert into ' + table + ' (';
@@ -122,11 +131,15 @@ function insert(table, obj) {
 	return curs.execute(sql, arr);
 }
 
+// express.js 호출
 const wiki = express();
 wiki.disable('x-powered-by');
 
-function getTime() { return Math.floor(new Date().getTime()); }; const get_time = getTime;
+// 현재 시간 타임스탬프
+function getTime() { return Math.floor(new Date().getTime()); }; 
+const get_time = getTime;
 
+// 시간 포맷
 function toDate(t) {
 	var date = new Date(Number(t));
 	
@@ -140,6 +153,7 @@ function toDate(t) {
     return year + "-" + month + "-" + day + " " + hour + ":" + min + ":" + sec;
 }
 
+// 시간 <time> 반환
 function generateTime(time, fmt) {
 	const d = split(time, ' ')[0];
 	const t = split(time, ' ')[1];
@@ -173,6 +187,7 @@ wiki.use(session({
 	}
 }));
 
+// 스택 (렌더러에 필요)
 class Stack {
 	constructor() {
 		this.internalArray = [];
@@ -298,6 +313,7 @@ try {
 	process.exit(0);
 })(); } if(_ready) {
 
+// 나무마크
 async function markdown(content, discussion = 0, title = '', flags = '') {
 	// markdown 아니고 namumark
 	flags = flags || '';
@@ -590,6 +606,9 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		data = data.replace(esc, '<spannw class=nowiki>' + match[1] + '</spannw>');
 	}
 	
+	// 글자색
+	data = data.replace(/{{{[#](((?!\s)[a-zA-Z0-9])+)\s(((?!}}}).)+)}}}/g, '<font color="$1">$3</font>');
+	
 	// 한 줄 리터럴
 	data = data.replace(/{{{(((?!}}}).)*)}}}/g, '<nowikiblock><code>$1</code></nowikiblock>');
 	
@@ -704,9 +723,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'link')", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace]);
 		}
 	}
-	
-	// 글자색
-	data = data.replace(/{{{[#](((?!\s)[a-zA-Z0-9])+)\s(((?!}}}).)+)}}}/g, '<font color="$1">$3</font>');
 	
 	// 문단
 	data = '<div>\n' + data;
@@ -841,7 +857,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/[^][^](((?![^][^]).)+)[^][^]/g, '<sup>$1</sup>');
 	
 	// 글상자
-	if(minor < 7 || (minor == 7 && revision <= 4)
+	if(minor < 7 || (minor == 7 && revision <= 4))
 		data = data.replace(/{{[|](((?![|]}}).)+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
 	
 	// 매크로
@@ -881,7 +897,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/<div>\n/, '<div>').replace(/\n<\/div><h(\d)/g, '</div><h$1').replace(/\n/g, '<br />');
 	
 	// 사용자 문서 틀
-	if(!discussion) {
+	if(!discussion && !flags.includes('preview')) {
 		const blockdata = await userblocked(doc.title);
 		if(blockdata) {
 			data = `
@@ -910,7 +926,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 				<ul>${cates}</ul>
 			</div>
 		` + data;
-	} else if(doc.namespace != '사용자' && !discussion) {
+	} else if(doc.namespace != '사용자' && !discussion && !flags.includes('preview')) {
 		data = alertBalloon('이 문서는 분류가 되어 있지 않습니다. <a href="/w/분류:분류">분류:분류</a>에서 적절한 분류를 찾아 문서를 분류해주세요!', 'info', false) + data;
 	}
 	
@@ -943,11 +959,13 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	return data;
 }
 
+// 로그인 여부
 function islogin(req) {
 	if(req.session.username) return true;
 	return false;
 }
 
+// 아이디 확인
 function getUsername(req, forceIP = 0) {
 	if(!forceIP && req.session.username) {
 		return req.session.username;
@@ -959,9 +977,9 @@ function getUsername(req, forceIP = 0) {
 		}
 	}
 }
+const ip_check = getUsername;
 
-const ip_check = getUsername; // 오픈나무를 오랫동안 커스텀하느라 이 함수명에 익숙해진 바 있음
-
+// 위키 설정
 const config = {
 	getString: function(str, def = '') {
 		str = str.replace(/^wiki[.]/, '');
@@ -975,8 +993,10 @@ const config = {
 	}
 }
 
+// 사용자설정 (내 정보)
 const userset = {};
 
+// 사용자설정 가져오기
 function getUserset(req, str, def = '') {
     str = str.replace(/^wiki[.]/, '');
 	if(!islogin(req)) return def;
@@ -993,6 +1013,7 @@ function getUserset(req, str, def = '') {
 
 const _ = undefined;
 
+// 현재 스킨
 function getSkin(req) {
 	const def = config.getString('default_skin', hostconfig.skin);
 	const ret = getUserset(req, 'skin', 'default');
@@ -1001,6 +1022,7 @@ function getSkin(req) {
 	return ret;
 }
 
+// 권한 보유여부
 function getperm(perm, username) {
 	// if(!islogin(req)) return false;
 	if(!permlist[username]) permlist[username] = [];
@@ -1012,6 +1034,7 @@ function getperm(perm, username) {
 	return false; */
 }
 
+// 내 권한 보유여부
 function hasperm(req, perm) {
 	if(!islogin(req)) return false;
 	if(!permlist[ip_check(req)]) permlist[ip_check(req)] = [];
@@ -1023,6 +1046,7 @@ function hasperm(req, perm) {
 	return false; */
 }
 
+// 비동기파일읽기
 async function readFile(p, noerror = 0) {
     return new Promise((resolve, reject) => {
         fs.readFile(p, 'utf8', (e, r) => {
@@ -1036,6 +1060,7 @@ async function readFile(p, noerror = 0) {
     });
 }
 
+// 비동기 파일 존재 여부
 async function exists(p) {
     // fs.exists는 작동안함
     
@@ -1051,6 +1076,7 @@ async function exists(p) {
     });
 }
 
+// 비동기 JSON require
 async function requireAsync(p) {
     return new Promise((resolve, reject) => {
         fs.readFile(p, (e, r) => {
@@ -1063,6 +1089,7 @@ async function requireAsync(p) {
     });
 }
 
+// 스킨 템플릿 렌더링
 async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = false, viewname = '') {
 	const skinInfo = {
 		title: title + subtitle,
@@ -1184,6 +1211,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 	});
 }
 
+// ACL 종류
 const acltype = {
 	read: '읽기',
 	edit: '편집',
@@ -1195,6 +1223,7 @@ const acltype = {
 	acl: 'ACL',
 };
 
+// ACL 권한
 const aclperms = {
 	any: '아무나',
 	member: '로그인된 사용자',
@@ -1207,10 +1236,12 @@ const aclperms = {
 	match_username_and_document_title: ((minor >= 6 || (minor == 5 && revision >= 9)) ? '문서 제목과 사용자 이름이 일치' : undefined),
 };
 
+// 차단된 사용자 제외 ACL 권한
 const exaclperms = [
 	'member', 'member_signup_15days_ago', 'document_contributor', 'contributor',
 ];
 
+// 오류메시지
 function fetchErrorString(code, ...params) {
 	const codes = {
 		insufficient_privileges: '권한이 부족합니다.',
@@ -1227,6 +1258,7 @@ function fetchErrorString(code, ...params) {
 	else return codes[code];
 }
 
+// 오류/알림풍선
 function alertBalloon(content, type = 'danger', dismissible = true, classes = '', noh) {
 	return `
 		<div class="alert alert-${type} ${dismissible ? 'alert-dismissible' : ''} ${classes}" role=alert>
@@ -1246,14 +1278,17 @@ function alertBalloon(content, type = 'danger', dismissible = true, classes = ''
 		</div>`;
 }
 
+// 이름공간 목록
 function fetchNamespaces() {
 	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', config.getString('site_name', '더 시드'), '토론', '휴지통', '투표'];
 }
 
+// 오류화면 표시
 async function showError(req, code, custom) {
 	return await render(req, minor >= 13 ? '오류' : '문제가 발생했습니다!', `${minor >= 13 ? '<div>' : '<h2>'}${custom ? code : fetchErrorString(code)}${minor >= 13 ? '</div>' : '</h2>'}`);
 }
 
+// 닉네임/아이피 파싱
 function ip_pas(ip = '', ismember = '', nobold) {
 	if(ismember == 'author') {
 		if(!ip) return `<del style="color: gray;"><i>(삭제된 사용자)</i></del>`;
@@ -1263,6 +1298,7 @@ function ip_pas(ip = '', ismember = '', nobold) {
 	}
 }
 
+// 아이피 차단 여부
 async function ipblocked(ip) {
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
@@ -1277,6 +1313,7 @@ async function ipblocked(ip) {
 	} return false;
 }
 
+// 계정 차단 여부
 async function userblocked(username) {
 	//'suspend_account': ['username', 'date', 'expiration', 'note'],
 	
@@ -1292,6 +1329,7 @@ async function userblocked(username) {
 	} else return false;
 }
 
+// ACL 검사
 async function getacl(req, title, namespace, type, getmsg) {
 	var ns  = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [namespace, type]);
 	var doc = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [title, namespace, type]);
@@ -1499,6 +1537,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 	return r.msg;  // 거부되었으면 오류 메시지 내용 반환, 허용은 빈 문자열
 }
 
+// 뒤로/앞으로 단추
 function navbtn(cs, ce, s, e) {
 	return `
 		<div class="btn-group" role="group">
@@ -1513,7 +1552,7 @@ function navbtn(cs, ce, s, e) {
 }
 
 const html = {
-	escape: function(content = '') {
+	escape(content = '') {
 		content = content.replace(/[&]/gi, '&amp;');
 		content = content.replace(/["]/gi, '&quot;');
 		content = content.replace(/[<]/gi, '&lt;');
@@ -2115,7 +2154,7 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 		<body>
 			<h1 class=title>${html.escape(doc + '')}</h1>
 			<div class=wiki-article>
-				${await markdown(req.body['text'], 0, doc + '')}
+				${await markdown(req.body['text'], 0, doc + '', 'preview')}
 			</div>
 		</body>
 	`);
@@ -2384,7 +2423,7 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 		<body>
 			<h1 class=title>${html.escape(doc + '')}</h1>
 			<div class=wiki-article>
-				${await markdown(item.content, 0, doc + '')}
+				${await markdown(item.content, 0, doc + '', 'preview')}
 			</div>
 		</body>
 	`);
