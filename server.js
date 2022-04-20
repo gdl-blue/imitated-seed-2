@@ -1157,7 +1157,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				<meta name=application-name content="` + config.getString('wiki.site_name', '더 시드') + `" />
 				<meta name=mobile-web-app-capable content=yes />
 				<meta name=msapplication-tooltip content="` + config.getString('wiki.site_name', '더 시드') + `" />
-				<meta name=msapplication-starturl content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', 'FrontPage')) + `" />
+				<meta name=msapplication-starturl content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', '') || config.getString('wiki.front_page', 'FrontPage')) + `" />
 				<link rel=search type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', '더 시드') + `" href="/opensearch.xml" />
 				<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
 			${hostconfig.use_external_css ? `
