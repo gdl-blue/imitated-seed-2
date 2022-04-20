@@ -4,7 +4,6 @@ const http = require('http');
 const path = require('path');
 const geoip = require('geoip-lite');
 const inputReader = require('wait-console-input');
-const timeFormat = 'Y-m-d H:i:s';
 const { SHA3 } = require('sha3');
 const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
@@ -13,14 +12,42 @@ const swig = require('swig');
 const ipRangeCheck = require("ip-range-check");
 const bodyParser = require('body-parser');
 const multer = require('multer');
-const diff = require('./cemerick-jsdifflib.js');
 const fs = require('fs');
-const jsdom = require('jsdom');
+const { JSDOM } = require('jsdom');
 const jquery = require('jquery');
-const { JSDOM } = jsdom;
+const diff = require('./cemerick-jsdifflib.js');
+
+const timeFormat = 'Y-m-d H:i:s';
+const _ = undefined;
+var major = 4;
+var minor = 12;
+var revision = 0;
+var _ready = 0;
+
+const wiki = express();
+const conn = new sqlite3.Database('./wikidata.db', console.error);
+const upload = multer();
+
+var wikiconfig = {};
+var permlist = {};
+var hostconfig;
+var userset = {};
+var skinList = [];
+
+wiki.use(bodyParser.json());
+wiki.use(bodyParser.urlencoded({ extended: true }));
+wiki.use(upload.any()); 
+wiki.use(express.static('public'));
+wiki.use(session({
+	key: 'sid',
+	secret: 'secret',
+	cookie: {
+		expires: false
+	}
+}));
 
 // 업데이트 수준
-const updatecode = 2;
+const updatecode = '2';
 
 // 사용지 권한
 var perms = [
@@ -89,8 +116,6 @@ function Split(str, del) { return str.split(del); }; const split = Split;
 function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
 function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
 
-const conn = new sqlite3.Database('./wikidata.db', (err) => {}); // 데이타베이스 연결
-
 // 파이선 SQLite 모방
 conn.commit = function() {};
 conn.sd = [];
@@ -131,8 +156,7 @@ function insert(table, obj) {
 	return curs.execute(sql, arr);
 }
 
-// express.js 호출
-const wiki = express();
+// 보안기능
 wiki.disable('x-powered-by');
 
 // 현재 시간 타임스탬프
@@ -179,14 +203,6 @@ swig.setFilter('to_date', toDate);
 
 swig.setFilter('localdate', generateTime);
 
-wiki.use(session({
-	key: 'sid',
-	secret: 'secret',
-	cookie: {
-		expires: false
-	}
-}));
-
 // 스택 (렌더러에 필요)
 class Stack {
 	constructor() {
@@ -214,21 +230,6 @@ class Stack {
 	}
 };
 
-const upload = multer();
-
-wiki.use(bodyParser.json());
-wiki.use(bodyParser.urlencoded({ extended: true }));
-wiki.use(upload.any()); 
-wiki.use(express.static('public'));
-
-var wikiconfig = {};
-var permlist = {};
-var _ready = 0;
-
-var hostconfig;
-var major = 4;
-var minor = 12;
-var revision = 0;
 try {
 	hostconfig = require('./config.json'); 
 	_ready = 1; 
@@ -993,9 +994,6 @@ const config = {
 	}
 }
 
-// 사용자설정 (내 정보)
-const userset = {};
-
 // 사용자설정 가져오기
 function getUserset(req, str, def = '') {
     str = str.replace(/^wiki[.]/, '');
@@ -1010,8 +1008,6 @@ function getUserset(req, str, def = '') {
     }
     return userset[username][str];
 }
-
-const _ = undefined;
 
 // 현재 스킨
 function getSkin(req) {
@@ -1114,8 +1110,9 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				templatefn = './skins/' + getSkin(req) + '/views/default.html';
 				content = '이 스킨은 설정 기능을 지원하지 않습니다.';
 			}
+			
+			delete(varlist.__isSkinSettingsPage);
 		} else templatefn = './skins/' + getSkin(req) + '/views/default.html';
-		// var template = swig.compileFile('./skins/' + getSkin(req) + '/views/default.html');
 	} catch(e) {
 		return '';
 	}
@@ -1131,52 +1128,50 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 					<meta charset=utf-8>` + content);
 			}
 			
-			var templateVariables = varlist;
-			templateVariables['skinInfo'] = skinInfo;
-			templateVariables['config'] = config;
-			templateVariables['content'] = content;
-			templateVariables['perms'] = perms;
-			templateVariables['url'] = req.path;
-			templateVariables['error'] = error;
+			varlist['skinInfo'] = skinInfo;
+			varlist['config'] = config;
+			varlist['content'] = content;
+			varlist['perms'] = perms;
+			varlist['url'] = req.path;
+			varlist['error'] = error;
 			
 			if(islogin(req)) {
-				templateVariables['member'] = {
+				const udd = await curs.execute("select tnum from threads where namespace = '사용자' and title = ? and status = 'normal'", [req.session.username]);
+				if(udd.length) varlist.user_document_discuss = true;
+				
+				varlist['member'] = {
 					username: req.session.username,
 				}
 			}
 			
-			if(viewname != '') {
-				// templateVariables['document'] = title;
-			}
+			output = r(varlist);
 			
-			output = r(templateVariables);
-			
-			var header = '<html><head>';
+			var header = '<!DOCTYPE html>\n<html><head>';
 			var skinconfig = await requireAsync("./skins/" + getSkin(req) + "/config.json");
 			header += `
 				<title>${title}${subtitle} - ${config.getString('site_name', '더 시드')}</title>
-				<meta charset="utf-8">
-				<meta http-equiv="x-ua-compatible" content="ie=edge">
-				<meta http-equiv="x-pjax-version" content="">
-				<meta name="generator" content="the seed">
-				<meta name="application-name" content="` + config.getString('wiki.site_name', '더 시드') + `">
-				<meta name="mobile-web-app-capable" content="yes">
-				<meta name="msapplication-tooltip" content="` + config.getString('wiki.site_name', '더 시드') + `">
-				<meta name="msapplication-starturl" content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', 'FrontPage')) + `">
-				<link rel="search" type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', '더 시드') + `" href="/opensearch.xml">
-				<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-				${hostconfig.use_external_css ? `
-					<link rel="stylesheet" href="https://theseed.io/css/diffview.css">
-					<link rel="stylesheet" href="https://theseed.io/css/katex.min.css">
-					<link rel="stylesheet" href="https://theseed.io/css/wiki.css">
-				` : `
-					<link rel="stylesheet" href="/css/diffview.css">
-					<link rel="stylesheet" href="/css/katex.min.css">
-					<link rel="stylesheet" href="/css/wiki.css">
-				`}
+				<meta charset=utf-8 />
+				<meta http-equiv=x-ua-compatible content="ie=edge" />
+				<meta http-equiv=x-pjax-version content="" />
+				<meta name=generator content="the seed" />
+				<meta name=application-name content="` + config.getString('wiki.site_name', '더 시드') + `" />
+				<meta name=mobile-web-app-capable content=yes />
+				<meta name=msapplication-tooltip content="` + config.getString('wiki.site_name', '더 시드') + `" />
+				<meta name=msapplication-starturl content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', 'FrontPage')) + `" />
+				<link rel=search type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', '더 시드') + `" href="/opensearch.xml" />
+				<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
+			${hostconfig.use_external_css ? `
+				<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
+				<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
+				<link rel=stylesheet href="https://theseed.io/css/wiki.css" />
+			` : `
+				<link rel=stylesheet href="/css/diffview.css" />
+				<link rel=stylesheet href="/css/katex.min.css" />
+				<link rel=stylesheet href="/css/wiki.css" />
+			`}
 			`;
-			for(var i=0; i<skinconfig["auto_css_targets"]['*'].length; i++) {
-				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + skinconfig["auto_css_targets"]['*'][i] + '">';
+			for(var css of skinconfig.auto_css_targets['*']) {
+				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + css + '" />';
 			}
 			header += `
 				${hostconfig.use_external_js ? `
@@ -1194,16 +1189,17 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 					<script type="text/javascript" src="/js/theseed.js?24141115"></script>
 				`}
 			`;
-			for(var i=0; i<skinconfig["auto_js_targets"]['*'].length; i++) {
-				header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + skinconfig["auto_js_targets"]['*'][i]['path'] + '"></script>';
+			for(var js of skinconfig.auto_js_targets['*']) {
+				header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + js.path + '"></script>';
 			}
 			
-			header += skinconfig['additional_heads'];
+			header += skinconfig.additional_heads;
 			header += '</head><body class="';
-			for(var i=0; i<skinconfig['body_classes'].length; i++) {
-				header += skinconfig['body_classes'][i] + ' ';
+			var ac = '';
+			for(var cls of skinconfig.body_classes) {
+				ac += cls + ' ';
 			}
-			header += '">';
+			header += ac.replace(/\s$/, '') + '">';
 			var footer = '</body></html>';
 			
 			resolve(header + output + footer);
@@ -1562,7 +1558,6 @@ const html = {
 	}
 };
 
-var skinList = [];
 function cacheSkinList() {
     skinList = [];
     
@@ -1588,20 +1583,14 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function sendSkinFile(req, res) {
 	res.sendFile(fn, { root: rootp.replace('/' + fn, '') });
 });
 
-function dropSourceCode(req, res) {
-	res.sendFile('index.js', { root: "./" });
-}
-
-wiki.get('/index.js', dropSourceCode);
-
-wiki.get('/js/:filepath', function dropJS(req, res) {
+wiki.get('/js/:filepath', function sendJS(req, res) {
 	const filepath = req.param('filepath');
-	res.sendFile(filepath, { root: "./js" });
+	res.sendFile(filepath, { root: './js' });
 });
 
-wiki.get('/css/:filepath', function dropCSS(req, res) {
+wiki.get('/css/:filepath', function sendCSS(req, res) {
 	const filepath = req.param('filepath');
-	res.sendFile(filepath, { root: "./css" });
+	res.sendFile(filepath, { root: './css' });
 });
 
 function processTitle(d) {
@@ -1671,15 +1660,15 @@ function edittype(type, ...flags) {
 	return ret;
 }
 
-function redirectToFrontPage(req, res) {
-	res.redirect('/w/' + (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')));
-}
-
 wiki.get(/^\/License$/, async(req, res) => {
 	return res.send(await render(req, '라이선스', `
 		<p>모방 타겟 the seed 버전: v${major}.${minor}.${revision}</p>
 	` + await readFile('./skins/' + getSkin(req) + '/license.html'), {}, _, _, 'license'));
 });
+
+function redirectToFrontPage(req, res) {
+	res.redirect('/w/' + (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')));
+}
 
 wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
@@ -2126,13 +2115,13 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 			<meta charset=utf8 />
 			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 		${hostconfig.use_external_css ? `
-			<link rel="stylesheet" href="https://theseed.io/css/diffview.css">
-			<link rel="stylesheet" href="https://theseed.io/css/katex.min.css">
-			<link rel="stylesheet" href="https://theseed.io/css/wiki.css">
+			<link rel=stylesheet href="https://theseed.io/css/diffview.css">
+			<link rel=stylesheet href="https://theseed.io/css/katex.min.css">
+			<link rel=stylesheet href="https://theseed.io/css/wiki.css">
 		` : `
-			<link rel="stylesheet" href="/css/diffview.css">
-			<link rel="stylesheet" href="/css/katex.min.css">
-			<link rel="stylesheet" href="/css/wiki.css">
+			<link rel=stylesheet href="/css/diffview.css">
+			<link rel=stylesheet href="/css/katex.min.css">
+			<link rel=stylesheet href="/css/wiki.css">
 		`}
 		${hostconfig.use_external_js ? `
 			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
@@ -2395,13 +2384,13 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 			<meta charset=utf8 />
 			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 		${hostconfig.use_external_css ? `
-			<link rel="stylesheet" href="https://theseed.io/css/diffview.css">
-			<link rel="stylesheet" href="https://theseed.io/css/katex.min.css">
-			<link rel="stylesheet" href="https://theseed.io/css/wiki.css">
+			<link rel=stylesheet href="https://theseed.io/css/diffview.css">
+			<link rel=stylesheet href="https://theseed.io/css/katex.min.css">
+			<link rel=stylesheet href="https://theseed.io/css/wiki.css">
 		` : `
-			<link rel="stylesheet" href="/css/diffview.css">
-			<link rel="stylesheet" href="/css/katex.min.css">
-			<link rel="stylesheet" href="/css/wiki.css">
+			<link rel=stylesheet href="/css/diffview.css">
+			<link rel=stylesheet href="/css/katex.min.css">
+			<link rel=stylesheet href="/css/wiki.css">
 		`}
 		${hostconfig.use_external_js ? `
 			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
@@ -5714,16 +5703,16 @@ wiki.use(function(req, res, next) {
 	var data = await curs.execute("select key, value from config");
 	
 	for(var cfg of data) {
-		wikiconfig[cfg['key']] = cfg['value'];
+		wikiconfig[cfg.key] = cfg.value;
 	}
 	
 	var data = await curs.execute("select username, perm from perms order by username");
 	
 	for(var prm of data) {
-		if(typeof(permlist[prm['username']]) == 'undefined')
-			permlist[prm['username']] = [prm['perm']];
+		if(typeof(permlist[prm.username]) == 'undefined')
+			permlist[prm.username] = [prm.perm];
 		else
-			permlist[prm['username']].push(prm['perm']);
+			permlist[prm.username].push(prm.perm);
 	}
 	
 	var data = await curs.execute("select username, key, value from user_settings");
@@ -5735,20 +5724,26 @@ wiki.use(function(req, res, next) {
 	
 	// break문 X
 	switch(Number(config.getString('update_code', '1'))) {
-		case 1: { try {
-			await curs.execute("create table backlink (title text default '', namespace text default '', link text default '', linkns text default '', type text default 'link')");
-			await curs.execute("create table classic_acl (title text default '', namespace text default '', blockkorea text default '', blockbot text default '', read text default '', edit text default '', delete text default '', discuss text default '', move text default '')");
-		} catch(e) {} }
+		case 1: {
+			try {
+				await curs.execute("create table backlink (title text default '', namespace text default '', link text default '', linkns text default '', type text default 'link')");
+				await curs.execute("create table classic_acl (title text default '', namespace text default '', blockkorea text default '', blockbot text default '', read text default '', edit text default '', delete text default '', discuss text default '', move text default '')");
+			} catch(e) {}
+		}
 	}
-	await curs.execute("update config set value = ? where key = 'update_code'", [String(updatecode)]);
-	wikiconfig.update_code = String(updatecode);
+	await curs.execute("update config set value = ? where key = 'update_code'", [updatecode]);
+	wikiconfig.update_code = updatecode;
+	
+	const { host, port } = hostconfig;
 	
 	// 서버실행
 	if(hostconfig.defaulthost)
 		wiki.listen(process.env.PORT);  
 	else 
-		wiki.listen(hostconfig['port'], hostconfig['host']);
-	print(String(hostconfig['host']) + ":" + String(hostconfig['port']) + "에 실행 중. . .");
+		wiki.listen(port, host);
+	print(host + (port == 80 ? '' : (':' + port)) + '에서 실행 중. . .');
+	beep();
 })();
 
 }
+
