@@ -606,43 +606,68 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		const match = data.match(/(?:\\)(.)/);
 		data = data.replace(esc, '<spannw class=nowiki>' + match[1] + '</spannw>');
 	}
-	
+	/*
 	// 글자색
 	data = data.replace(/{{{[#](((?!\s)[a-zA-Z0-9])+)\s(((?!}}}).)+)}}}/g, '<font color="$1">$3</font>');
 	
 	// 한 줄 리터럴
 	data = data.replace(/{{{(((?!}}}).)*)}}}/g, '<nowikiblock><code>$1</code></nowikiblock>');
+	*/
 	
 	// 블록 (접기, CSS, ...)
-	for(let block of (data.match(/({{{(.*)$|[}][}][}])/gim) || [])) {
+	for(let block of (data.match(/([}][}][}]|[{][{][{](((?!}}}).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
-			data = data.replace('}}}', '' + blocks.top());
-			if(od == data) data = data.replace('\n}}}', '' + blocks.top());
+			data = data.replace('}}}', blocks.top() + '');
+			if(od == data) data = data.replace('\n}}}', blocks.top() + '\r');
 			blocks.pop();
-			
 			continue;
 		}
 		
-		const h = block.match(/{{{(.*)$/im)[1];
+		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
 		
-		if(h.match(/^[#][!]folding/)) {  // 접기
+		if(h.match(/^[#][!]folding\s/)) {  // 접기
 			blocks.push('</dd></dl>');
 			const title = h.match(/^[#][!]folding\s(.*)$/)[1];
 			data = data.replace('{{{' + h + '\n', '<dl class=wiki-folding><dt>' + title + '</dt><dd>');
-		} else if(h.match(/^[#][!]wiki/)) {  // 위키문법 & CSS
+		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
 			blocks.push('</div>');
 			const style = (h.match(/style=&quot;(((?!&quot;).)*)&quot;/) || ['', '', ''])[1];
 			data = data.replace('{{{' + h + '\n', '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">');
-		} else if(h.match(/^[#][!]html/)) {  // HTML
-			blocks.push('</rawhtml></nowikiblock>');
-			data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
+		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
+			if(block.includes('}}}')) {
+				var rb = block;
+				rb = rb.replace('}}}', '</rawhtml></nowikiblock>');
+				rb = rb.replace('{{{#!html', '<nowikiblock><rawhtml>');
+				data = data.replace(block, rb);
+			} else {
+				blocks.push('</rawhtml></nowikiblock>');
+				data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
+			}
 		} else {  // 리터럴
-			blocks.push('</pre></nowikiblock>');
-			var od = data;
-			data = data.replace('{{{\n', '<nowikiblock><pre>');
-			if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
+			if(block.includes('}}}')) {  // 한 줄
+				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+				if(color) {  // 글자 색
+					const htmlcolor = color[1].match(/^([A-Fa-f0-9]{6})$/);
+					var col = color[1];
+					if(htmlcolor) {
+						col = '#' + htmlcolor[1];
+					}
+					data = data.replace('}}}', '</font>');
+					data = data.replace('{{{' + color[0], '<font color=' + col + '>');
+				} else {
+					var rb = block;
+					rb = rb.replace('}}}', '</code></nowikiblock>');
+					rb = rb.replace('{{{', '<nowikiblock><code>');
+					data = data.replace(block, rb);
+				}
+			} else {  // 블록
+				blocks.push('</pre></nowikiblock>');
+				var od = data;
+				data = data.replace('{{{\n', '<nowikiblock><pre>');
+				if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
+			}
 		}
 		
 		/* else if(h.match(/^[#][!]random/)) {  // 무작위표시
@@ -677,6 +702,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			} else el.outerHTML = el.innerHTML;
 		} item.outerHTML = item.innerHTML;
 	}
+	
 	// 리터럴 (제대로 된 방법은 아니겠지만 이게 젤 쉬었어...)
 	const nwblocks = {};
 	for(var item of document.querySelectorAll('nowikiblock')) {
@@ -684,7 +710,46 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		nwblocks[key] = item.innerHTML;
 		item.outerHTML = key;
 	}
+	
 	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
+	
+	// 인용문
+	function parseQuotes(data) {
+		const rows = data.split(/\n/);
+		const rl = rows.length;
+		var inquote = 0;
+		for(let i=0; i<rl; i++) {
+			let row = rows[i];
+			if(!row.startsWith('&gt;')) {
+				if(inquote) {
+					row = '</blockquote>\n' + row;
+					inquote = 0;
+				}
+				rows[i] = row;
+				continue;
+			}
+			if(row.startsWith('&gt;') && !inquote) {
+				row = row.replace(/^[&]gt;(\s*)/, '<blockquote class=wiki-quote>\n');
+				inquote = 1;
+			} else {
+				row = row.replace(/^[&]gt;(\s*)/, '');
+				inquote = 1;
+			}
+			rows[i] = row;
+		}
+		if(inquote) rows.push('</blockquote>');
+		return rows.join('\n');
+	} do {
+		data = parseQuotes(data);
+	} while(data.match(/^[&]gt;/gim));
+	
+	// 수평줄
+	data = data.replace(/^[-]{4,9}$/gim, '<hr />');
+	data = data.replace(/(\n{0,1})<hr \/>(\n{0,1})/g, '<hr />');
+
+	// 인용문 마지막 처리
+	data = data.replace(/<blockquote\sclass[=]wiki[-]quote>\n/g, '<blockquote class=wiki-quote>');
+	data = data.replace(/\n<\/blockquote>/g, '</blockquote>');
 	
 	// 링크
 	for(let link of (data.match(/\[\[(((?!\]\]).)+)\]\]/g) || [])) {
@@ -725,8 +790,14 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		}
 	}
 	
+	// 토론 앵커
+	if(discussion) for(let res of (data.match(/(\s|^)[#](\d+)(\s|$)/g) || [])) {
+		const reg = res.match(/(\s|^)[#](\d+)(\s|$)/);
+		data = data.replace(res, reg[1] + '<a class=wiki-self-link href="#' + reg[2] + '">#' + reg[2] + '</a>' + reg[3]);
+	}
+	
 	// 문단
-	data = '<div>\n' + data;
+	data = '<div>\r' + data;
 
 	var maxszz = 2;
 	var headnum = [, 0, 0, 0, 0, 0, 0];
@@ -842,12 +913,8 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	
 	tochtml += '</div>';
 	data += '</div>';
-	data = data.replace('<div>\n', '<div>');
 	data = data.replace(/<div class=wiki[-]heading[-]content>\n/g, '<div class=wiki-heading-content>');
 	
-	// 수평줄
-	data = data.replace(/^[-]{4,9}$/gim, '<hr />');
-
 	// 글자 꾸미기
 	data = data.replace(/['][']['](((?![']['][']).)+)[']['][']/g, '<strong>$1</strong>');
 	data = data.replace(/[']['](((?!['][']).)+)['][']/g, '<i>$1</i>');
@@ -889,6 +956,8 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	}
 	
 	data = document.querySelector('body').innerHTML;
+	
+	data = data.replace(/\r/g, '');
 	
 	// 개행처리
 	data = data.replace(/<br>/g, '\n');
@@ -1147,7 +1216,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 			output = r(varlist);
 			
 			var header = '<!DOCTYPE html>\n<html><head>';
-			var skinconfig = await requireAsync("./skins/" + getSkin(req) + "/config.json");
+			var skinconfig = await requireAsync('./skins/' + getSkin(req) + '/config.json');
 			header += `
 				<title>${title}${subtitle} - ${config.getString('site_name', '더 시드')}</title>
 				<meta charset=utf-8 />
