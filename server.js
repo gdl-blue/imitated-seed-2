@@ -1594,13 +1594,17 @@ async function getacl(req, title, namespace, type, getmsg) {
 }
 
 // 뒤로/앞으로 단추
-function navbtn(cs, ce, s, e) {
+function navbtn(total, start, end, href) {
+	if(!href) return '';  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
+	href = href.split("?")[0];
+	start = Number(start);
+	end = Number(end);
 	return `
 		<div class="btn-group" role="group">
-			<a class="btn btn-secondary btn-sm disabled">
+			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
 			</a>
-			<a class="btn btn-secondary btn-sm disabled">
+			<a ${start <= 1 ? '' : `href="${(href + '?from=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>
@@ -3393,8 +3397,6 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	var title = req.params[0];
 	
 	const doc = processTitle(title);
-	const from = req.query['from'];
-	const until = req.query['until'];
 	title = totitle(doc.title, doc.namespace);
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
@@ -3402,9 +3404,15 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 		return res.send(await showError(req, aclmsg, 1));
 	}
 	
+	var total = (await curs.execute("select rev from history \
+		where title = ? and namespace = ?",
+		[doc.title, doc.namespace])).length;
+	
 	var data;
 	
-	if(from) {  // 더시드에서 from이 더 우선임
+	const from = req.query['from'];
+	const until = req.query['until'];
+	if(from) {
 		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id from history \
 						where title = ? and namespace = ? and (cast(rev as integer) <= ? AND cast(rev as integer) > ?) \
 						order by cast(rev as integer) desc",
@@ -3422,7 +3430,7 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	
 	if(!data.length) res.send(await showError(req, 'document_not_found'));
 	
-	const navbtns = navbtn(0, 0, 0, 0);
+	const navbtns = navbtn(total, data[data.length-1].rev, data[0].rev, '/history/' + encodeURIComponent(title));
 	
 	var content = `
 		<p>
@@ -5089,18 +5097,38 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
 	var pa = [];
+	var qq = " where '1' = '1' ";
 	if(req.query['target'] && req.query['query']) {
 		const com = req.query['query'].startsWith('"') && req.query['query'].endsWith('"');
 		const query = com ? req.query['query'].replace(/^\"/, '').replace(/\"$/, '') : req.query['query'];
 		if(req.query['target'] == 'author') {
-			var qq = 'where executer' + (com ? ' = ? ' : "like '%' || ? || '%' ");
+			qq = 'where executer' + (com ? ' = ? ' : "like '%' || ? || '%' ");
 			pa = [query];
 		} else {
-			var qq = 'where note ' + (com ? ' = ? ' : "like '%' || ? || '%' ") + ' or target ' + (com ? ' = ? ' : "like '%' || ? || '%' ");
+			qq = 'where note ' + (com ? ' = ? ' : "like '%' || ? || '%' ") + ' or target ' + (com ? ' = ? ' : "like '%' || ? || '%' ");
 			pa = [query, query];
 		}
 	}
-	var data = await curs.execute("select date, type, aclgroup, id, duration, note, executer, target, ismember from block_history " + (qq || '') + " order by cast(date as integer) desc limit 100", pa);
+	var total = (await curs.execute("select logid from block_history " + (qq || ''), pa)).length;
+	
+	const from = req.query['from'];
+	const until = req.query['until'];
+	var data;
+	if(from) {
+		data = await curs.execute("select logid, date, type, aclgroup, id, duration, note, executer, target, ismember from block_history " + 
+							qq + " and (cast(logid as integer) <= ? AND cast(logid as integer) > ?) order by cast(date as integer) desc limit 100", 
+							pa.concat([Number(from), Number(from) - 100]));
+	} else if(until) {
+		data = await curs.execute("select logid, date, type, aclgroup, id, duration, note, executer, target, ismember from block_history " + 
+							qq + " and (cast(logid as integer) >= ? AND cast(logid as integer) < ?) order by cast(date as integer) desc limit 100", 
+							pa.concat([Number(until), Number(until) + 100]));
+	} else {
+		data = await curs.execute("select logid, date, type, aclgroup, id, duration, note, executer, target, ismember from block_history " + 
+							qq + " order by cast(date as integer) desc limit 100", 
+							pa);
+	}
+	
+	var navbtns = navbtn(total, data[data.length-1].logid, data[0].logid, '/BlockHistory');
 	var content = `
 		<form>
 			<select name="target">
@@ -5112,7 +5140,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 			<input value="검색" type="submit" />
 		</form>
 		
-		${navbtn(0, 0, 0, 0)}
+		${navbtns}
 		
 		<ul class=wiki-list>
 	`;
@@ -5171,7 +5199,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	content += `
 		</ul>
 		
-		${navbtn(0, 0, 0, 0)}
+		${navbtns}
 	`;
 	
 	return res.send(await render(req, '차단 내역', content, {}, _, _, 'block_history'));
