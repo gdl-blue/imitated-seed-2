@@ -3365,7 +3365,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss/, async function discussio
 		content += `
 				<tr>
 					<td>
-						<a href="/thread/${row.tnum}">#${row.id} ${html.escape(td['topic'])}</a> (<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a>)
+						<a href="/thread/${row.tnum}#${row.id}">#${row.id} ${html.escape(td['topic'])}</a> (<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a>)
 					</td>
 					
 					<td>
