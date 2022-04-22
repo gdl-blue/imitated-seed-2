@@ -3099,7 +3099,7 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 						} 
 						<a href="/discuss/${encodeURIComponent(title)}">[토론]</a> 
 						
-						(<span style="color: ${
+						<span class=f_r>(<span style="color: ${
 							(
 								Number(row.changes) > 0
 								? 'green'
@@ -3110,7 +3110,7 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 								)
 							)
 							
-						};">${row.changes}</span>)
+						};">${row.changes}</span>)</span>
 					</td>
 					
 					<td>
@@ -3201,7 +3201,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function document
 						} 
 						<a href="/discuss/${encodeURIComponent(title)}">[토론]</a> 
 						
-						(<span style="color: ${
+						<span class=f_r>(<span style="color: ${
 							(
 								Number(row.changes) > 0
 								? 'green'
@@ -3212,7 +3212,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function document
 								)
 							)
 							
-						};">${row.changes}</span>)
+						};">${row.changes}</span>)</span>
 					</td>
 					
 					<td>
@@ -3637,7 +3637,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			content += `
 				<h3 class="wiki-heading">새 주제 생성</h3>
 				
-				${doc + '' == config.getString('frontpage', 'FrontPage') ? `
+				${doc + '' == (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')) ? `
 					<div class="alert alert-success alert-dismissible fade in" role="alert">
 						<strong>[경고!]</strong> 이 토론은 ${doc + ''} 문서의 토론입니다. ${doc + ''} 문서와 관련 없는 토론은 각 문서의 토론에서 진행해 주시기 바랍니다. ${doc + ''} 문서와 관련 없는 토론은 삭제될 수 있습니다.
 					</div>
@@ -3933,7 +3933,7 @@ wiki.get('/thread/:tnum/:id', async function sendThreadData(req, res) {
 							rs['hidden'] == '1'
 							? (
 								getperm('hide_thread_comment', ip_check(req))
-								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + await markdown(rs['content'], 1) + '</div>'
+								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class=text-line-break style="margin: 25px 0px 0px -10px; display:block"><a class=text onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class=line></div></div><div class=hidden-content style="display:none">' + await markdown(rs['content'], 1) + '</div>'
 								: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 							  )
 							: (
@@ -3968,8 +3968,8 @@ wiki.get('/thread/:tnum/:id', async function sendThreadData(req, res) {
 });
 
 wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, res) {
-	const tnum = req.param("tnum");
-	const tid = req.param("id");
+	const tnum = req.params['tnum'];
+	const tid = req.params['id'];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -3987,8 +3987,8 @@ wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, r
 });
 
 wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
-	const tnum = req.param("tnum");
-	const tid = req.param("id");
+	const tnum = req.params['tnum'];
+	const tid = req.params['id'];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4006,7 +4006,7 @@ wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
 });
 
 wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, res) {
-	const tnum = req.param("tnum");
+	const tnum = req.params['tnum'];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4021,9 +4021,8 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 		return res.send(await showError(req, 'insufficient_privileges'));
 	}
 	
-	curs.execute("update threads set time = ?, status = ? where tnum = ?", [getTime(), newstatus, tnum]);
-
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
+	await curs.execute("update threads set time = ?, status = ? where tnum = ?", [getTime(), newstatus, tnum]);
+	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'status')", [
 						String(rescount + 1), newstatus, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
@@ -4032,7 +4031,7 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 });
 
 wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(req, res) {
-	const tnum = req.param("tnum");
+	const tnum = req.params['tnum'];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4046,11 +4045,17 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 	
 	var newdoc = req.body['document'];
 	if(!newdoc.length) return res.send('');
-	
 	var dd = processTitle(newdoc);
 	
-	curs.execute("update threads set time = ?, title = ?, namespace = ? where tnum = ?", [getTime(), dd.title, dd.namespace, tnum]);
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
+	var aclmsg = await getacl(req, dd.title, dd.namespace, 'create_thread', 1);
+	if(aclmsg) {
+		return res.send({
+			status: aclmsg,
+		});
+	}
+	
+	await curs.execute("update threads set time = ?, title = ?, namespace = ? where tnum = ?", [getTime(), dd.title, dd.namespace, tnum]);
+	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'document')", [
 						String(rescount + 1), newdoc, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
@@ -4059,7 +4064,7 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 });
 
 wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res) {
-	const tnum = req.param("tnum");
+	const tnum = req.params['tnum'];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4076,8 +4081,8 @@ wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res
 		return res.send('');
 	}
 		
-	curs.execute("update threads set time = ?, topic = ? where tnum = ?", [getTime(), newtopic, tnum]);
-	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
+	await curs.execute("update threads set time = ?, topic = ? where tnum = ?", [getTime(), newtopic, tnum]);
+	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'topic')", [
 						String(rescount + 1), newtopic, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
 					]);
@@ -4086,7 +4091,7 @@ wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res
 });
 
 wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
-	const tnum = req.param("tnum");
+	const tnum = req.params['tnum'];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	const rescount = data.length;
@@ -4107,19 +4112,14 @@ wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
 });
 
 wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
-	var tnum = req.param("tnum");
-	
+	var tnum = req.params['tnum'];
 	await curs.execute("select id from res where tnum = ?", [tnum]);
-	
 	const rescount = curs.fetchall().length;
-	
 	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
-	
 	var data = await curs.execute("select id from res where tnum = ? order by cast(time as integer) desc limit 1", [tnum]);
-	
 	res.json({
-		status: "event",
-		comment_id: Number(data[0].id)
+		status: 'event',
+		comment_id: Number(data[0].id),
 	});
 });
 
@@ -4128,11 +4128,6 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	
 	const title = req.params[0];
 	const doc = processTitle(title);
-	
-	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-	if(aclmsg) {
-		return res.send(await showError(req, aclmsg, 1));
-	}
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
 	if(aclmsg) {
@@ -4150,23 +4145,23 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	}
 	
 	var content = `
-		<form id="deleteForm" method="post">
-            <div class="form-group">
-				<label class="control-label" for="logInput">요약</label>
-				<input type="text" id="logInput" name="log" class="form-control" />
+		<form id=deleteForm method=post>
+            <div class=form-group>
+				<label class=control-label for=logInput>요약</label>
+				<input type=text id=logInput name=log class=form-control />
 			</div>
 			
             <label>
-				<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y" /> 문서 이동 목적이 아닌, 삭제하기 위함을 확인합니다.</label>
+				<label><input type=checkbox name=agree id=agreeCheckbox value=Y /> 문서 이동 목적이 아닌, 삭제하기 위함을 확인합니다.</label>
             </label>
 			
             <p>
 				<b>알림!&nbsp;:</b>&nbsp;문서의 제목을 변경하려는 경우 <a href="/move/${encodeURIComponent(doc + '')}">문서 이동</a> 기능을 사용해주세요. 문서 이동 기능을 사용할 수 없는 경우 토론 기능이나 게시판을 통해 대행 요청을 해주세요.
             </p>
 
-            <div class="btns">
-				<button type="reset" class="btn btn-secondary">초기화</button>
-				<button type="submit" class="btn btn-primary" id="submitBtn">삭제</button>
+            <div class=btns>
+				<button type=reset class="btn btn-secondary">초기화</button>
+				<button type=submit class="btn btn-primary" id=submitBtn>삭제</button>
             </div>
        </form>
 	`;
@@ -4202,11 +4197,6 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	
-	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-	if(aclmsg) {
-		return res.send(await showError(req, aclmsg, 1));
-	}
-	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
 	if(aclmsg) {
 		return res.send(await showError(req, aclmsg, 1));
@@ -4224,15 +4214,15 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 	
 	// 원래 이랬나...?
 	var content = `
-		<form method="post" id="moveForm">
+		<form method=post id=moveForm>
 			<div>
 				<label>변경할 문서 제목 : </label><br />
-				<input name="title" type="text" style="width: 250px;" id="titleInput" />
+				<input name=title type=text style="width: 250px;" id=titleInput />
 			</div>
 			
 			<div>
 				<label>요약 : </label><br />
-				<input style="width: 600px;" name="log" type="text" id="logInput" />
+				<input style="width: 600px;" name=log type=text id=logInput />
 			</div>
 			
 			<div>
@@ -4241,7 +4231,7 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 			</div>
 			
 			<div>
-				<button type="submit">이동</button>
+				<button type=submit>이동</button>
 			</div>
 		</form>
 	`;
@@ -4539,81 +4529,85 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!hasperm(req, 'ipacl')) return res.status(403).send(await showError(req, 'insufficient_privileges'));
 	
+	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl order by cidr asc limit 50");
+	var navbtns = navbtn(0, 0, 0, 0);
+	
 	var content = `
-		<form method="post" class="settings-section">
-    		<div class="form-group">
-    			<label class="control-label">IP 주소 (CIDR<sup><a href="https://ko.wikipedia.org/wiki/%EC%82%AC%EC%9D%B4%EB%8D%94_(%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%82%B9)" target="_blank">[?]</a></sup>) :</label>
+		<form method=post class=settings-section>
+    		<div class=form-group>
+    			<label class=control-label>IP 주소 (CIDR<sup><a href="https://ko.wikipedia.org/wiki/%EC%82%AC%EC%9D%B4%EB%8D%94_(%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%82%B9)" target=_blank>[?]</a></sup>) :</label>
     			<div>
-    				<input type="text" class="form-control" id="ipInput" name="ip" />
+    				<input type=text class=form-control id=ipInput name=ip />
     			</div>
     		</div>
 
-    		<div class="form-group">
-    			<label class="control-label">메모 :</label>
+    		<div class=form-group>
+    			<label class=control-label>메모 :</label>
     			<div>
-    				<input type="text" class="form-control" id="noteInput" name="note" />
+    				<input type=text class=form-control id=noteInput name=note />
     			</div>
     		</div>
 
-    		<div class="form-group">
-    			<label class="control-label">차단 기간 :</label>
-    			<select class="form-control" name="expire">
-    				<option value="0" selected="">영구</option>
-    				<option value="300">5분</option>
-    				<option value="600">10분</option>
-    				<option value="1800">30분</option>
-    				<option value="3600">1시간</option>
-    				<option value="7200">2시간</option>
-    				<option value="86400">하루</option>
-    				<option value="259200">3일</option>
-    				<option value="432000">5일</option>
-    				<option value="604800">7일</option>
-    				<option value="1209600">2주</option>
-    				<option value="1814400">3주</option>
-    				<option value="2419200">4주</option>
-    				<option value="4838400">2개월</option>
-    				<option value="7257600">3개월</option>
-    				<option value="14515200">6개월</option>
-    				<option value="29030400">1년</option>
+    		<div class=form-group>
+    			<label class=control-label>차단 기간 :</label>
+    			<select class=form-control name=expire>
+    				<option value=0 selected>영구</option>
+    				<option value=300>5분</option>
+    				<option value=600>10분</option>
+    				<option value=1800>30분</option>
+    				<option value=3600>1시간</option>
+    				<option value=7200>2시간</option>
+    				<option value=86400>하루</option>
+    				<option value=259200>3일</option>
+    				<option value=432000>5일</option>
+    				<option value=604800>7일</option>
+    				<option value=1209600>2주</option>
+    				<option value=1814400>3주</option>
+    				<option value=2419200>4주</option>
+    				<option value=4838400>2개월</option>
+    				<option value=7257600>3개월</option>
+    				<option value=14515200>6개월</option>
+    				<option value=29030400>1년</option>
     			</select>
     		</div>
 
-    		<div class="form-group">
-    			<label class="control-label">로그인 허용 :</label>
-    			<div class="checkbox">
+    		<div class=form-group>
+    			<label class=control-label>로그인 허용 :</label>
+    			<div class=checkbox>
     				<label>
-    					<input type="checkbox" id="allowLoginInput" name="allow_login">&nbsp;&nbsp;Yes
+    					<input type=checkbox id=allowLoginInput name=allow_login />&nbsp;&nbsp;Yes
     				</label>
     			</div>
     		</div>
 
-    		<div class="btns" style="margin-bottom: 20px;">
-    			<button type="submit" class="btn btn-primary" style="width: 90px;">추가</button>
+    		<div class=btns style="margin-bottom: 20px;">
+    			<button type=submit class="btn btn-primary" style="width: 90px;">추가</button>
     		</div>
     	</form>
 		
-		<div class="line-break" style="margin: 20px 0;"></div>
+		<div class=line-break style="margin: 20px 0;"></div>
 		
-		<!-- 내비버튼 -->
+		${navbtns}
 		
-		<form class="form-inline pull-right" id="searchForm" method=get>
-    		<div class="input-group">
-    			<input type="text" class="form-control" id="searchQuery" name="from" placeholder="CIDR" />
-    			<span class="input-group-btn">
+		<form class="form-inline pull-right" id=searchForm method=get>
+    		<div class=input-group>
+    			<input type=text class=form-control id=searchQuery name=from placeholder="CIDR" />
+    			<span class=input-group-btn>
     				<button type=submit class="btn btn-primary">Go</button>
     			</span>
     		</div>
     	</form>
 		
-		<div class="table-wrap">
-			<table class="table" style="margin-top: 7px;">
+		<div class=table-wrap>
+			<table class=table style="margin-top: 7px;">
 				<colgroup>
-					<col style="width: 150px;">
-					<col>
-					<col style="width: 200px">
-					<col style="width: 160px">
-					<col style="width: 60px">
-					<col style="width: 60px;">
+					<col style="width: 150px;" />
+					<col />
+					<col style="width: 200px" />
+					<col style="width: 160px" />
+					<col style="width: 60px" />
+					<col style="width: 60px;" />
 				</colgroup>
 				<thead>
 					<tr style="vertical-align: bottom; border-bottom: 2px solid #eceeef;">
@@ -4629,8 +4623,6 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 					
 	`;
 	
-	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
-	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl order by cidr asc limit 50");
 	for(var row of data) {
 		content += `
 			<tr>
@@ -4639,7 +4631,7 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 				<td>${generateTime(toDate(row.date), timeFormat)}
 				<td>${!Number(row.expiration) ? '영구' : generateTime(toDate(row.expiration), timeFormat)}
 				<td>${row.al == '1' ? 'Y' : 'N'}</td>
-				<td class="text-center">
+				<td class=text-center>
 					<form method=post onsubmit="return confirm('정말로?');" action="/admin/ipacl/remove">
 						<input type=hidden name=ip value="${row.cidr}">
 						<input type=submit class="btn btn-sm btn-danger" value="삭제">
@@ -5264,7 +5256,8 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 			<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
 			<ul class=wiki-list>
 		`;
-		for(var item of await curs.execute("select address from email_filters")) {
+		var filters = await curs.execute("select address from email_filters");
+		for(var item of filters) {
 			emailfilter += '<li>' + item.address + '</li>';
 		}
 		emailfilter += '</ul>';
