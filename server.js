@@ -762,6 +762,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/\n<\/ulwikilist>/g, '</ul>');
 	data = data.replace(/<liwikilist>\n/g, '<li>');
 	data = data.replace(/\n<\/liwikilist>/g, '</li>');
+	data = data.replace(/<\/liwikilist>\n<\/ulwikilist>/g, '</ul>');
 	data = data.replace(/<ulwikilist\sclass[=]wiki[-]list>/g, '<ul class=wiki-list>');
 	data = data.replace(/<\/ulwikilist>/g, '</ul>');
 	data = data.replace(/<liwikilist>/g, '<li>');
