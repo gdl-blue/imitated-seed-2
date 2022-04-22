@@ -317,7 +317,6 @@ try {
 // 나무마크
 async function markdown(content, discussion = 0, title = '', flags = '') {
 	// markdown 아니고 namumark
-	flags = flags || '';
 	flags = flags.split(' ');
 	
 	function parseTable(content) {
@@ -563,14 +562,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			;
 	}
 	
-	function parseList(content) {
-		content = '\n' + data + '\n';
-		
-		for(let li of (data.match(/\s+[*](.*)/gim) || [])) {
-			
-		}
-	}
-	
 	function multiply(a, b) {
 		if(typeof a == 'number') return a * b;
 		
@@ -579,16 +570,15 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		return ret;
 	}
 	
-	var footnotes = new Stack();
-	var blocks    = new Stack();
+	const footnotes = new Stack();
+	const blocks    = new Stack();
+	const fndisp    = {};
 	
-	var fnNames = {};
-	var fnNums  = 0;
-	var fnNum   = 0;
-	
-	var cates = '';
-	var data  = content;
-	var doc   = processTitle(title);
+	var fnnum  = 1;
+	var fnhtml = '';
+	var cates  = '';
+	var data   = content;
+	var doc    = processTitle(title);
 	
 	data = html.escape(data);
 	const xref = flags.includes('backlinkinit');
@@ -606,13 +596,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		const match = data.match(/(?:\\)(.)/);
 		data = data.replace(esc, '<spannw class=nowiki>' + match[1] + '</spannw>');
 	}
-	/*
-	// 글자색
-	data = data.replace(/{{{[#](((?!\s)[a-zA-Z0-9])+)\s(((?!}}}).)+)}}}/g, '<font color="$1">$3</font>');
-	
-	// 한 줄 리터럴
-	data = data.replace(/{{{(((?!}}}).)*)}}}/g, '<nowikiblock><code>$1</code></nowikiblock>');
-	*/
 	
 	// 블록 (접기, CSS, ...)
 	for(let block of (data.match(/([}][}][}]|[{][{][{](((?!}}}).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
@@ -626,7 +609,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		}
 		
 		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
-		
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
 			blocks.push('</dd></dl>');
 			const title = h.match(/^[#][!]folding\s(.*)$/)[1];
@@ -669,16 +651,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 				if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
 			}
 		}
-		
-		/* else if(h.match(/^[#][!]random/)) {  // 무작위표시
-			blocks.push('</span>');
-			const per = Number((h.match(/^[#][!]random (\d+)/) || ['', '1000'])[1]) || 1000;
-			if(Math.random() <= per / 1000) {
-				data = data.replace('{{{' + h + '\n', '<span>');
-			} else {
-				data = data.replace('{{{' + h + '\n', '<span class=random-block style="display: none;">');
-			}
-		} */
 	}
 	
 	// #!html 문법
@@ -696,7 +668,9 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			if(whtags.includes(el.tagName.toLowerCase())) {
 				for(var attr of el.attributes) {
 					if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
-						
+						if(attr.name == 'style') {
+							
+						}
 					} else el.removeAttribute(attr.name);
 				}
 			} else el.outerHTML = el.innerHTML;
@@ -710,7 +684,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		nwblocks[key] = item.innerHTML;
 		item.outerHTML = key;
 	}
-	
 	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
 	
 	// 인용문
@@ -722,14 +695,14 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			let row = rows[i];
 			if(!row.startsWith('&gt;')) {
 				if(inquote) {
-					row = '</blockquote>\n' + row;
+					row = '</blockquotewikiquote>\n' + row;
 					inquote = 0;
 				}
 				rows[i] = row;
 				continue;
 			}
 			if(row.startsWith('&gt;') && !inquote) {
-				row = row.replace(/^[&]gt;(\s*)/, '<blockquote class=wiki-quote>\n');
+				row = row.replace(/^[&]gt;(\s*)/, '<blockquotewikiquote class=wiki-quote>\n');
 				inquote = 1;
 			} else {
 				row = row.replace(/^[&]gt;(\s*)/, '');
@@ -737,7 +710,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			}
 			rows[i] = row;
 		}
-		if(inquote) rows.push('</blockquote>');
+		if(inquote) rows.push('</blockquotewikiquote>');
 		return rows.join('\n');
 	} do {
 		data = parseQuotes(data);
@@ -748,8 +721,83 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/(\n{0,1})<hr \/>(\n{0,1})/g, '<hr />');
 
 	// 인용문 마지막 처리
-	data = data.replace(/<blockquote\sclass[=]wiki[-]quote>\n/g, '<blockquote class=wiki-quote>');
-	data = data.replace(/\n<\/blockquote>/g, '</blockquote>');
+	data = data.replace(/<blockquotewikiquote\sclass[=]wiki[-]quote>\n/g, '<blockquote class=wiki-quote>');
+	data = data.replace(/\n<\/blockquotewikiquote>/g, '</blockquote>');
+	
+	// 목록
+	function parseList(data) {
+		const rows = data.split(/\n/);
+		const rl = rows.length;
+		var inlist = 0;
+		for(let i=0; i<rl; i++) {
+			let row = rows[i];
+			if(!row.match(/^(\s+)[*]/) && !row.startsWith(' ')) {
+				if(inlist) {
+					row = '</liwikilist></ulwikilist>\n' + row;
+					inlist = 0;
+				}
+				rows[i] = row;
+				continue;
+			}
+			if(row.match(/^(\s{2,})[*]/)) {
+				rows[i] = row.replace(/^(\s{2,})[*]/, ' *');
+				continue;
+			}
+			if(row.startsWith(' *') && !inlist) {
+				row = row.replace(/^\s[*](\s*)/, '<ulwikilist class=wiki-list>\n<liwikilist>\n');
+				inlist = 1;
+			} else {
+				row = row.replace(/^\s/, '');
+				row = row.replace(/^[*](\s*)/, '</liwikilist><liwikilist>\n');
+				inlist = 1;
+			}
+			rows[i] = row;
+		}
+		if(inlist) rows.push('</liwikilist>\n</ulwikilist>');
+		return rows.join('\n');
+	} do {
+		data = parseList(data);
+	} while(data.match(/^\s[*]/gim));
+	data = data.replace(/<ulwikilist\sclass[=]wiki[-]list>\n/g, '<ul class=wiki-list>');
+	data = data.replace(/\n<\/ulwikilist>/g, '</ul>');
+	data = data.replace(/<liwikilist>\n/g, '<li>');
+	data = data.replace(/\n<\/liwikilist>/g, '</li>');
+	data = data.replace(/<ulwikilist\sclass[=]wiki[-]list>/g, '<ul class=wiki-list>');
+	data = data.replace(/<\/ulwikilist>/g, '</ul>');
+	data = data.replace(/<liwikilist>/g, '<li>');
+	data = data.replace(/<\/liwikilist>/g, '</li>');
+	
+	// 들여쓰기
+	function parseIndent(data) {
+		const rows = data.split(/\n/);
+		const rl = rows.length;
+		var inindent = 0;
+		for(let i=0; i<rl; i++) {
+			let row = rows[i];
+			if(!row.startsWith(' ') || row.replace(/^\s/, '').startsWith('*')) {
+				if(inindent) {
+					row = '</divwikiindent>\n' + row;
+					inindent = 0;
+				}
+				rows[i] = row;
+				continue;
+			}
+			if(row.startsWith(' ') && !inindent) {
+				row = row.replace(/^\s/, '<divwikiindent class=wiki-indent>\n');
+				inindent = 1;
+			} else {
+				row = row.replace(/^\s/, '');
+				inindent = 1;
+			}
+			rows[i] = row;
+		}
+		if(inindent) rows.push('</divwikiindent>');
+		return rows.join('\n');
+	} do {
+		data = parseIndent(data);
+	} while((data.match(/^(\s+)/gim) || []).filter(item => item != '\n').length);
+	data = data.replace(/<divwikiindent\sclass[=]wiki[-]indent>\n/g, '<div class=wiki-indent>');
+	data = data.replace(/\n<\/divwikiindent>/g, '</div>');
 	
 	// 링크
 	for(let link of (data.match(/\[\[(((?!\]\]).)+)\]\]/g) || [])) {
@@ -760,12 +808,12 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			disp = _dest.split('|')[1];
 		} else dest = disp = _dest;
 		
-		const external = dest.startsWith('http://') || dest.startsWith('https://');
+		const external = dest.startsWith('http://') || dest.startsWith('https://') || dest.startsWith('ftp://');
 		
 		if(dest.startsWith('분류:') && !discussion) {  // 분류
 			cates += `<li><a href="/w/${encodeURIComponent(dest)}">${html.escape(dest.replace('분류:', ''))}</a></li>`;
 			if(xref) {
-				curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'category')", [doc.title, doc.namespace, dest.replace('분류:', ''), '분류']);
+				// curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'category')", [doc.title, doc.namespace, dest.replace('분류:', ''), '분류']);
 			}
 			data = data.replace(link, '');
 			continue;
@@ -798,124 +846,45 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	
 	// 문단
 	data = '<div>\r' + data;
-
 	var maxszz = 2;
 	var headnum = [, 0, 0, 0, 0, 0, 0];
-	var tochtml = '<div class=wiki-macro-toc id=toc>', tocarr = [];
-	
-	if(data.match(/^======\s.*\s======$/m)) maxszz = 6;
-	if(data.match(/^=====\s.*\s=====$/m)) maxszz = 5;
-	if(data.match(/^====\s.*\s====$/m)) maxszz = 4;
-	if(data.match(/^===\s.*\s===$/m)) maxszz = 3;
-	if(data.match(/^==\s.*\s==$/m)) maxszz = 2;
-	if(data.match(/^=\s.*\s=$/m)) maxszz = 1;
-	
+	var tochtml = '<div class=wiki-macro-toc id=toc>';
+	var cnum = 2;
+	var sec = 1;
+	for(let i=6; i; i--) {
+		if(data.match(RegExp(`^${multiply('=', i)}\\s.*\\s${multiply('=', i)}$`, 'm')))
+			maxszz = i;
+	}
 	for(let heading of (data.match(/^(=\s(((?!=).)*)\s=|==\s(((?!==).)*)\s==|===\s(((?!===).)*)\s===|====\s(((?!====).)*)\s====|=====\s(((?!=====).)*)\s=====|======\s(((?!======).)*)\s======)$/gm) || [])) {
-		const h1 = heading.match(/^=\s(((?!=).)*)\s=$/m);
-		const h2 = heading.match(/^==\s(((?!==).)*)\s==$/m);
-		const h3 = heading.match(/^===\s(((?!===).)*)\s===$/m);
-		const h4 = heading.match(/^====\s(((?!====).)*)\s====$/m);
-		const h5 = heading.match(/^=====\s(((?!=====).)*)\s=====$/m);
-		const h6 = heading.match(/^======\s(((?!======).)*)\s======$/m);
-		
-		if(h6) {
-			const title = h6[1];
-			var snum;
-			switch(maxszz) {
-				case 6:
-					snum = '' + ++headnum[6];
-				break; case 5:
-					snum = '' + headnum[5] + '.' + ++headnum[6];
-				break; case 4:
-					snum = '' + headnum[4] + '.' + headnum[5] + '.' + ++headnum[6];
-				break; case 3:
-					snum = '' + headnum[3] + '.' + headnum[4] + '.' + headnum[5] + '.' + ++headnum[6];
-				break; case 2:
-					snum = '' + headnum[2] + '.' + headnum[3] + '.' + headnum[4] + '.' + headnum[5] + '.' + ++headnum[6];
-				break; case 1:
-					snum = '' + headnum[1] + '.' + headnum[2] + '.' + headnum[3] + '.' + headnum[4] + '.' + headnum[5] + '.' + ++headnum[6];
+		const hr = {};
+		for(let i=1; i<=6; i++) {
+			hr[i] = heading.match(RegExp(`^${multiply('=', i)}\\s(((?!${multiply('=', i)}).)*)\\s${multiply('=', i)}$`, 'm'));
+		} for(let i=6; i; i--) if(hr[i]) {
+			if(i < cnum) for(let j=i+1; j<=6; j++) headnum[j] = 0;
+			cnum = i;
+			const title = hr[i][1];
+			var snum = '';
+			for(let j=i; j; j--) if(maxszz == j) {
+				for(let k=j; k<i; k++)
+					snum += headnum[k] + '.';
+				snum += ++headnum[i];
+				break;
 			}
-			
-			data = data.replace(heading, '</div><h6 class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + '</h6><div class=wiki-heading-content>');
-			var mt=6;tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
-		} else if(h5) {
-			const title = h5[1];
-			var snum;
-			switch(maxszz) {
-				case 5:
-					snum = '' + ++headnum[5];
-				break; case 4:
-					snum = '' + headnum[4] + '.' + ++headnum[5];
-				break; case 3:
-					snum = '' + headnum[3] + '.' + headnum[4] + '.' + ++headnum[5];
-				break; case 2:
-					snum = '' + headnum[2] + '.' + headnum[3] + '.' + headnum[4] + '.' + ++headnum[5];
-				break; case 1:
-					snum = '' + headnum[1] + '.' + headnum[2] + '.' + headnum[3] + '.' + headnum[4] + '.' + ++headnum[5];
-			}
-			
-			data = data.replace(heading, '</div><h5 class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + '</h5><div class=wiki-heading-content>');
-			var mt=5;tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
-		} else if(h4) {
-			const title = h4[1];
-			var snum;
-			switch(maxszz) {
-				case 4:
-					snum = '' + ++headnum[4];
-				break; case 3:
-					snum = '' + headnum[3] + '.' + ++headnum[4];
-				break; case 2:
-					snum = '' + headnum[2] + '.' + headnum[3] + '.' + ++headnum[4];
-				break; case 1:
-					snum = '' + headnum[1] + '.' + headnum[2] + '.' + headnum[3] + '.' + ++headnum[4];
-			}
-			
-			data = data.replace(heading, '</div><h4 class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + '</h4><div class=wiki-heading-content>');
-			var mt=4;tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
-		} else if(h3) {
-			const title = h3[1];
-			var snum;
-			switch(maxszz) {
-				case 3:
-					snum = '' + ++headnum[3];
-				break; case 2:
-					snum = '' + headnum[2] + '.' + ++headnum[3];
-				break; case 1:
-					snum = '' + headnum[1] + '.' + headnum[2] + '.' + ++headnum[3];
-			}
-			
-			data = data.replace(heading, '</div><h3 class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + '</h3><div class=wiki-heading-content>');
-			var mt=3;tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
-		} else if(h2) {
-			const title = h2[1];
-			var snum;
-			switch(maxszz) {
-				case 2:
-					snum = '' + ++headnum[2];
-				break; case 1:
-					snum = '' + headnum[1] + '.' + ++headnum[2];
-			}
-			
-			data = data.replace(heading, '</div><h2 class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + '</h2><div class=wiki-heading-content>');
-			var mt=2;tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
-		} else if(h1) {
-			const title = h1[1];
-			var snum;
-			switch(maxszz) {
-				case 1:
-					snum = '' + ++headnum[1];
-			}
-			
-			data = data.replace(heading, '</div><h1 class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + '</h1><div class=wiki-heading-content>');
-			var mt=1;tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
+			var edlnk = '';
+			if(!discussion)
+				edlnk = `<span class=wiki-edit-section><a href="/edit/${encodeURIComponent(doc + '')}?section=${sec++}" rel=nofollow>[편집]</a></span>`;
+			data = data.replace(heading, '</div><h' + i + ' class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + edlnk + '</h' + i + '><div class=wiki-heading-content>');
+			var mt = i;
+			tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
+			break;
 		}
 	}
-	
 	tochtml += '</div>';
 	data += '</div>';
 	data = data.replace(/<div class=wiki[-]heading[-]content>\n/g, '<div class=wiki-heading-content>');
 	
 	// 글자 꾸미기
+	if(minor < 8) data = data.replace(/['][']['][']['](((?![']['][']['][']).)+)[']['][']['][']/g, '<strong><i>$1</i></strong>');
 	data = data.replace(/['][']['](((?![']['][']).)+)[']['][']/g, '<strong>$1</strong>');
 	data = data.replace(/[']['](((?!['][']).)+)['][']/g, '<i>$1</i>');
 	data = data.replace(/~~(((?!~~).)+)~~/g, '<del>$1</del>');
@@ -933,22 +902,61 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat));
 	data = data.replace(/\[(tableofcontents|목차)\]/gi, tochtml);
 	
-	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	// 각주 (1)
+	const fnrows = data.split('\n');
+	const frl = fnrows.length;
+	for(let fi=0; fi<frl; fi++) {
+		let row = fnrows[fi];
+		for(let fn of (row.match(/(\[[*](((?!\s).)*)\s|\])/g) || [])) {
+			if(fn == ']') {
+				if(!footnotes.size()) continue;
+				row = row.replace(']', '</fnstub>');
+				footnotes.pop();
+				fnrows[fi] = row;
+				continue;
+			}
+			if(!row.includes(']')) continue;
+			const reg = fn.match(/(\[[*](((?!\s).)*)\s|\])/);
+			row = row.replace(fn, '<fnstub' + (reg[2] ? (' name="' + reg[2] + '"') : '') + '>');
+			footnotes.push('[');
+			fnrows[fi] = row;
+		}
+	} data = fnrows.join('\n');
 	
 	// 표렌더
-	function f(el) {
-		const blks = el.querySelectorAll('dl.wiki-folding > dd, div.wiki-style, span.random-block, blockquote.wiki-quote');
-		if(blks.length) {
-			for(let el2 of blks) {
-				f(el2);
-			}
-		}
-		
-		const ihtml = (el == document ? el.querySelector('body') : el).innerHTML;
-		(el == document ? el.querySelector('body') : el).innerHTML = parseTable(ihtml.replace(/<br>/g, '\n')).replace(/\n/g, '<br>');
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	function ft(el) {
+		const blks = el.querySelectorAll('dl.wiki-folding > dd, div.wiki-style, blockquote.wiki-quote');
+		if(blks.length) for(let el2 of blks) ft(el2);
+		el = (el == document ? el.querySelector('body') : el);
+		const ihtml = el.innerHTML;
+		el.innerHTML = parseTable(ihtml.replace(/<br>/g, '\n')).replace(/\n/g, '<br>');
+	} ft(document);
+	
+	// 각주 (2)
+	function ff(el) {
+		const blks = el.querySelectorAll('fnstub');
+		if(blks.length) for(let el2 of blks) ff(el2);
+		el = (el == document ? el.querySelector('body') : el);
+		el = el.querySelector('fnstub');
+		if(!el) return;
+		const span = document.createElement('span');
+		span.innerHTML = el.innerHTML;
+		el.outerHTML = `<a ${el.getAttribute('name') ? 'name="' + el.getAttribute('name') + '" ' : ''}class=wiki-fn-content title="${span.textContent}">${el.innerHTML}</a>`;
+	} ff(document);
+	
+	// 각주(3)
+	for(let item of document.querySelectorAll('a.wiki-fn-content')) {
+		const id = item.getAttribute('name') || fnnum;
+		const numid = fnnum;
+		item.removeAttribute('name');
+		item.setAttribute('href', '#fn-' + id);
+		fnhtml += `<span class=footnote-list><span id=fn-${id} class=target></span><a href=#rfn-${numid}>[${id}]</a> ${item.innerHTML}</span>`;
+		item.innerHTML = `<span id=rfn-${numid}>[${id}]`;
+		fnnum++;
 	}
 	
-	f(document);
+	if(fnhtml) fnhtml = '<div class=wiki-macro-footnote>' + fnhtml + '</div>';
 	
 	// 한 글자 리터럴 처리
 	for(let item of document.querySelectorAll('spannw.nowiki')) {
@@ -956,10 +964,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	}
 	
 	data = document.querySelector('body').innerHTML;
-	
 	data = data.replace(/\r/g, '');
-	
-	// 개행처리
 	data = data.replace(/<br>/g, '\n');
 	
 	if(!discussion) data = '<div class=wiki-inner-content>' + data + '</div>';
@@ -986,6 +991,10 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			` + data;
 		}
 	}
+	
+	// 각주
+	if(fnhtml) data += fnhtml;
+	
 	if(!discussion) data = '<div class="wiki-content clearfix">' + data + '</div>';
 	
 	// 분류
@@ -1004,27 +1013,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	for(var item in nwblocks) {
 		data = data.replace(item, nwblocks[item]);
 	}
-	
-	/*
-	// 각주
-	do {
-		const fn = data.match(/\[[*]\s(((?!\]).)*)/i);
-		if(fn) {
-			footnotes.push(++fnNums);
-			data = data.replace(/\[[*]\s/i, '<a class=wiki-fn-content href="#fn-' + fnNums + '"><span class=footnote-content>');
-		}
-		
-		const fnclose = data.match(/\]/i);
-		if(fnclose) {
-			footnotes.pop();
-			data = data.replace(/\]/i, '</span><span id="rfn-' + ++fnNum + '" class=target></span>(' + fnNum + ')</a>');
-		}
-	} while(data.match(/\[[*]\s(((?!\]).)*)/i) || footnotes.size());
-	
-	*/
-	// print('----------');
-	// print(data);
-	// print('----------');
 	
 	return data;
 }
@@ -2271,8 +2259,6 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 				</div>
 			</form>
 		</fieldset>
-		
-		<div class=wiki-category-container>
 	`;
 	
 	var indexes = {};
@@ -2292,24 +2278,29 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 		}
 	}
 	
+	var listc = '<div class=wiki-category-container>';
+	var list = '';
 	for(var idx of Object.keys(indexes).sort()) {
-		content += `
+		list += `
 			<div>
 				<h3>${html.escape(idx)}</h3>
 				<ul class=wiki-list>
 		`;
 		for(var item of indexes[idx])
-			content += `
+			list += `
 				<li>
 					<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(totitle(item.title, item.namespace) + '')}</a>
 				</li>
 			`;
-		content += '</ul></div>';
-	}
+		list += '</ul></div>';
+	} listc += list + '</div>';
+	
+	const navbtns = navbtn(0, 0, 0, 0);
 	
 	content += `
-			</ul>
-		</div>
+		${navbtns}
+		${list ? listc : '<div>해당 문서의 역링크가 존재하지 않습니다. </div>'}
+		${navbtns}
 	`;
 	
 	res.send(await render(req, title + '의 역링크', content, {
@@ -3877,9 +3868,9 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 		return res.status(403).json({});
 	}
   
-  if(!req.body['text']) {
-    return res.status(400).json({});
-  }
+	if(!req.body['text']) {
+		return res.status(400).json({});
+	}
 	
 	var data = await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
 	const lid = Number(data[0]['id']);
@@ -4025,7 +4016,8 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 		return res.send(await showError(req, 'insufficient_privileges'));
 	}
 	
-	curs.execute("update threads set status = ? where tnum = ?", [newstatus, tnum]);
+	curs.execute("update threads set time = ?, status = ? where tnum = ?", [getTime(), newstatus, tnum]);
+
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'status')", [
 						String(rescount + 1), newstatus, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
@@ -4052,7 +4044,7 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 	
 	var dd = processTitle(newdoc);
 	
-	curs.execute("update threads set title = ?, namespace = ? where tnum = ?", [dd.title, dd.namespace, tnum]);
+	curs.execute("update threads set time = ?, title = ?, namespace = ? where tnum = ?", [getTime(), dd.title, dd.namespace, tnum]);
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'document')", [
 						String(rescount + 1), newdoc, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
@@ -4079,7 +4071,7 @@ wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res
 		return res.send('');
 	}
 		
-	curs.execute("update threads set topic = ? where tnum = ?", [newtopic, tnum]);
+	curs.execute("update threads set time = ?, topic = ? where tnum = ?", [getTime(), newtopic, tnum]);
 	curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'topic')", [
 						String(rescount + 1), newtopic, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
