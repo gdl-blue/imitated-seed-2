@@ -726,7 +726,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	
 	// 목록
 	function parseList(data) {
-		const rows = data.split(/\n/);
+		const rows = ('\n' + data + '\n').split(/\n/);
 		const rl = rows.length;
 		var inlist = 0;
 		for(let i=0; i<rl; i++) {
@@ -753,6 +753,8 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			}
 			rows[i] = row;
 		}
+		rows.splice(0, 1);
+		rows.pop();
 		if(inlist) rows.push('</liwikilist>\n</ulwikilist>');
 		return rows.join('\n');
 	} do {
@@ -3890,9 +3892,9 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	res.json({});
 });
 
-wiki.get('/thread/:tnum/:id', async function sendThreadData(req, res) {
-	const tnum = req.param("tnum");
-	const tid = req.param("id");
+wiki.get(/^\/thread\/([a-zA-Z0-9]+)\/(\d+)$/, async function sendThreadData(req, res) {
+	const tnum = req.params[0];
+	const tid = req.params[1];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -5087,14 +5089,17 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	// ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember'],
 	var pa = [];
-	if(req.query['target'] && req.query['query'])
+	if(req.query['target'] && req.query['query']) {
+		const com = req.query['query'].startsWith('"') && req.query['query'].endsWith('"');
+		const query = com ? req.query['query'].replace(/^\"/, '').replace(/\"$/, '') : req.query['query'];
 		if(req.query['target'] == 'author') {
-			var qq = 'where executer = ?';
-			pa = [req.query['query']];
+			var qq = 'where executer' + (com ? ' = ? ' : "like '%' || ? || '%' ");
+			pa = [query];
 		} else {
-			var qq = 'where note = ? or target = ?';
-			pa = [req.query['query'], req.query['query']];
+			var qq = 'where note ' + (com ? ' = ? ' : "like '%' || ? || '%' ") + ' or target ' + (com ? ' = ? ' : "like '%' || ? || '%' ");
+			pa = [query, query];
 		}
+	}
 	var data = await curs.execute("select date, type, aclgroup, id, duration, note, executer, target, ismember from block_history " + (qq || '') + " order by cast(date as integer) desc limit 100", pa);
 	var content = `
 		<form>
@@ -5151,7 +5156,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 				? `사용자 권한 설정`
 				: ''
 				))))))
-			}</i>) ${item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' ? `#${item.id}` : ''} ${
+			})</i> ${item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' ? `#${item.id}` : ''} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || (item.type == 'suspend_account' && item.duration != '-1')
 				? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})`
 				: ''
