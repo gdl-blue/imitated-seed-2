@@ -2,6 +2,8 @@
 < "엔진 내부 UI는 상관없음." ( https://feedback.theseed.io/posts/280 ) >  
 테스트 서버 - https://go2021.glitch.me
 
+나무픽스와 거의 호환된다.
+
 ## 기초 사용 방법
 - css, js 디렉토리를 만든다.
   - https://theseed.io/js/theseed.js, https://theseed.io/js/jquery-2.1.4.min.js, https://theseed.io/js/jquery-1.11.3.min.js, https://theseed.io/js/intersection-observer.js, https://theseed.io/js/dateformatter.js )를 각각 다운로드받아 js 디렉토리에 복사한다.
