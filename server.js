@@ -796,7 +796,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		return rows.join('\n');
 	} do {
 		data = parseIndent(data);
-	} while((data.match(/^(\s+)/gim) || []).filter(item => item != '\n').length);
+	} while((data.match(/^(\s+)/gim) || []).filter(item => item.replace(/\n/g, '') && item).length);
 	data = data.replace(/<divwikiindent\sclass[=]wiki[-]indent>\n/g, '<div class=wiki-indent>');
 	data = data.replace(/\n<\/divwikiindent>/g, '</div>');
 	
@@ -2263,17 +2263,21 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 	`;
 	
 	var indexes = {};
-	const ha = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ', String.fromCharCode(55204)];
+	const hj = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+	const ha = ['가', '나', '다', '라', '마', '바', '사', '아', '자', '차', '카', '타', '파', '하', String.fromCharCode(55204)];
 	for(var item of data) {
+		if(!item) continue;
 		var chk = 0;
-		for(var i in ha)
-			if(item.title[0].charCodeAt(0) >= ha[i].charCodeAt(0) && item.title[0].charCodeAt(0) < ha[i+1].charCodeAt(0)) {
-				if(!indexes[ha[i]]) indexes[ha[i]] = [];
-				indexes[ha[i]].push(item);
+		for(var i=0; i<ha.length-1; i++) {
+			const fchr = item.title[0].charCodeAt(0);
+			
+			if((hj[i].includes(item.title[0])) || (fchr >= ha[i].charCodeAt(0) && fchr < ha[i+1].charCodeAt(0))) {
+				if(!indexes[hj[i]]) indexes[hj[i]] = [];
+				indexes[hj[i]].push(item);
 				chk = 1;
 				break;
 			}
-		if(!chk) {
+		} if(!chk) {
 			if(!indexes[item.title[0]]) indexes[item.title[0]] = [];
 			indexes[item.title[0]].push(item);
 		}
@@ -5465,9 +5469,10 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 								<li>인증 메일은 24시간동안 유효합니다.</li>
 							</ul>
 							
-							<p style="font-weight: bold; color: red;">
-								[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
-							</p>
+							${hostconfig.debug ? 
+								`<p style="font-weight: bold; color: red;">
+									[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
+								</p>` : ''}
 						`, {}));
 					}
 				}
@@ -5710,6 +5715,25 @@ wiki.get(/^\/LongestPages$/, async function longestPages(req, res) {
 	content += '</ul>' + navbtn(0, 0, 0, 0);
 	
 	res.send(await render(req, '내용이 긴 문서', content, {}));
+});
+
+if(hostconfig.debug) wiki.get('/ResetXref', function(req, res) {
+	print('기존 역링크 데이타 삭제');
+	curs.execute("delete from backlink")
+		.then(() => {
+			print('문서 목록 불러오기');
+			curs.execute("select title, namespace, content from documents")
+				.then(async dbdocs => {
+					print('초기화 시작...');
+					for(var item of dbdocs) {
+						prt(totitle(item.title, item.namespace) + ' 처리 중... ');
+						await markdown(item.content, 0, totitle(item.title, item.namespace) + '', 'backlinkinit');
+						print('완료!');
+					}
+					print('모두 처리 완료.');
+					return res.send('완료!');
+				});
+		});
 });
 
 wiki.use(function(req, res, next) {
