@@ -47,7 +47,7 @@ wiki.use(session({
 }));
 
 // 업데이트 수준
-const updatecode = '2';
+const updatecode = '4';
 
 // 사용지 권한
 var perms = [
@@ -266,7 +266,7 @@ try {
 	//
   
 	const tables = {
-		'documents': ['title', 'content', 'namespace'],
+		'documents': ['title', 'content', 'namespace', 'time'],
 		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags'],
 		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
 		'users': ['username', 'password'],
@@ -290,7 +290,7 @@ try {
 		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
 		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
 		'files': ['title', 'namespace', 'hash'],
-		'backlink': ['title', 'namespace', 'link', 'linkns', 'type'],
+		'backlink': ['title', 'namespace', 'link', 'linkns', 'type', 'exist'],
 		'classic_acl': ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
 	};
 	
@@ -673,6 +673,13 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 						}
 					} else el.removeAttribute(attr.name);
 				}
+				switch(el.tagName.toLowerCase()) {
+					case 'a':
+						el.setAttribute('target', '_blank');
+						if(minor >= 20) {
+							el.className += (el.className ? ' ' : '') + 'wiki-link-external';
+						}
+				}
 			} else el.outerHTML = el.innerHTML;
 		} item.outerHTML = item.innerHTML;
 	}
@@ -813,14 +820,17 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		
 		const external = dest.startsWith('http://') || dest.startsWith('https://') || dest.startsWith('ftp://');
 		
+		var ddata = await curs.execute("select content from documents where title = ? and namespace = ?", [processTitle(dest).title, processTitle(dest).namespace]);
+		const notexist = !ddata.length ? ' not-exist' : '';
+		
 		if(dest.startsWith('분류:') && !discussion) {  // 분류
-			cates += `<li><a href="/w/${encodeURIComponent(dest)}">${html.escape(dest.replace('분류:', ''))}</a></li>`;
+			cates += `<li><a href="/w/${encodeURIComponent(dest)}" class="wiki-link-internal${notexist}">${html.escape(dest.replace('분류:', ''))}</a></li>`;
 			if(xref) {
-				// curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'category')", [doc.title, doc.namespace, dest.replace('분류:', ''), '분류']);
+				curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'category')", [doc.title, doc.namespace, dest.replace('분류:', ''), '분류']);
 			}
 			data = data.replace(link, '');
 			continue;
-		} if(dest.startsWith('파일:') && !discussion) {  // 그림
+		} if(dest.startsWith('파일:') && !discussion && !notexist) {  // 그림
 			// 나중에 구현할랭
 			data = data.replace(link, '');
 			continue;
@@ -828,16 +838,13 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
-		var ddata = await curs.execute("select content from documents where title = ?", [dest]);
-		const notexist = !ddata.length ? ' not-exist' : '';
 		const sl = dest == title ? ' self-link' : '';
 		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + '">' + html.escape(disp) + '</a>');
 		
 		// 역링크
 		if(xref && !external) {
 			var linkdoc = processTitle(dest);
-			// await X
-			curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'link')", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace]);
+			curs.execute("insert into backlink (title, namespace, link, linkns, type, exist) values (?, ?, ?, ?, 'link', ?)", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace, notexist ? '0' : '1']);
 		}
 	}
 	
@@ -1596,11 +1603,11 @@ async function getacl(req, title, namespace, type, getmsg) {
 // 뒤로/앞으로 단추
 function navbtn(total, start, end, href) {
 	if(!href) return '';  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
-	href = href.split("?")[0];
+	href = href.split('?')[0];
 	start = Number(start);
 	end = Number(end);
 	return `
-		<div class="btn-group" role="group">
+		<div class="btn-group" role=group>
 			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
 			</a>
@@ -1794,14 +1801,34 @@ wiki.get(/^\/go\/(.*)/, (req, res) => {
 		});
 });
 
-wiki.get(/^\/search\/(.*)/, (req, res) => {
+wiki.get(/^\/search\/(.*)/, async(req, res) => {
 	const query = req.params[0];
+	
+	var content = `
+		<div class="alert alert-info search-help" role="alert">
+			<div class=pull-left>
+				<span class="icon ion-chevron-right"></span>&nbsp;
+				찾는 문서가 없나요? 문서로 바로 갈 수 있습니다.
+			</div>
+			
+			<div class=pull-right>
+				<a class="btn btn-secondary btn-sm" href="/w/${encodeURIComponent(query)}">'${html.escape(query)}' 문서로 가기</a>
+			</div>
+			
+			<div style="clear: both;"></div>
+		</div>
+	`;
+	
+	if(!query.replace(/^(\s+)/, '').replace(/(\s+)$/, '')) {
+		res.send(await render(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
+	}
+	
 	http.request({
 		host: hostconfig.search_host,
 		port: hostconfig.search_port,
 		path: '/',
 	}, async res => {
-		res.send(await render(req, '"' + query + '" 검색 결과', '검색 결과 화면', {}, _, _, 'search'));
+		res.send(await render(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
 	}).on('error', async e => {
 		res.send(await showError(req, 'searchd_fail'));
 	}).end();
@@ -2043,6 +2070,12 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			</div>
 	`;
 	
+	if(minor >= 10 && minor <= 12) content = `
+		<p>
+			<a href="https://forum.theseed.io/topic/232/%EC%9D%98%EA%B2%AC%EC%88%98%EB%A0%B4-%EB%A6%AC%EB%8B%A4%EC%9D%B4%EB%A0%89%ED%8A%B8-%EB%AC%B8%EB%B2%95-%EB%B3%80%EA%B2%BD" target=_blank style="font-weight: bold; color: purple; font-size: 16px;">[의견수렴] 리다이렉트 문법 변경</a>
+		</p>
+	` + content;
+	
 	var httpstat = 200;
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
 	if(aclmsg && req.method != 'POST') {
@@ -2234,7 +2267,7 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 		)
 	);
 	
-	const dbdata = await curs.execute("select title, namespace from backlink where link = ? and linkns = ?" + (flag != '0' ? " and type = ?" : ''), [doc.title, doc.namespace].concat(flag != '0' ? [type] : []));
+	const dbdata = await curs.execute("select title, namespace, type from backlink where not type = 'category' and link = ? and linkns = ?" + (flag != '0' ? " and type = ?" : ''), [doc.title, doc.namespace].concat(flag != '0' ? [type] : []));
 	const _nslist = dbdata.map(item => item.namespace);
 	const nslist = fetchNamespaces().filter(item => _nslist.includes(item));
 	const counts = {};
@@ -2289,7 +2322,7 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 		}
 	}
 	
-	var listc = '<div class=wiki-category-container>';
+	var listc = '<div' + (data.length > 6 ? ' class=wiki-category-container' : '') + '>';
 	var list = '';
 	for(var idx of Object.keys(indexes).sort()) {
 		list += `
@@ -2300,7 +2333,7 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 		for(var item of indexes[idx])
 			list += `
 				<li>
-					<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(totitle(item.title, item.namespace) + '')}</a>
+					<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(totitle(item.title, item.namespace) + '')}</a> (${item.type})
 				</li>
 			`;
 		list += '</ul></div>';
@@ -5010,7 +5043,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 				</div>
 
 				<textarea name="text" type="text" rows="25" id="textInput" class=form-control>${(req.method == 'POST' ? req.body['text'] : '').replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
-				
+			${req.method == 'GET' ? `
 				<div class=row>
 					<div class="col-xs-12 col-md-5 form-group">
 						<label class="control-label" for="licenseSelect">라이선스</label><br />
@@ -5029,7 +5062,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 						</select>
 					</div>
 				</div>
-				
+			` : ''}
 				<div class="form-group">
 					<label class="control-label">요약</label>
 					<input type="text" id="logInput" class="form-control" name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
@@ -5056,7 +5089,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 		if(!title) return res.send(await render(req, '파일 올리기', alertBalloon(fetchErrorString('validator_required', 'document'), 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
 		var doc = processTitle(title);
 		if(doc.namespace != '파일') return res.send(await render(req, '파일 올리기', alertBalloon('업로드는 파일 이름 공간에서만 가능합니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
-		if(path.extname(doc.title) != path.extname(file.originalname)) return res.send(await render(req, '파일 올리기', alertBalloon('문서 이름과 확장자가 맞지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		if(path.extname(doc.title).toLowerCase() != path.extname(file.originalname).toLowerCase()) return res.send(await render(req, '파일 올리기', alertBalloon('문서 이름과 확장자가 맞지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
 		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
 		if(aclmsg) return res.send(await render(req, '파일 올리기', alertBalloon(aclmsg, 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
 		
@@ -5687,6 +5720,117 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 	res.send(await render(req, 'RandomPage', content, {}));
 });
 
+wiki.get(/^\/NeededPages$/, async(req, res) => {
+	const nslist = fetchNamespaces();
+	var ns = req.query['namespace'];
+	if(!ns || !nslist.includes(ns)) ns = '문서';
+	
+	var content = `
+		<fieldset class="recent-option">
+			<form class="form-inline" method=get>
+				<div class="form-group">
+					<label class="control-label">이름공간 :</label>
+					<select class="form-control" id="namespace" name=namespace>
+					
+	`;
+	
+	for(var nsp of nslist) {
+		content += `
+			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
+		`;
+	}
+	
+	content += `
+					</select>
+				</div>
+				
+				<div class="form-group btns">
+					<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
+				</div>
+			</form>
+		</fieldset>
+		
+		<p>역 링크는 존재하나 아직 작성이 되지 않은 문서 목록입니다.</p>
+		<p>이 페이지는 하루에 한번 업데이트 됩니다.</p>
+		
+		<ul class=wiki-list>
+	`;
+	
+	let data = await curs.execute("select link from backlink where exist = '0' and linkns = ? limit 100", [ns]);
+	for(let i of data) {
+		content += '<li><a href="/w/' + encodeURIComponent(totitle(i.link, ns)) + '">' + html.escape(totitle(i.link, ns) + '') + '</a>  <a href="/xref/' + encodeURIComponent(totitle(i.link, ns)) + '">[역링크]</a></li>';
+	}
+	content += '</ul>';
+	
+	res.send(await render(req, '작성이 필요한 문서', content, {}));
+});
+
+wiki.get(/^\/UncategorizedPages$/, async(req, res) => {
+	const nslist = fetchNamespaces();
+	var ns = req.query['namespace'];
+	if(!ns || !nslist.includes(ns)) ns = '문서';
+	
+	var content = `
+		<fieldset class="recent-option">
+			<form class="form-inline" method=get>
+				<div class="form-group">
+					<label class="control-label">이름공간 :</label>
+					<select class="form-control" id="namespace" name=namespace>
+					
+	`;
+	
+	for(var nsp of nslist) {
+		content += `
+			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
+		`;
+	}
+	
+	content += `
+					</select>
+				</div>
+				
+				<div class="form-group btns">
+					<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
+				</div>
+			</form>
+		</fieldset>
+		
+		<ul class=wiki-list>
+	`;
+	
+	let data = await curs.execute("select title, content from documents where namespace = ? order by title asc limit 100", [ns]);
+	for(let i of data) {
+		if(i.content.match(/^[#]redirect\s(.*)\n$/)) continue;
+		const d = await curs.execute("select title from backlink where title = ? and namespace = ? and type = 'category'", [i.title, ns]);
+		if(d.length) continue;
+		content += '<li><a href="/w/' + encodeURIComponent(totitle(i.title, ns)) + '">' + html.escape(totitle(i.title, ns) + '') + '</a></li>';
+	}
+	content += '</ul>';
+	
+	res.send(await render(req, '분류가 되지 않은 문서', content, {}));
+});
+
+wiki.get(/^\/OldPages$/, async(req, res) => {
+	const nslist = fetchNamespaces();
+	var ns = req.query['namespace'];
+	if(!ns || !nslist.includes(ns)) ns = '문서';
+	
+	var content = `
+		<p>편집된 지 오래된 문서의 목록입니다. (리다이렉트 제외)</p>
+		
+		<ul class=wiki-list>	
+	`;
+	
+	let data = await curs.execute("select title, time, content from documents where namespace = '문서' order by cast(time as integer) asc limit 100");
+	for(let i of data) {
+		if(i.content.match(/^[#]redirect\s(.*)\n$/)) continue;
+		content += '<li><a href="/w/' + encodeURIComponent(totitle(i.title, '문서')) + '">' + html.escape(totitle(i.title, ns) + '') + `</a>  (수정 시각:${generateTime(toDate(i.time), timeFormat)})`;
+	}
+	content += '</ul>';
+	
+	res.send(await render(req, '편집된 지 오래된 문서', content, {}));
+});
+
 wiki.get(/^\/ShortestPages$/, async function shortestPages(req, res) {
 	var from = req.query['from'];
 	if(!from) ns = '1';
@@ -5697,7 +5841,7 @@ wiki.get(/^\/ShortestPages$/, async function shortestPages(req, res) {
     else
         sql_num = 0;
 	
-	var data = await curs.execute("select title from documents where namespace = '문서' order by length(content) limit ?, '122'", [sql_num]);
+	var data = await curs.execute("select title, content from documents where namespace = '문서' order by length(content) limit ?, '122'", [sql_num]);
 	
 	var content = `
 		<p>내용이 짧은 문서 (문서 이름공간, 리다이렉트 제외)</p>
@@ -5707,8 +5851,10 @@ wiki.get(/^\/ShortestPages$/, async function shortestPages(req, res) {
 		<ul class=wiki-list>
 	`;
 	
-	for(var i of data)
-        content += '<li><a href="/w/' + encodeURIComponent(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	for(var i of data) {
+        if(i.content.match(/^[#]redirect\s(.*)\n$/)) continue;
+		content += '<li><a href="/w/' + encodeURIComponent(i['title']) + '">' + html.escape(i['title']) + `</a> (${i.content.length}글자)</li>`;
+	}
 	
 	content += '</ul>' + navbtn(0, 0, 0, 0);
 	
@@ -5725,7 +5871,7 @@ wiki.get(/^\/LongestPages$/, async function longestPages(req, res) {
     else
         sql_num = 0;
 	
-	var data = await curs.execute("select title from documents where namespace = '문서' order by length(content) desc limit ?, '122'", [sql_num]);
+	var data = await curs.execute("select title, content from documents where namespace = '문서' order by length(content) desc limit ?, '122'", [sql_num]);
 	
 	var content = `
 		<p>내용이 긴 문서 (문서 이름공간, 리다이렉트 제외)</p>
@@ -5735,8 +5881,10 @@ wiki.get(/^\/LongestPages$/, async function longestPages(req, res) {
 		<ul class=wiki-list>
 	`;
 	
-	for(var i of data)
-        content += '<li><a href="/w/' + encodeURIComponent(i['title']) + '">' + html.escape(i['title']) + '</a></li>';
+	for(var i of data) {
+        if(i.content.match(/^[#]redirect\s(.*)\n$/)) continue;
+		content += '<li><a href="/w/' + encodeURIComponent(i['title']) + '">' + html.escape(i['title']) + `</a> (${i.content.length}글자)</li>`;
+	}
 	
 	content += '</ul>' + navbtn(0, 0, 0, 0);
 	
@@ -5840,6 +5988,19 @@ wiki.use(function(req, res, next) {
 			try {
 				await curs.execute("create table backlink (title text default '', namespace text default '', link text default '', linkns text default '', type text default 'link')");
 				await curs.execute("create table classic_acl (title text default '', namespace text default '', blockkorea text default '', blockbot text default '', read text default '', edit text default '', delete text default '', discuss text default '', move text default '')");
+			} catch(e) {}
+		} case 2: {
+			try {
+				await curs.execute("alter table backlink\nADD exist text;");
+			} catch(e) {}
+		} case 3: {
+			try {
+				await curs.execute("alter table documents\nADD time text;");
+				for(let item of (await curs.execute("select title, namespace from documents"))) {
+					const d = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [item.title, item.namespace]);
+					if(!d.length) continue;
+					await curs.execute("update documents set time = ? where title = ? and namespace = ?", [d[0].time, item.title, item.namespace]);
+				}
 			} catch(e) {}
 		}
 	}
