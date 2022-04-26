@@ -1,4 +1,4 @@
-더시드 엔진 4.12.0 모방 프로젝트.  
+더시드 엔진 (구 프론엔드 기준) 모방 프로젝트.  
 < "엔진 내부 UI는 상관없음." ( https://feedback.theseed.io/posts/280 ) >  
 테스트 서버 - https://go2021.glitch.me
 
