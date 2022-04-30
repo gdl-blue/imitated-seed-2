@@ -1,5 +1,6 @@
-// 병아리 엔진 - the seed 모방 프로젝트
+/* 병아리 엔진 - the seed 모방 프로젝트 */
 
+// 기본 모듈
 const http = require('http');
 const path = require('path');
 const geoip = require('geoip-lite');
@@ -9,45 +10,59 @@ const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
 const session = require('express-session');
 const swig = require('swig');
-const ipRangeCheck = require("ip-range-check");
+const ipRangeCheck = require('ip-range-check');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const fs = require('fs');
 const { JSDOM } = require('jsdom');
 const jquery = require('jquery');
 const diff = require('./cemerick-jsdifflib.js');
+const cookieParser = require('cookie-parser');
 
-const timeFormat = 'Y-m-d H:i:s';
+const timeFormat = 'Y-m-d H:i:s';  // 날짜 및 시간 기본 형식
 const _ = undefined;
-var major = 4;
-var minor = 12;
-var revision = 0;
+
+// 더 시드 모방 버전 (나중에 config.json에서 불러옴)
+var major = 4, minor = 12, revision = 0;
 var _ready = 0;
 
-const wiki = express();
-const conn = new sqlite3.Database('./wikidata.db', console.error);
-const upload = multer();
+const wiki = express();  // 서버
+const conn = new sqlite3.Database('./wikidata.db', () => 0);  // 데이타베이스
+const upload = multer();  // 파일 올리기 모듈
 
-var wikiconfig = {};
-var permlist = {};
-var hostconfig;
-var userset = {};
-var skinList = [];
+var wikiconfig = {};  // 위키 설정 캐시
+var permlist = {};  // 권한 캐시
+var userset = {};  // 사용자 설정 캐시
+var skinList = [];  // 스킨 목록 캐시
 
+// https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
+// 무작위 문자열 생성
+function rndval(chars, length) {
+	var result           = '';
+	var characters       = chars;
+	var charactersLength = characters.length;
+	for ( var i = 0; i < length; i++ ) {
+		result += characters.charAt(Math.floor(Math.random() * charactersLength));
+	}
+	return result;
+}
+
+// 모듈 사용
 wiki.use(bodyParser.json());
 wiki.use(bodyParser.urlencoded({ extended: true }));
 wiki.use(upload.any()); 
 wiki.use(express.static('public'));
 wiki.use(session({
-	key: 'sid',
-	secret: 'secret',
+	key: 'kotori',
+	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
 	cookie: {
-		expires: false
-	}
+		expires: false,
+	},
 }));
+wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '4';
+const updatecode = '6';
 
 // 사용지 권한
 var perms = [
@@ -74,6 +89,12 @@ const find = (obj, fnc) => {
     return -1;
 };
 
+// 함수형 조건문
+function iff(condition, thenf, elsef) {
+	if(condition) thenf(condition);
+	else if(elsef) elsef(condition);
+}
+
 // 로그출력
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
@@ -82,18 +103,6 @@ function prt(x) { process.stdout.write(x); }
 function beep(cnt = 1) { // 경고음 재생
 	for(var i=1; i<=cnt; i++)
 		prt("");
-}
-
-// https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
-// 무작위 문자열 생성
-function rndval(chars, length) {
-	var result           = '';
-	var characters       = chars;
-	var charactersLength = characters.length;
-	for ( var i = 0; i < length; i++ ) {
-		result += characters.charAt(Math.floor(Math.random() * charactersLength));
-	}
-	return result;
 }
 
 // 입력받기
@@ -119,9 +128,8 @@ function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
 // 파이선 SQLite 모방
 conn.commit = function() {};
 conn.sd = [];
-
 const curs = {
-	execute: function executeSQL(sql = '', params = []) {
+	execute(sql, params = []) {
 		return new Promise((resolve, reject) => {
 			if(UCase(sql).startsWith("SELECT")) {
 				conn.all(sql, params, (err, retval) => {
@@ -137,7 +145,7 @@ const curs = {
 			}
 		});
 	},
-	fetchall: function fetchSQLData() {
+	fetchall() {
 		return conn.sd;
 	},
 };
@@ -156,7 +164,7 @@ function insert(table, obj) {
 	return curs.execute(sql, arr);
 }
 
-// 보안기능
+// 보안을 위해...
 wiki.disable('x-powered-by');
 
 // 현재 시간 타임스탬프
@@ -183,24 +191,19 @@ function generateTime(time, fmt) {
 	const t = split(time, ' ')[1];
 	
 	return `<time datetime="${d}T${t}.000Z" data-format="${fmt}">${time}</time>`;
-}
+} generateTime.safe = true;
 
-generateTime.safe = true;
-
+// swig 필터
 swig.setFilter('encode_userdoc', function encodeUserdocURL(input) {
 	return encodeURIComponent('사용자:' + input);
 });
-
 swig.setFilter('encode_doc', function encodeDocURL(input) {
 	return encodeURIComponent(input);
 });
-
 swig.setFilter('avatar_url', function(input) {
 	return 'https://www.gravatar.com/avatar/md5username?d=retro';
 });
-
 swig.setFilter('to_date', toDate);
-
 swig.setFilter('localdate', generateTime);
 
 // 스택 (렌더러에 필요)
@@ -254,17 +257,18 @@ try {
 		}
 	}
 } catch(e) { (async function() {
-	print("병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n");
+	print('병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n');
 	
+	// 호스팅 설정
 	hostconfig = {
-		host: input("호스트 주소: "),
-		port: input("포트 번호: "),
-		skin: input("기본 스킨 이름: "),
+		host: input('호스트 주소: '),
+		port: input('포트 번호: '),
+		skin: input('기본 스킨 이름: '),
 		// search_host: input("검색서버 호스트: "),
 		// search_port: input("검색서버 포트: "),
 	};
-	//
-  
+	
+	// 생성할 테이블
 	const tables = {
 		'documents': ['title', 'content', 'namespace', 'time'],
 		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags'],
@@ -292,8 +296,12 @@ try {
 		'files': ['title', 'namespace', 'hash'],
 		'backlink': ['title', 'namespace', 'link', 'linkns', 'type', 'exist'],
 		'classic_acl': ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
+		'autologin_tokens': ['username', 'token'],
+		'trusted_devices': ['username', 'id'],
 	};
 	
+	
+	// 테이블 생성
 	for(var table in tables) {
 		var sql = '';
 		sql = `CREATE TABLE ${table} ( `;
@@ -630,6 +638,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		} else {  // 리터럴
 			if(block.includes('}}}')) {  // 한 줄
 				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+				const size = h.match(/^([+]|[-])([1-5])\s/);
 				if(color) {  // 글자 색
 					const htmlcolor = color[1].match(/^([A-Fa-f0-9]{6})$/);
 					var col = color[1];
@@ -638,11 +647,12 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 					}
 					data = data.replace('}}}', '</font>');
 					data = data.replace('{{{' + color[0], '<font color=' + col + '>');
+				} else if(size) {  // 글자 크기
+					data = data.replace('}}}', '</span>');
+					data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
 				} else {
-					var rb = block;
-					rb = rb.replace('}}}', '</code></nowikiblock>');
-					rb = rb.replace('{{{', '<nowikiblock><code>');
-					data = data.replace(block, rb);
+					blocks.push('</code></nowikiblock>');
+					data = data.replace('{{{', '<nowikiblock><code>');
 				}
 			} else {  // 블록
 				blocks.push('</pre></nowikiblock>');
@@ -982,7 +992,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/<div>\n/, '<div>').replace(/\n<\/div><h(\d)/g, '</div><h$1').replace(/\n/g, '<br />');
 	
 	// 사용자 문서 틀
-	if(!discussion && !flags.includes('preview')) {
+	if(!discussion && !flags.includes('preview') && doc.namespace == '사용자') {
 		const blockdata = await userblocked(doc.title);
 		if(blockdata) {
 			data = `
@@ -1049,9 +1059,8 @@ const ip_check = getUsername;
 
 // 위키 설정
 const config = {
-	getString: function(str, def = '') {
+	getString(str, def = '') {
 		str = str.replace(/^wiki[.]/, '');
-		
 		if(typeof(wikiconfig[str]) == 'undefined') {
 			curs.execute("insert into config (key, value) values (?, ?)", [str, def]);
 			wikiconfig[str] = def;
@@ -1087,14 +1096,8 @@ function getSkin(req) {
 
 // 권한 보유여부
 function getperm(perm, username) {
-	// if(!islogin(req)) return false;
 	if(!permlist[username]) permlist[username] = [];
 	return permlist[username].includes(perm);
-	/* await curs.execute("select perm from perms where username = ? and perm = ?", [username, perm]);
-	if(curs.fetchall().length) {
-		return true;
-	}
-	return false; */
 }
 
 // 내 권한 보유여부
@@ -1102,11 +1105,6 @@ function hasperm(req, perm) {
 	if(!islogin(req)) return false;
 	if(!permlist[ip_check(req)]) permlist[ip_check(req)] = [];
 	return permlist[ip_check(req)].includes(perm);
-	/* await curs.execute("select perm from perms where username = ? and perm = ?", [username, perm]);
-	if(curs.fetchall().length) {
-		return true;
-	}
-	return false; */
 }
 
 // 비동기파일읽기
@@ -1158,7 +1156,6 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 		title: title + subtitle,
 		viewName: viewname,
 	};
-	
 	const perms = {
 		has(perm) {
 			try {
@@ -1167,7 +1164,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				return false;
 			}
 		}
-	}
+	};
 	
 	var templatefn = '';
 	try {
@@ -1184,8 +1181,6 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 		return '';
 	}
 
-	var output;
-	
 	return new Promise((resolve, reject) => {
         swig.compileFile(templatefn, {}, async(e, r) => {
             if(e) {
@@ -1211,7 +1206,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				}
 			}
 			
-			output = r(varlist);
+			var output = r(varlist);
 			
 			var header = '<!DOCTYPE html>\n<html><head>';
 			var skinconfig = await requireAsync('./skins/' + getSkin(req) + '/config.json');
@@ -1354,7 +1349,6 @@ async function showError(req, code, custom) {
 // 닉네임/아이피 파싱
 function ip_pas(ip = '', ismember = '', nobold) {
 	if(ismember == 'author') {
-		if(!ip) return `<del style="color: gray;"><i>(삭제된 사용자)</i></del>`;
 		return `${nobold ? '' : '<strong>'}<a href="/w/사용자:${encodeURIComponent(ip)}">${html.escape(ip)}</a>${nobold ? '' : '</strong>'}`;
 	} else {
 		return `<a href="/contribution/ip/${encodeURIComponent(ip)}/document">${html.escape(ip)}</a>`;
@@ -1600,7 +1594,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 	return r.msg;  // 거부되었으면 오류 메시지 내용 반환, 허용은 빈 문자열
 }
 
-// 뒤로/앞으로 단추
+// 앞뒤 페이지 이동 단추
 function navbtn(total, start, end, href) {
 	if(!href) return '';  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
 	href = href.split('?')[0];
@@ -1618,6 +1612,7 @@ function navbtn(total, start, end, href) {
 	`;
 }
 
+// HTML 이스케이프
 const html = {
 	escape(content = '') {
 		content = content.replace(/[&]/gi, '&amp;');
@@ -1631,12 +1626,34 @@ const html = {
 
 function cacheSkinList() {
     skinList = [];
-    
     for(var dir of fs.readdirSync('./skins', { withFileTypes: true }).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name)) {
         skinList.push(dir);
     }
 }
 cacheSkinList();
+
+// HTTPS 리다이렉트
+wiki.use(function(req, res, next) {
+    if(!hostconfig.debug && hostconfig.force_https && req.headers.host && !req.secure && !req.connection.encrypted && req.protocol != 'https') {
+		return res.redirect('https://' + req.headers.host + req.url);
+    }
+    next();
+});
+
+// 자동 로그인
+wiki.all('*', async function(req, res, next) {
+	var autologin;
+	if(autologin = req.cookies['honoka']) {
+		const d = await curs.execute("select username, token from autologin_tokens where token = ?", [autologin]);
+		if(!d.length) {
+			delete req.session.username;
+			res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
+		} else {
+			req.session.username = d[0].username;
+		}
+	}
+	next();
+});
 
 wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, function sendSkinFile(req, res) {
 	const skinname = req.params[0];
@@ -2093,7 +2110,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 					<input type="text" class="form-control" id="logInput" name="log" value="${req.method == 'POST' ? html.escape(req.body['log']) : ''}" />
 				</div>
 
-				<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y"${req.method == 'POST' && req.body['agree'] == 'Y' ? ' checked' : ''}>&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
+				<label><input ${req.cookies['agree'] == '1' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y"${req.method == 'POST' && req.body['agree'] == 'Y' ? ' checked' : ''}>&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
 				
 				${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 				
@@ -2143,6 +2160,9 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		if(original == text && ex) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon('문서 내용이 같습니다.', 'danger', true, 'fade in edit-alert') + content.replace('&<$TEXTAREA>', textarea), {
 			document: doc,
 		}, '', true, 'edit'));
+		if(!req.body['agree']) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon(fetchErrorString('validator_required', 'agree'), 'danger', true, 'fade in edit-alert') + content.replace('&<$TEXTAREA>', textarea), {
+			document: doc,
+		}, '', true, 'edit'));
 		const rawChanges = text.length - original.length;
 		const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
 		const log = req.body['log'];
@@ -2178,11 +2198,15 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			curs.execute("update stars set lastedit = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 		}
 		
+		res.cookie('agree', '1', {
+			expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360),
+		});
+		
+		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 			doc.title, doc.namespace, text, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
 		]);
-		
 		markdown(text, 0, doc + '', 'backlinkinit');
 		
 		return res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
@@ -2417,7 +2441,7 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 			doc.title, doc.namespace, revdata.content, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), (rawChanges > 0 ? '+' : '') + rawChanges, req.body['log'], '0', '-1', islogin(req) ? 'author' : 'ip', 'revert', rev
 		]);
-		
+		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		return res.redirect('/w/' + encodeURIComponent(doc + ''));
 	}
 	
@@ -2791,7 +2815,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 				<input type="text" class="form-control" id="logInput" name="log" value="">
 			</div>
 
-			<label><input type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</strong></label>
+			<label><input ${req.method == 'POST' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</strong></label>
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
@@ -3962,6 +3986,17 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]+)\/(\d+)$/, async function sendThreadData(req,
 	
 	var data = await curs.execute("select isadmin, type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
 	for(var rs of data) {
+		var rescontent = rs['status'] == 1
+			? (
+				rs.type == 'status'
+				? ((minor >= 5 || (minor == 4 && revision >= 3)) ? ('스레드 상태를 <strong>' + rs['content'] + '</strong>로 변경') : ('토픽 상태를 ' + rs['content'] + '로 변경'))
+				: (
+					rs.type == 'document'
+					? '스레드를 <strong>' + rs['content'] + '</strong> 문서로 이동'
+					: '스레드 주제를 <strong>' + rs['content'] + '</strong>로 변경'
+				)
+			) : await markdown(rs['content'], 1);
+		
 		content += `
 			<div class=res-wrapper data-id="${rs['id']}">
 				<div class="res res-type-${rs['status'] == '1' ? 'status' : 'normal'}">
@@ -3976,20 +4011,11 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]+)\/(\d+)$/, async function sendThreadData(req,
 							rs['hidden'] == '1'
 							? (
 								getperm('hide_thread_comment', ip_check(req))
-								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class=text-line-break style="margin: 25px 0px 0px -10px; display:block"><a class=text onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class=line></div></div><div class=hidden-content style="display:none">' + await markdown(rs['content'], 1) + '</div>'
+								? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class=text-line-break style="margin: 25px 0px 0px -10px; display:block"><a class=text onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class=line></div></div><div class=hidden-content style="display:none">' + rescontent + '</div>'
 								: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 							  )
 							: (
-								rs['status'] == 1
-								? (
-									rs.type == 'status'
-									? ((minor >= 5 || (minor == 4 && revision >= 3)) ? ('스레드 상태를 <strong>' + rs['content'] + '</strong>로 변경') : ('토픽 상태를 ' + rs['content'] + '로 변경'))
-									: (
-										rs.type == 'document'
-										? '스레드를 <strong>' + rs['content'] + '</strong> 문서로 이동'
-										: '스레드 주제를 <strong>' + rs['content'] + '</strong>로 변경'
-									)
-								) : await markdown(rs['content'], 1)
+								rescontent
 							)
 						}
 					</div>
@@ -4224,7 +4250,7 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 							values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 				doc.title, doc.namespace, '', String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '' + (rawChanges), req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'delete'
 			]);
-			
+			curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 			return res.redirect('/w/' + encodeURIComponent(doc + ''));
 		}
 	}
@@ -4329,7 +4355,7 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 							values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 				newdoc.title, newdoc.namespace, doccontent, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '0', req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'move', doc.title + '\n' + newdoc.title
 			]);
-			
+			curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 			return res.redirect('/w/' + encodeURIComponent(newdoc + ''));
 		}
 	}
@@ -5256,7 +5282,7 @@ if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, asy
 			
 			<div class=form-group>
 				<label>사용자 이름을 확인해주세요 (${html.escape(username)}):</label><br />
-				<input type=text name=username class=form-control placeholder="${html.escape(username)}" />
+				<input type=text name=username class=form-control placeholder="${html.escape(username)}" value="${html.escape(req.body['username'] || '')}" />
 				${!error && req.method == 'POST' && req.body['username'] != username ? (error = true, `<p class=error-desc>자신의 사용자 이름을 입력해주세요.</p>`) : ''}
 			</div>
 			
@@ -5279,19 +5305,24 @@ if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, asy
 	`;
 	
 	if(req.method == 'POST' && !error) {
-		await curs.execute("delete from users where username = ?", [username]);
-		await curs.execute("delete from perms where username = ?", [username]);
-		await curs.execute("delete from suspend_account where username = ?", [username]);
-		await curs.execute("delete from user_settings where username = ?", [username]);
-		await curs.execute("delete from acl where title = ? and namespace = '사용자'", [username]);
-		await curs.execute("delete from documents where title = ? and namespace = '사용자'", [username]);
-		await curs.execute("delete from history where title = ? and namespace = '사용자'", [username]);
-		await curs.execute("delete from login_history where username = ?", [username]);
-		await curs.execute("delete from stars where username = ?", [username]);
-		await curs.execute("delete from useragents where username = ?", [username]);
-		await curs.execute("update history set username = '' where username = ? and ismember = 'author'", [username]);
-		await curs.execute("update res set username = '' where username = ? and ismember = 'author'", [username]);
+		curs.execute("delete from users where username = ?", [username]);
+		curs.execute("delete from perms where username = ?", [username]);
+		curs.execute("delete from suspend_account where username = ?", [username]);
+		curs.execute("delete from user_settings where username = ?", [username]);
+		curs.execute("delete from acl where title = ? and namespace = '사용자'", [username]);
+		curs.execute("delete from classic_acl where title = ? and namespace = '사용자'", [username]);
+		curs.execute("delete from documents where title = ? and namespace = '사용자'", [username]);
+		curs.execute("delete from history where title = ? and namespace = '사용자'", [username]);
+		curs.execute("delete from login_history where username = ?", [username]);
+		curs.execute("delete from stars where username = ?", [username]);
+		curs.execute("delete from useragents where username = ?", [username]);
+		curs.execute("update history set username = '탈퇴한 사용자' where username = ? and ismember = 'author'", [username]);
+		curs.execute("update res set username = '탈퇴한 사용자' where username = ? and ismember = 'author'", [username]);
+		curs.execute("update res set hider = '탈퇴한 사용자' where hider = ?", [username]);
+		curs.execute("update block_history set executer = '탈퇴한 사용자' where executer = ? and ismember = 'author'", [username]);
+		curs.execute("update block_history set target = '탈퇴한 사용자' where target = ?", [username]);
 		delete req.session.username;
+		res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
 		return res.send(await render(req, '계정 삭제', `
 			<p><strong>${html.escape(username)}</strong>님 안녕히 가십시오.</p>
 		`, {}, _, false, 'delete_account'));
@@ -5392,6 +5423,11 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 });
 
 wiki.get(/^\/member\/logout$/, async(req, res, next) => {
+	var autologin;
+	if(autologin = req.cookies['honoka']) {
+		await curs.execute("delete from autologin_tokens where token = ?", [autologin]);
+		res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
+	}
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	delete req.session.username;
@@ -5421,6 +5457,14 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		
 		if(!invalidusername && !invalidpw) {
 			id = usr[0].username;
+			if(req.body['autologin']) {
+				const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/', 128);
+				res.cookie('honoka', key, {
+					expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360),
+					httpOnly: true,
+				});
+				await curs.execute("insert into autologin_tokens (username, token) values (?, ?)", [id, key]);
+			}
 			
 			if(!hostconfig.disable_login_history) {
 				curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
@@ -5449,12 +5493,12 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 				<label>Password</label><br>
 				<input class=form-control name="password" type="password" />
 				${id.length && !invalidusername && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
-				${id.length && !invalidusername && invalidpw ? (error = true, `<p class=error-desc>암호가 올바르지 않습니다.</p>`) : ''}
+				${id.length && !invalidusername && pw.length && invalidpw ? (error = true, `<p class=error-desc>암호가 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
 			<div class="checkbox" style="display: inline-block;">
 				<label>
-					<input type="checkbox" name="autologin">
+					<input type=checkbox name=autologin>
 					<span>자동 로그인</span>
 				</label>
 			</div>
@@ -5595,8 +5639,10 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 		pw = req.body['password'] || '';
 		pw2 = req.body['password_check'] || '';
 		
-		if(req.method == 'POST' && (hostconfig.reserved_usernames || []).includes(id)) {
-			error = true, content = alertBalloon('\'' + id + '\'은(는) 예약된 이름입니다.', 'danger', true, 'fade in') + content;
+		if(!hostconfig.no_username_format && (id.length < 3 || id.length > 32 || id.match(/(?:[^A-Za-z0-9_])/))) {
+			var invalidformat = 1;
+		} else if((hostconfig.reserved_usernames || []).concat(['namubot', '탈퇴한 사용자']).includes(id)) {
+			var invalidusername = 1;
 		} else {
 			var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
 			if(data.length) {
@@ -5642,18 +5688,20 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
 				${duplicate ? (error = true, `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>`) : ''}
 				${!duplicate && !id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
+				${!duplicate && id.length && invalidusername ? (error = true, `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>`) : ''}
+				${!duplicate && id.length && !invalidusername && invalidformat ? (error = true, `<p class=error-desc>사용자 이름을 형식에 맞게 입력해주세요.</p>`) : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호</label><br>
 				<input class=form-control name="password" type="password" />
-				${!duplicate && id.length && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
+				${!duplicate && id.length && !invalidusername && !invalidformat && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호 확인</label><br>
-				<input class=form-control name="password_check" type="password" />
-				${!duplicate && id.length && pw.length && pw != pw2 ? (error = true, `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>`) : ''}
+				<input class=form-control name="password_check" type="passw	ord" />
+				${!duplicate && id.length && !invalidusername && !invalidformat && pw.length && pw != pw2 ? (error = true, `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
 			<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
@@ -5891,6 +5939,7 @@ wiki.get(/^\/LongestPages$/, async function longestPages(req, res) {
 	res.send(await render(req, '내용이 긴 문서', content, {}));
 });
 
+// 역링크 초기화 (디버그 전용)
 if(hostconfig.debug) wiki.get('/ResetXref', function(req, res) {
 	print('기존 역링크 데이타 삭제');
 	curs.execute("delete from backlink")
@@ -5910,6 +5959,7 @@ if(hostconfig.debug) wiki.get('/ResetXref', function(req, res) {
 		});
 });
 
+// 404 페이지
 wiki.use(function(req, res, next) {
     return res.status(404).send(`
 		<head>
@@ -5960,14 +6010,14 @@ wiki.use(function(req, res, next) {
 });
 
 (async function setWikiData() {
+	// 위키 설정 캐시
 	var data = await curs.execute("select key, value from config");
-	
 	for(var cfg of data) {
 		wikiconfig[cfg.key] = cfg.value;
 	}
 	
+	// 권한 캐시
 	var data = await curs.execute("select username, perm from perms order by username");
-	
 	for(var prm of data) {
 		if(typeof(permlist[prm.username]) == 'undefined')
 			permlist[prm.username] = [prm.perm];
@@ -5975,42 +6025,58 @@ wiki.use(function(req, res, next) {
 			permlist[prm.username].push(prm.perm);
 	}
 	
+	// 사용자 설정 캐시
 	var data = await curs.execute("select username, key, value from user_settings");
-        
 	for(var set of data) {
 		if(!userset[set.username]) userset[set.username] = {};
 		userset[set.username][set.key] = set.value;
 	}
 	
-	// break문 X
+	// 엔진 업그레이드
 	switch(Number(config.getString('update_code', '1'))) {
 		case 1: {
+			// 역링크, 4.2.0 이하용 ACL
 			try {
 				await curs.execute("create table backlink (title text default '', namespace text default '', link text default '', linkns text default '', type text default 'link')");
 				await curs.execute("create table classic_acl (title text default '', namespace text default '', blockkorea text default '', blockbot text default '', read text default '', edit text default '', delete text default '', discuss text default '', move text default '')");
 			} catch(e) {}
 		} case 2: {
+			// 역링크 테이블에 문서 존재 여부 열 추가
 			try {
 				await curs.execute("alter table backlink\nADD exist text;");
 			} catch(e) {}
 		} case 3: {
+			// 문서 테이블에 최종수정일 열 추가
 			try {
 				await curs.execute("alter table documents\nADD time text;");
-				for(let item of (await curs.execute("select title, namespace from documents"))) {
-					const d = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [item.title, item.namespace]);
-					if(!d.length) continue;
-					await curs.execute("update documents set time = ? where title = ? and namespace = ?", [d[0].time, item.title, item.namespace]);
-				}
+				(async function() {
+					for(let item of (await curs.execute("select title, namespace from documents"))) {
+						const d = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [item.title, item.namespace]);
+						if(!d.length) continue;
+						await curs.execute("update documents set time = ? where title = ? and namespace = ?", [d[0].time, item.title, item.namespace]);
+					}
+				})();
+			} catch(e) {}
+		} case 4: {
+			// 탈퇴한 사용자
+			try {
+				await curs.execute("update res set username = '탈퇴한 사용자' where username = '' and ismember = 'author'");
+				await curs.execute("update history set username = '탈퇴한 사용자' where username = '' and ismember = 'author'");
+			} catch(e) {}
+		} case 5: {
+			// 자동 로그인 구현
+			try {
+				await curs.execute("create table autologin_tokens ( username text default '', token text default '' )");
+				await curs.execute("create table trusted_devices ( username text default '', id text default '' )");
 			} catch(e) {}
 		}
 	}
 	await curs.execute("update config set value = ? where key = 'update_code'", [updatecode]);
 	wikiconfig.update_code = updatecode;
 	
-	const { host, port } = hostconfig;
-	
 	// 서버실행
-	if(hostconfig.defaulthost)
+	const { host, port } = hostconfig;
+	if(hostconfig.default_host)
 		wiki.listen(process.env.PORT);  
 	else 
 		wiki.listen(port, host);
