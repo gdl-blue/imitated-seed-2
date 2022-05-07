@@ -568,8 +568,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			.replace(/\n<\/tbody>/g, '<tbody>')
 			.replace(/<\/tr>\n/g, '</tr>')
 			.replace(/\n<tr>/g, '</tr>')
-			.replace(/<\/tbody><tbody><\/tbody>/g, '</tbody>')
-			;
+			.replace(/<\/tbody><tbody><\/tbody>/g, '</tbody>');
 	}
 	
 	function multiply(a, b) {
@@ -1070,7 +1069,7 @@ const config = {
 		}
 		return wikiconfig[str];
 	}
-}
+};
 
 // 사용자설정 가져오기
 function getUserset(req, str, def = '') {
@@ -1169,11 +1168,10 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 	const skinInfo = {
 		title: title + subtitle,
 		viewName: viewname,
-	};
-	const perms = {
+	}, perms = {
 		has(perm) {
 			try {
-				return permlist[ip_check(req)].includes(perm)
+				return permlist[ip_check(req)].includes(perm);
 			} catch(e) {
 				return false;
 			}
@@ -1324,6 +1322,7 @@ function fetchErrorString(code, ...params) {
 		revision_not_found: '해당 리비전을 찾을 수 없습니다.',
 		feature_not_implemented: '사용하려는 기능이 구현되지 않았습니다.',
 		validator_required: params[0] + '의 값은 필수입니다.',
+		user_not_found: '사용자를 찾을 수 없습니다.',
 	};
 	
 	if(typeof(codes[code]) == 'undefined') return code;
@@ -1615,11 +1614,27 @@ function navbtn(total, start, end, href) {
 	start = Number(start);
 	end = Number(end);
 	return `
-		<div class="btn-group" role=group>
+		<div class=btn-group role=group>
 			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
 			</a>
 			<a ${start <= 1 ? '' : `href="${(href + '?from=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
+				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
+			</a>
+		</div>
+	`;
+}
+
+function navbtnss(ts, te, start, end, href) {
+	href = href.split('?')[0];
+	start = start;
+	end = end;
+	return `
+		<div class=btn-group role=group>
+			<a ${end == te ? '' : `href="${(href + '?until=' + encodeURIComponent(end))}" `}class="btn btn-secondary btn-sm${end == te ? ' disabled' : ''}">
+				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
+			</a>
+			<a ${start == ts ? '' : `href="${(href + '?from=' + encodeURIComponent(start))}" `}class="btn btn-secondary btn-sm${start == ts ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>
@@ -1776,7 +1791,7 @@ wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
 
-wiki.get('/sidebar.json', (req, res) => {
+wiki.get(/^\/sidebar[.]json$/, (req, res) => {
 	curs.execute("select time, title, namespace from history where namespace = '문서' order by cast(time as integer) desc limit 1000")
 	.then(async dbdata => {
 		var ret = [], cnt = 0, used = [];
@@ -1836,7 +1851,7 @@ wiki.get(/^\/search\/(.*)/, async(req, res) => {
 	const query = req.params[0];
 	
 	var content = `
-		<div class="alert alert-info search-help" role="alert">
+		<div class="alert alert-info search-help" role=alert>
 			<div class=pull-left>
 				<span class="icon ion-chevron-right"></span>&nbsp;
 				찾는 문서가 없나요? 문서로 바로 갈 수 있습니다.
@@ -1905,29 +1920,6 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 					content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + '">' + html.escape(ntitle) + '</a>';
 				}
 			} else content = await markdown(rawContent[0].content, 0, doc + '');
-			
-			/*content = '<div class=wiki-inner-content>' + content + '</div>';
-			
-			const blockdata = await userblocked(doc.title);
-			if(blockdata) {
-				content = `
-					<div style="border-width: 5px 1px 1px; border-style: solid; border-color: red gray gray; padding: 10px; margin-bottom: 10px;" onmouseover="this.style.borderTopColor=\'blue\';" onmouseout="this.style.borderTopColor=\'red\';">
-						<span style="font-size:14pt">이 사용자는 차단된 사용자입니다.</span><br /><br />
-						이 사용자는 ${generateTime(toDate(blockdata.date), timeFormat)}에 ${blockdata.expiration == '0' ? '영구적으로' : (generateTime(toDate(blockdata.expiration), timeFormat) + '까지')} 차단되었습니다.<br />
-						차단 사유: ${html.escape(blockdata.note)}
-					</div>
-				` + content;
-			}
-			
-			if(doc.namespace == '사용자' && getperm('admin', doc.title)) {
-				content = `
-					<div style="border-width: 5px 1px 1px; border-style: solid; border-color: orange gray gray; padding: 10px; margin-bottom: 10px;" onmouseover="this.style.borderTopColor=\'red\';" onmouseout="this.style.borderTopColor=\'orange\';">
-						<span style="font-size:14pt">이 사용자는 특수 권한을 가지고 있습니다.</span>
-					</div>
-				` + content;
-			}
-			
-			content = '<div class=wiki-content clearfix>' + content + '</div>';*/
 			
 			if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 			if(req.query['from']) {
@@ -1999,8 +1991,7 @@ wiki.get(/^\/raw\/(.*)/, async function API_viewRaw_v2(req, res) {
 	const rev = req.query['rev'];
 	
 	if(title.replace(/\s/g, '') === '') {
-		res.send(await await showError(req, 'invalid_title'));
-		return;
+		return res.send(await await showError(req, 'invalid_title'));
 	}
 	
 	if(rev) {
@@ -2009,39 +2000,20 @@ wiki.get(/^\/raw\/(.*)/, async function API_viewRaw_v2(req, res) {
 		var data = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	}
 	const rawContent = data;
-
 	var content = '';
-	
-	var httpstat = 200;
-	var viewname = 'wiki';
-	var error = false;
-	
-	var isUserDoc = false;
-	
-	var lstedt = undefined;
 	
 	try {
 		if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-			httpstat = 403;
-			error = true;
-			
-			res.send(await await showError(req, 'insufficient_privileges_read'));
-			
-			return;
+			return res.send(await await showError(req, 'insufficient_privileges_read'));
 		} else {
 			content = rawContent[0].content;
 		}
 	} catch(e) {
-		viewname = 'notfound';
-		
-		httpstat = 404;
-		content = '';
-		
 		return res.status(httpstat).send(await showError(req, 'document_not_found'));
 	}
 	
 	res.setHeader('Content-Type', 'text/plain');
-	res.status(httpstat).send(content);
+	res.send(content);
 });
 
 wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
@@ -3125,7 +3097,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 	}
 });
 
-wiki.get('/RecentChanges', async function recentChanges(req, res) {
+wiki.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 	var flag = req.query['logtype'];
 	if(!['all', 'create', 'delete', 'move', 'revert'].includes(flag)) flag = 'all';
 	if(flag == 'all') flag = '%';
@@ -3218,7 +3190,7 @@ wiki.get('/RecentChanges', async function recentChanges(req, res) {
 	res.send(await render(req, '최근 변경내역', content, {}));
 });
 
-wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document/, async function documentContributionList(req, res) {
+wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function documentContributionList(req, res) {
 	const ismember = req.params[0];
 	const username = req.params[1];
 	var moredata = [];
@@ -3368,7 +3340,7 @@ wiki.get(/^\/RecentDiscuss$/, async function recentDicsuss(req, res) {
 		break; default:
 			var data1 = await curs.execute("select title, namespace, topic, time, tnum from threads where status = 'normal' and not deleted = '1' order by cast(time as integer) desc limit 120");
 			var data2 = await curs.execute("select id, title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where state = 'open' and not deleted = '1' order by cast(date as integer) desc limit 120");
-			trds = data1.concat(data2).sort((l, r) => ((r.date || r.time) - (l.date || l.time)));
+			trds = data1.concat(data2).sort((l, r) => ((r.date || r.time) - (l.date || l.time))).slice(0, 120);
 	}
 	
 	for(var trd of trds) {
@@ -3398,7 +3370,7 @@ wiki.get(/^\/RecentDiscuss$/, async function recentDicsuss(req, res) {
 	res.send(await render(req, "최근 토론", content, {}));
 });
 
-wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss/, async function discussionLog(req, res) {
+wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss$/, async function discussionLog(req, res) {
 	const ismember = req.params[0];
 	const username = req.params[1];
 	
@@ -3799,8 +3771,8 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	res.redirect('/thread/' + tnum);
 });
 
-wiki.get('/thread/:tnum', async function viewThread(req, res) {
-	const tnum = req.param("tnum");
+wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function viewThread(req, res) {
+	const tnum = req.params[0];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -3925,7 +3897,7 @@ wiki.get('/thread/:tnum', async function viewThread(req, res) {
 	}, '', error = false, viewname = 'thread'));
 });
 
-wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
+wiki.post(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function postThreadComment(req, res) {
 	const tnum = req.param("tnum");
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
@@ -3972,7 +3944,7 @@ wiki.post('/thread/:tnum', async function postThreadComment(req, res) {
 	res.json({});
 });
 
-wiki.get(/^\/thread\/([a-zA-Z0-9]+)\/(\d+)$/, async function sendThreadData(req, res) {
+wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadData(req, res) {
 	const tnum = req.params[0];
 	const tid = req.params[1];
 	
@@ -4051,9 +4023,9 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]+)\/(\d+)$/, async function sendThreadData(req,
 	res.send(content);
 });
 
-wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, res) {
-	const tnum = req.params['tnum'];
-	const tid = req.params['id'];
+wiki.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/show$/, async function showHiddenComment(req, res) {
+	const tnum = req.params[0];
+	const tid = req.params[1];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4070,9 +4042,9 @@ wiki.get('/admin/thread/:tnum/:id/show', async function showHiddenComment(req, r
 	res.redirect('/thread/' + tnum);
 });
 
-wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
-	const tnum = req.params['tnum'];
-	const tid = req.params['id'];
+wiki.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/hide$/, async function hideComment(req, res) {
+	const tnum = req.params[0];
+	const tid = req.params[1];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4089,8 +4061,8 @@ wiki.get('/admin/thread/:tnum/:id/hide', async function hideComment(req, res) {
 	res.redirect('/thread/' + tnum);
 });
 
-wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, res) {
-	const tnum = req.params['tnum'];
+wiki.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/status$/, async function updateThreadStatus(req, res) {
+	const tnum = req.params[0];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4114,8 +4086,8 @@ wiki.post('/admin/thread/:tnum/status', async function updateThreadStatus(req, r
 	res.json({});
 });
 
-wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(req, res) {
-	const tnum = req.params['tnum'];
+wiki.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/document$/, async function updateThreadDocument(req, res) {
+	const tnum = req.params[0];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4147,8 +4119,8 @@ wiki.post('/admin/thread/:tnum/document', async function updateThreadDocument(re
 	res.json({});
 });
 
-wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res) {
-	const tnum = req.params['tnum'];
+wiki.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/topic$/, async function updateThreadTopic(req, res) {
+	const tnum = req.params[0];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
@@ -4174,8 +4146,8 @@ wiki.post('/admin/thread/:tnum/topic', async function updateThreadTopic(req, res
 	res.json({});
 });
 
-wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
-	const tnum = req.params['tnum'];
+wiki.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/delete/, async function deleteThread(req, res) {
+	const tnum = req.params[0];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	const rescount = data.length;
@@ -4195,8 +4167,8 @@ wiki.get('/admin/thread/:tnum/delete', async function deleteThread(req, res) {
 	res.redirect('/discuss/' + encodeURIComponent(title));
 });
 
-wiki.post('/notify/thread/:tnum', async function notifyEvent(req, res) {
-	var tnum = req.params['tnum'];
+wiki.post(/^\/notify\/thread\/([a-zA-Z0-9]{18,24})$/, async function notifyEvent(req, res) {
+	var tnum = req.params[0];
 	await curs.execute("select id from res where tnum = ?", [tnum]);
 	const rescount = curs.fetchall().length;
 	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
@@ -4705,24 +4677,31 @@ if(minor < 18) wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
 if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!hasperm(req, 'ipacl')) return res.status(403).send(await showError(req, 'insufficient_privileges'));
+	const { from, until } = req.query;
 	
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
-	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl order by cidr asc limit 50");
-	var navbtns = navbtn(0, 0, 0, 0);
+	var fdata = await curs.execute("select cidr, al, expiration, note, date from ipacl order by cidr asc");
+	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl " + (from ? "where cidr > ?" : (until ? "where cidr < ?" : "")) + " order by cidr " + (until ? 'desc' : 'asc') + " limit 50", (from || until ? [cidr] : []));
+	if(until) data = data.reverse();
+	try {
+		var navbtns = navbtnss(fdata[0].cidr, fdata[fdata.length-1].cidr, data[0].cidr, data[data.length-1].cidr, '/admin/ipacl');
+	} catch(e) {
+		var navbtns = navbtn(0, 0, 0, 0);
+	}
 	
 	var content = `
 		<form method=post class=settings-section>
     		<div class=form-group>
     			<label class=control-label>IP 주소 (CIDR<sup><a href="https://ko.wikipedia.org/wiki/%EC%82%AC%EC%9D%B4%EB%8D%94_(%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%82%B9)" target=_blank>[?]</a></sup>) :</label>
     			<div>
-    				<input type=text class=form-control id=ipInput name=ip />
+    				<input type=text class=form-control id=ipInput name=ip value="${req.method == 'POST' ? html.escape(req.body['ip'] || '') : ''}" />
     			</div>
     		</div>
 
     		<div class=form-group>
     			<label class=control-label>메모 :</label>
     			<div>
-    				<input type=text class=form-control id=noteInput name=note />
+    				<input type=text class=form-control id=noteInput name=note value="${req.method == 'POST' ? html.escape(req.body['note'] || '') : ''}" />
     			</div>
     		</div>
 
@@ -5375,7 +5354,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 	return res.send(await render(req, '차단 내역', content, {}, _, _, 'block_history'));
 });
 
-wiki.get('/settings', async(req, res) => {
+wiki.get(/^\/settings$/, async(req, res) => {
     res.send(await render(req, '스킨 설정', '이 스킨은 설정 기능을 지원하지 않습니다.', { __isSkinSettingsPage: 1 }));
 });
 
