@@ -35,6 +35,8 @@ var permlist = {};  // 권한 캐시
 var userset = {};  // 사용자 설정 캐시
 var skinList = [];  // 스킨 목록 캐시
 
+var loginHistory = {};
+
 // https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
 // 무작위 문자열 생성
 function rndval(chars, length) {
@@ -62,7 +64,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '6';
+const updatecode = '7';
 
 // 사용지 권한
 var perms = [
@@ -284,7 +286,7 @@ try {
 		'threads': ['title', 'namespace', 'topic', 'status', 'time', 'tnum', 'deleted'],
 		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin', 'type'],
 		'useragents': ['username', 'string'],
-		'login_history': ['username', 'ip'],
+		'login_history': ['username', 'ip', 'time'],
 		'account_creation': ['key', 'email', 'time'],
 		'acl': ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
 		'ipacl': ['cidr', 'al', 'expiration', 'note', 'date'],
@@ -1075,6 +1077,18 @@ function getUserset(req, str, def = '') {
     str = str.replace(/^wiki[.]/, '');
 	if(!islogin(req)) return def;
 	const username = ip_check(req);
+	
+    if(!userset[username] || !userset[username][str]) {
+        if(!userset[username]) userset[username] = {};
+        userset[username][str] = def;
+		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
+        return def;
+    }
+    return userset[username][str];
+}
+
+function getUserSetting(username, str, def = '') {
+    str = str.replace(/^wiki[.]/, '');
 	
     if(!userset[username] || !userset[username][str]) {
         if(!userset[username]) userset[username] = {};
@@ -2435,7 +2449,8 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 			return res.send(await showError(req, '문서 내용이 같습니다.', 1));
 		}
 		
-		await curs.execute("update documents set content = ? where title = ? and namespace = ?", [revdata.content, doc.title, doc.namespace]);
+		await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		await curs.execute("insert into documents (content, title, namespace) values (?, ?, ?)", [revdata.content, doc.title, doc.namespace]);
 		const rawChanges = revdata.content.length - recentRev.content.length;
 		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
@@ -4473,8 +4488,7 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	var username = req.query['username'];
 	
 	if(!getperm('grant', ip_check(req))) {
-		res.send(await showError(req, 'insufficient_privileges'));
-		return;
+		return res.send(await showError(req, 'insufficient_privileges'));
 	}
 	
 	var content = `
@@ -4574,6 +4588,100 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	}
 	
 	res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
+});
+
+wiki.get(/^\/admin\/login_history$/, async(req, res) => {
+	if(!getperm('grant', ip_check(req))) {
+		return res.send(await showError(req, 'insufficient_privileges'));
+	}
+	
+	var content = `
+		<form method=post>
+			<div>
+				<label>유저 이름: </label><br />
+				<input type=text class=form-control style="width: 250px;" name=username />
+			</div>
+			
+			<div class=btns>
+				<button type=submit class="btn btn-info" style="width: 100px;">확인</button>
+			</div>
+		</form>
+	`;
+	
+	return res.send(await render(req, '로그인 내역', content, {}, _, _, 'login_history'));
+});
+
+wiki.post(/^\/admin\/login_history$/, async(req, res) => {
+	if(!getperm('grant', ip_check(req))) {
+		return res.send(await showError(req, 'insufficient_privileges'));
+	}
+	
+	var username = req.body['username'];
+	var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
+	if(!data.length) {
+		return res.send(await showError(req, 'user_not_found'));
+	} username = data[0].username;
+	
+	const id = rndval('abcdef1234567890', 64);
+	if(!loginHistory[ip_check(req)]) loginHistory[ip_check(req)] = {};
+	var history = await curs.execute("select ip, time from login_history where username = ? order by cast(time as integer) desc limit 50", [username]);
+	var ua = await curs.execute("select string from useragents where username = ?", [username]);
+	loginHistory[ip_check(req)][id] = { username, useragent: (ua[0] || { string: '' }).string, history };
+	
+	var logid = 1, lgdata = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+	if(lgdata.length) logid = Number(lgdata[0].logid) + 1;
+	insert('block_history', {
+		date: getTime(),
+		type: 'login_history',
+		duration: 0,
+		note: '',
+		ismember: islogin(req) ? 'author' : 'ip',
+		executer: ip_check(req),
+		target: username,
+		logid,
+	});
+	
+	return res.redirect('/admin/login_history/' + id);
+});
+
+wiki.get(/^\/admin\/login_history\/(.+)$/, async(req, res) => {
+	const id = req.params[0];
+	
+	if(!loginHistory[ip_check(req)] || (loginHistory[ip_check(req)] && !loginHistory[ip_check(req)][id]))
+		return res.status(400).send(await showError(req, 'invalid'));
+	
+	const { username, history, useragent } = loginHistory[ip_check(req)][id];
+	
+	var content = `
+		<p>마지막 로그인 UA : ${html.escape(useragent)}</p>
+		<p>이메일 : ${getUserSetting(username, 'email', '')}
+		
+		${navbtn(0, 0, 0, 0)}
+		
+		<div class="wiki-table-wrap table-left">
+			<table class=wiki-table>
+				<thead>
+					<tr>
+						<th>Date</th>
+						<th>IP</th>
+					</tr>
+				</thead>
+				
+				<tbody>
+	`;
+	
+	for(var item of history) {
+		content += `<tr><td>${generateTime(toDate(item.time), timeFormat)}</td><td>${item.ip}</td></tr>`;
+	}
+	
+	content += `
+				</tbody>
+			</table>
+		</div>
+		${navbtn(0, 0, 0, 0)}
+	`;
+	
+	return res.send(await render(req, username + ' 로그인 내역', content, {}, _, _, 'login_history'));
 });
 
 if(minor < 18) wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
@@ -5233,6 +5341,9 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 				item.type == 'ipacl_remove'
 				? `IP 주소 차단 해제`
 				: (
+				item.type == 'login_history'
+				? `사용자 로그인 기록 조회`
+				: (
 				item.type == 'suspend_account' && item.duration != '-1'
 				? `사용자 차단`
 				: (
@@ -5242,7 +5353,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 				item.type == 'grant'
 				? `사용자 권한 설정`
 				: ''
-				))))))
+				)))))))
 			})</i> ${item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' ? `#${item.id}` : ''} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || (item.type == 'suspend_account' && item.duration != '-1')
 				? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})`
@@ -5322,6 +5433,7 @@ if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, asy
 		curs.execute("update block_history set executer = '탈퇴한 사용자' where executer = ? and ismember = 'author'", [username]);
 		curs.execute("update block_history set target = '탈퇴한 사용자' where target = ?", [username]);
 		delete req.session.username;
+		if(permlist[username]) permlist[username] = [];
 		res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
 		return res.send(await render(req, '계정 삭제', `
 			<p><strong>${html.escape(username)}</strong>님 안녕히 가십시오.</p>
@@ -5467,7 +5579,7 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 			}
 			
 			if(!hostconfig.disable_login_history) {
-				curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+				curs.execute("insert into login_history (username, ip, time) values (?, ?, ?)", [id, ip_check(req, 1), getTime()]);
 				conn.run("delete from useragents where username = ?", [id], () => {
 					curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
 				});
@@ -5700,7 +5812,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 
 			<div class=form-group>
 				<label>암호 확인</label><br>
-				<input class=form-control name="password_check" type="passw	ord" />
+				<input class=form-control name="password_check" type="password" />
 				${!duplicate && id.length && !invalidusername && !invalidformat && pw.length && pw != pw2 ? (error = true, `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
@@ -6069,7 +6181,12 @@ wiki.use(function(req, res, next) {
 				await curs.execute("create table autologin_tokens ( username text default '', token text default '' )");
 				await curs.execute("create table trusted_devices ( username text default '', id text default '' )");
 			} catch(e) {}
-		}
+		} case 6: {
+			// 로그인 내역 테이블 빼먹음
+			try {
+				await curs.execute("alter table login_history\nADD time text;");
+			} catch(e) {}
+		} 
 	}
 	await curs.execute("update config set value = ? where key = 'update_code'", [updatecode]);
 	wikiconfig.update_code = updatecode;
