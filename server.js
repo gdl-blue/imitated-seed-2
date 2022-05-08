@@ -278,7 +278,7 @@ try {
 		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
 		'users': ['username', 'password'],
 		'user_settings': ['username', 'key', 'value'],
-		'acl': ['title', 'no', 'type', 'content', 'action', 'expire'],
+		// 'acl': ['title', 'no', 'type', 'content', 'action', 'expire'],
 		'nsacl': ['namespace', 'no', 'type', 'content', 'action', 'expire'],
 		'config': ['key', 'value'],
 		'email_filters': ['address'],
@@ -6106,6 +6106,8 @@ wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 		if(wikiconfig['wiki.site_name'] != req.body['wiki.site_name']) {
 			curs.execute("update documents set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 			curs.execute("update history set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+			curs.execute("update threads set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+			curs.execute("update acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 		}
 		
 		// 어차피 소유자 전용이니까 취약점 고려는 굳이...?
