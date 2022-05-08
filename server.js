@@ -65,7 +65,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '7';
+const updatecode = '8';
 
 // 사용지 권한
 var perms = [
@@ -1062,7 +1062,6 @@ const ip_check = getUsername;
 // 위키 설정
 const config = {
 	getString(str, def = '') {
-		str = str.replace(/^wiki[.]/, '');
 		if(typeof(wikiconfig[str]) == 'undefined') {
 			curs.execute("insert into config (key, value) values (?, ?)", [str, def]);
 			wikiconfig[str] = def;
@@ -1101,7 +1100,7 @@ function getUserSetting(username, str, def = '') {
 
 // 현재 스킨
 function getSkin(req) {
-	const def = config.getString('default_skin', hostconfig.skin);
+	const def = config.getString('wiki.default_skin', hostconfig.skin);
 	const ret = getUserset(req, 'skin', 'default');
 	if(ret == 'default') return def;
 	if(!skinList.includes(ret)) return def;
@@ -1234,7 +1233,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				<meta name=application-name content="` + config.getString('wiki.site_name', '더 시드') + `" />
 				<meta name=mobile-web-app-capable content=yes />
 				<meta name=msapplication-tooltip content="` + config.getString('wiki.site_name', '더 시드') + `" />
-				<meta name=msapplication-starturl content="/w/` + encodeURIComponent(config.getString('wiki.frontpage', '') || config.getString('wiki.front_page', 'FrontPage')) + `" />
+				<meta name=msapplication-starturl content="/w/` + encodeURIComponent(config.getString('wiki.front_page', 'FrontPage')) + `" />
 				<link rel=search type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', '더 시드') + `" href="/opensearch.xml" />
 				<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
 			${hostconfig.use_external_css ? `
@@ -1696,8 +1695,8 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res,
 		return next();
 	
 	var skinconfig = skincfgs[skinname];
-	if(!skinconfig.static_files.includes(filepath))
-		return next();
+	/* if(!skinconfig.static_files.includes(filepath))
+		return next(); */
 	
 	res.sendFile(filepath, { root: './skins/' + skinname + '/static' });
 });
@@ -1786,7 +1785,7 @@ wiki.get(/^\/License$/, async(req, res) => {
 });
 
 function redirectToFrontPage(req, res) {
-	res.redirect('/w/' + (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')));
+	res.redirect('/w/' + (config.getString('wiki.front_page', 'FrontPage')));
 }
 
 wiki.get(/^\/w$/, redirectToFrontPage);
@@ -1884,7 +1883,7 @@ wiki.get(/^\/search\/(.*)/, async(req, res) => {
 
 wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
-	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')));
+	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('wiki.front_page', 'FrontPage'));
 	const doc = processTitle(title);
 	const { rev } = req.query;
 	
@@ -2098,7 +2097,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 					<input type="text" class="form-control" id="logInput" name="log" value="${req.method == 'POST' ? html.escape(req.body['log']) : ''}" />
 				</div>
 
-				<label><input ${req.cookies['agree'] == '1' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y"${req.method == 'POST' && req.body['agree'] == 'Y' ? ' checked' : ''}>&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
+				<label><input ${req.cookies['agree'] == '1' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y"${req.method == 'POST' && req.body['agree'] == 'Y' ? ' checked' : ''}>&nbsp;${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
 				
 				${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 				
@@ -2725,7 +2724,7 @@ wiki.all(/^\/edit_request\/(\d+)\/edit$/, async(req, res, next) => {
 				<input type="text" class="form-control" id="logInput" name="log" value="${html.escape(item.log)}" />
 			</div>
 
-			<label><input checked type="checkbox" name="agree" id="agreeCheckbox" value="Y" />&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
+			<label><input checked type="checkbox" name="agree" id="agreeCheckbox" value="Y" />&nbsp;${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
@@ -2800,7 +2799,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 				<input type="text" class="form-control" id="logInput" name="log" value="">
 			</div>
 
-			<label><input ${req.method == 'POST' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</strong></label>
+			<label><input ${req.method == 'POST' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</strong></label>
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
@@ -3686,7 +3685,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 			content += `
 				<h3 class="wiki-heading">새 주제 생성</h3>
 				
-				${doc + '' == (config.getString('frontpage', '') || config.getString('front_page', 'FrontPage')) ? `
+				${doc + '' == (config.getString('wiki.front_page', 'FrontPage')) ? `
 					<div class="alert alert-success alert-dismissible fade in" role="alert">
 						<strong>[경고!]</strong> 이 토론은 ${doc + ''} 문서의 토론입니다. ${doc + ''} 문서와 관련 없는 토론은 각 문서의 토론에서 진행해 주시기 바랍니다. ${doc + ''} 문서와 관련 없는 토론은 삭제될 수 있습니다.
 					</div>
@@ -5165,7 +5164,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 					<input type="text" id="logInput" class="form-control" name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
 				</div>
 				
-				<p>${config.getString('copyright_notice', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</p>
+				<p>${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</p>
 				
 				${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 				
@@ -5409,11 +5408,10 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 	if(!['GET', 'POST'].includes(req.method)) return next();
 	if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fmypage');
 	
-	const defskin = config.getString('default_skin', hostconfig['skin']);
 	var myskin = getUserset(req, 'skin', 'default');
+	const defskin = config.getString('wiki.default_skin', hostconfig.skin);
 	
 	var skopt = '';
-	
 	for(var skin of skinList) {
 		var opt = `<option value="${skin}" ${getUserset(req, 'skin', 'default') == skin ? 'selected' : ''}>${skin}</option>`;
 		skopt += opt;
@@ -5422,7 +5420,7 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 	var error = false;
 	
 	var emailfilter = '';
-	if(config.getString('email_filter_enabled', 'false') == 'true') {
+	if(config.getString('wiki.email_filter_enabled', 'false') == 'true') {
 		emailfilter = `
 			<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
 			<ul class=wiki-list>
@@ -5595,7 +5593,7 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
 	var emailfilter = '';
-	if(config.getString('email_filter_enabled', 'false') == 'true') {
+	if(config.getString('wiki.email_filter_enabled', 'false') == 'true') {
 		emailfilter = `
 			<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
 			<ul class=wiki-list>
@@ -5837,7 +5835,7 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 		}
 		if(cnt > 19) break;
 	}
-	content += (li || '<li><a href="/w/' + encodeURIComponent(config.getString('frontpage', 'FrontPage')) + '">' + html.escape(config.getString('frontpage', 'FrontPage')) + '</a></li>') + '</ul>';
+	content += (li || '<li><a href="/w/' + encodeURIComponent(config.getString('wiki.front_page', 'FrontPage')) + '">' + html.escape(config.getString('wiki.front_page', 'FrontPage')) + '</a></li>') + '</ul>';
 	
 	res.send(await render(req, 'RandomPage', content, {}));
 });
@@ -6013,6 +6011,124 @@ wiki.get(/^\/LongestPages$/, async function longestPages(req, res) {
 	res.send(await render(req, '내용이 긴 문서', content, {}));
 });
 
+wiki.all(/^\/admin\/config$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	if(!islogin(req)) return res.status(403).send(await showError(req,' insufficient_privileges'));
+	if(!((hostconfig.owners || []).includes(ip_check(req)))) {
+		return res.status(403).send(await showError(req, 'insufficient_privileges'));
+	}
+	
+	const defskin = config.getString('wiki.default_skin', hostconfig.skin);
+	var skopt = '';
+	for(var skin of skinList) {
+		var opt = `<option value="${skin}" ${config.getString('wiki.default_skin', hostconfig.skin) == skin ? 'selected' : ''}>${skin}</option>`;
+		skopt += opt;
+	}
+	
+	var filterd = await curs.execute("select address from email_filters");
+	var filters = [];
+	for(var item of filterd) {
+		filters.push(item.address);
+	}
+	
+	// 실제 더시드 UI가 밝혀지길...
+	var content = `
+		<form method=post>
+			<div class=form-group>
+				<label class=control-label>위키 이름 : </label><br />
+				<input class=form-control type=text name=wiki.site_name value="${html.escape(config.getString('wiki.site_name', '더 시드'))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>대문 : </label><br />
+				<input class=form-control type=text name=wiki.front_page value="${html.escape(config.getString('wiki.front_page', 'FrontPage'))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>기본 스킨 : </label><br />
+				<select class=form-control name=wiki.default_skin>
+					${skopt}
+				</select>
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>이메일 허용 목록 사용 : </label><br />
+				<input type=checkbox name=wiki.email_filter_enabled value=true${config.getString('wiki.email_filter_enabled', 'false') == 'true' ? ' checked' : ''} />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>이메일 허용 목록 : </label><br />
+				<input class=form-control type=text name=filters value="${html.escape(filters.join(';'))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>공지 : </label><br />
+				<input class=form-control type=text name=wiki.sitenotice value="${html.escape(config.getString('wiki.sitenotice', ''))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>편집 안내 : </label><br />
+				<input class=form-control type=text name=wiki.editagree_text value="${html.escape(config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>사이트 주소 : </label><br />
+				<input class=form-control type=text name=wiki.canonical_url value="${html.escape(config.getString('wiki.canonical_url', ''))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>라이선스 주소 : </label><br />
+				<input class=form-control type=text name=wiki.copyright_url value="${html.escape(config.getString('wiki.copyright_url', ''))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>저작권 안내 문구 : </label><br />
+				<input class=form-control type=text name=wiki.copyright_text value="${html.escape(config.getString('wiki.copyright_text', ''))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>하단 문구 : </label><br />
+				<input class=form-control type=text name=wiki.footer_text value="${html.escape(config.getString('wiki.footer_text', ''))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>로고 주소 : </label><br />
+				<input class=form-control type=text name=wiki.logo_url value="${html.escape(config.getString('wiki.logo_url', ''))}" />
+			</div>
+			
+			<div class=btns>
+				<button type=submit style="width: 100px;" class="btn btn-primary">저장</button>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST') {
+		if(wikiconfig['wiki.site_name'] != req.body['wiki.site_name']) {
+			curs.execute("update documents set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+			curs.execute("update history set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+		}
+		
+		// 어차피 소유자 전용이니까 취약점 고려는 굳이...?
+		for(var item in req.body) {
+			if(!req.body['wiki.email_filter_enabled']) req.body['wiki.email_filter_enabled'] = 'false';
+			if(item == 'filters') {
+				await curs.execute("delete from email_filters");
+				for(var f of req.body['filters'].split(';')) {
+					curs.execute("insert into email_filters (address) values (?)", [f]);
+				}
+			} else {
+				wikiconfig[item] = req.body[item];
+				await curs.execute("delete from config where key = ?", [item]);
+				await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);
+			}
+		}
+		
+		return res.redirect('/admin/config');
+	}
+	
+	return res.send(await render(req, '설정', content));
+});
+
 // 역링크 초기화 (디버그 전용)
 if(hostconfig.debug) wiki.get('/ResetXref', function(req, res) {
 	print('기존 역링크 데이타 삭제');
@@ -6148,7 +6264,32 @@ wiki.use(function(req, res, next) {
 			try {
 				await curs.execute("alter table login_history\nADD time text;");
 			} catch(e) {}
-		} 
+		} case 7: {
+			// 위키 설정
+			try {
+				const fd = await curs.execute("select value from config where key = 'frontpage'");
+				if(fd.length && fd[0].value) {
+					wikiconfig.front_page = fd[0].value;
+					delete wikiconfig.frontpage;
+					await curs.execute("delete from config where key = 'frontpage' or key = 'front_page'");
+					await curs.execute("insert into config (key, value) values ('front_page', ?)", [fd[0].value]);
+				}
+				const cn = await curs.execute("select value from config where key = 'copyright_notice'");
+				if(cn.length && cn[0].value) {
+					wikiconfig.editagree_text = cn[0].value;
+					delete wikiconfig.copyright_notice;
+					await curs.execute("delete from config where key = 'copyright_notice'");
+					await curs.execute("insert into config (key, value) values ('editagree_text', ?)", [cn[0].value]);
+				}
+				for(var key in wikiconfig) {
+					if(key == 'update_code') continue;
+					await curs.execute("delete from config where key = ?", [key]);
+					await curs.execute("insert into config (key, value) values (?, ?)", ['wiki.' + key, wikiconfig[key]]);
+					wikiconfig['wiki.' + key] = wikiconfig[key];
+					delete wikiconfig[key];
+				}
+			} catch(e) {}
+		}
 	}
 	await curs.execute("update config set value = ? where key = 'update_code'", [updatecode]);
 	wikiconfig.update_code = updatecode;
