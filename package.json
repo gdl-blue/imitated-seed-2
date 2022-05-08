@@ -7,8 +7,11 @@
   "description": "더 시드 모방 엔진.",
   "main": "server.js",
   "dependencies": {
+    "body-parser": "^1.20.0",
+    "cookie-parser": "^1.4.6",
     "express": "^4.17.1",
     "express-session": "^1.17.2",
+    "geoip-lite": "^1.4.5",
     "ip-range-check": "^0.2.0",
     "jquery": "^3.6.0",
     "jsdom": "^19.0.0",
