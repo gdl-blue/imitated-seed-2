@@ -2074,7 +2074,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			</div>
 	`;
 	
-	if(minor >= 10 && minor <= 12) content = `
+	if(minor >= 7 && minor <= 9) content = `
 		<p>
 			<a href="https://forum.theseed.io/topic/232/%EC%9D%98%EA%B2%AC%EC%88%98%EB%A0%B4-%EB%A6%AC%EB%8B%A4%EC%9D%B4%EB%A0%89%ED%8A%B8-%EB%AC%B8%EB%B2%95-%EB%B3%80%EA%B2%BD" target=_blank style="font-weight: bold; color: purple; font-size: 16px;">[의견수렴] 리다이렉트 문법 변경</a>
 		</p>
