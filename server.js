@@ -2009,7 +2009,7 @@ wiki.get(/^\/raw\/(.*)/, async function API_viewRaw_v2(req, res) {
 			content = rawContent[0].content;
 		}
 	} catch(e) {
-		return res.status(httpstat).send(await showError(req, 'document_not_found'));
+		return res.status(404).send(await showError(req, 'document_not_found'));
 	}
 	
 	res.setHeader('Content-Type', 'text/plain');
@@ -3898,7 +3898,7 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function viewThread(req, res)
 });
 
 wiki.post(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function postThreadComment(req, res) {
-	const tnum = req.param("tnum");
+	const tnum = req.params[0];
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	var rescount = data.length;
