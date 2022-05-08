@@ -5256,7 +5256,11 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 							pa);
 	}
 	
-	var navbtns = navbtn(total, data[data.length-1].logid, data[0].logid, '/BlockHistory');
+	try {
+		var navbtns = navbtn(total, data[data.length-1].logid, data[0].logid, '/BlockHistory');
+	} catch(e) {
+		var navbtns = navbtn(0, 0, 0, 0);
+	}
 	var content = `
 		<form>
 			<select name="target">
