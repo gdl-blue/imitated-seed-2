@@ -206,6 +206,9 @@ swig.setFilter('encode_doc', function encodeDocURL(input) {
 swig.setFilter('avatar_url', function(input) {
 	return 'https://www.gravatar.com/avatar/md5username?d=retro';
 });
+swig.setFilter('url_encode', function(input) {
+	return encodeURIComponent(input);
+});
 swig.setFilter('to_date', toDate);
 swig.setFilter('localdate', generateTime);
 
@@ -1180,19 +1183,13 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 		}
 	};
 	
+	var skinconfig = skincfgs[getSkin(req)];
+	
 	var templatefn = '';
-	try {
-		if(varlist.__isSkinSettingsPage) {
-			templatefn = './skins/' + getSkin(req) + '/views/settings.html';
-			if(!(await exists(templatefn))) {
-				templatefn = './skins/' + getSkin(req) + '/views/default.html';
-				content = '이 스킨은 설정 기능을 지원하지 않습니다.';
-			}
-			
-			delete(varlist.__isSkinSettingsPage);
-		} else templatefn = './skins/' + getSkin(req) + '/views/default.html';
-	} catch(e) {
-		return '';
+	if(skinconfig.override_views.includes(viewname)) {
+		templatefn = './skins/' + getSkin(req) + '/views/' + viewname + '.html';
+	} else {
+		templatefn = './skins/' + getSkin(req) + '/views/default.html';
 	}
 
 	return new Promise((resolve, reject) => {
@@ -1223,7 +1220,13 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 			var output = r(varlist);
 			
 			var header = '<!DOCTYPE html>\n<html><head>';
-			var skinconfig = skincfgs[getSkin(req)];
+			var adjs = '', adcss = '';
+			for(var js of (hostconfig.additional_js || [])) {
+				adjs += `<script type="text/javascript" src="/js/${js}"></script>`;
+			}
+			for(var css of (hostconfig.additional_css || [])) {
+				adcss += `<link rel=stylesheet href="/css/${css}" />`;
+			}
 			header += `
 				<title>${title}${subtitle} - ${config.getString('wiki.site_name', '더 시드')}</title>
 				<meta charset=utf-8 />
@@ -1244,9 +1247,12 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				<link rel=stylesheet href="/css/diffview.css" />
 				<link rel=stylesheet href="/css/katex.min.css" />
 				<link rel=stylesheet href="/css/wiki.css" />
-			`}
+			`}${adcss}
 			`;
 			for(var css of skinconfig.auto_css_targets['*']) {
+				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + css + '" />';
+			}
+			for(var css of (skinconfig.auto_css_targets[viewname] || [])) {
 				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + css + '" />';
 			}
 			header += `
@@ -1263,9 +1269,12 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 					<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
 					<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
 					<script type="text/javascript" src="/js/theseed.js?24141115"></script>
-				`}
+				`}${adjs}
 			`;
 			for(var js of skinconfig.auto_js_targets['*']) {
+				header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + js.path + '"></script>';
+			}
+			for(var js of (skinconfig.auto_js_targets[viewname] || [])) {
 				header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + js.path + '"></script>';
 			}
 			
@@ -1609,7 +1618,16 @@ async function getacl(req, title, namespace, type, getmsg) {
 
 // 앞뒤 페이지 이동 단추
 function navbtn(total, start, end, href) {
-	if(!href) return '';  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
+	if(!href) return `
+		<div class=btn-group role=group>
+			<a class="btn btn-secondary btn-sm disabled">
+				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
+			</a>
+			<a class="btn btn-secondary btn-sm disabled">
+				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
+			</a>
+		</div>
+	`;  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
 	href = href.split('?')[0];
 	start = Number(start);
 	end = Number(end);
@@ -1893,46 +1911,16 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	} else {
 		var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	}
-	
 	if(rev && !rawContent.length) return res.send(await showError(req, 'revision_not_found'));
 
 	var content = '';
-	
 	var httpstat = 200;
 	var viewname = 'wiki';
 	var error = false;
-	
 	var lstedt = undefined;
 	
-	try {
-		const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-		if(aclmsg) {
-			if(minor < 5 || (minor == 5 && revision < 7)) return res.status(403).send(await showError(req, 'insufficient_privileges_read'));
-			httpstat = 403;
-			error = true;
-			content = '<h2>' + aclmsg + '</h2>';
-		} else {
-			if(rawContent[0].content.startsWith('#redirect ')) {
-				const ntitle = rawContent[0].content.split('\n')[0].replace('#redirect ', '');
-				
-				if(req.query['noredirect'] != '1' && !req.query['from']) {
-					return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title);
-				} else {
-					content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + '">' + html.escape(ntitle) + '</a>';
-				}
-			} else content = await markdown(rawContent[0].content, 0, doc + '');
-			
-			if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
-			if(req.query['from']) {
-				content = alertBalloon('<a href="' + encodeURIComponent(req.query['from']) + '?noredirect=1" class=document>' + html.escape(req.query['from']) + '</a>에서 넘어옴', 'info', false) + content;
-			}
-			
-			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
-			lstedt = Number(data[0].time);
-		}
-	} catch(e) {
+	if(!rawContent.length) {
 		viewname = 'notfound';
-		print(e.stack);
 		httpstat = 404;
 		var data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 3",
@@ -1975,11 +1963,37 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				<a href="/history/` + encodeURIComponent(doc + '') + `">[더보기]</a>
 			`;
 		}
+	} else {
+		const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+		if(aclmsg) {
+			if(minor < 5 || (minor == 5 && revision < 7)) return res.status(403).send(await showError(req, 'insufficient_privileges_read'));
+			httpstat = 403;
+			error = true;
+			content = '<h2>' + aclmsg + '</h2>';
+		} else {
+			if(rawContent[0].content.startsWith('#redirect ')) {
+				const ntitle = rawContent[0].content.split('\n')[0].replace('#redirect ', '');
+				
+				if(req.query['noredirect'] != '1' && !req.query['from']) {
+					return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title);
+				} else {
+					content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + '">' + html.escape(ntitle) + '</a>';
+				}
+			} else content = await markdown(rawContent[0].content, 0, doc + '');
+			
+			if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
+			if(req.query['from']) {
+				content = alertBalloon('<a href="' + encodeURIComponent(req.query['from']) + '?noredirect=1" class=document>' + html.escape(req.query['from']) + '</a>에서 넘어옴', 'info', false) + content;
+			}
+			
+			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+			lstedt = Number(data[0].time);
+		}
 	}
 	
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace), content, {
-		star_count: 0,
-		starred: false,
+		star_count: minor >= 9 ? 0 : undefined,
+		starred: minor >= 9 ? false : undefined,
 		date: lstedt,
 		document: doc,
 		rev,
@@ -4667,7 +4681,7 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var fdata = await curs.execute("select cidr, al, expiration, note, date from ipacl order by cidr asc");
-	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl " + (from ? "where cidr > ?" : (until ? "where cidr < ?" : "")) + " order by cidr " + (until ? 'desc' : 'asc') + " limit 50", (from || until ? [cidr] : []));
+	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl " + (from ? "where cidr > ?" : (until ? "where cidr < ?" : "")) + " order by cidr " + (until ? 'desc' : 'asc') + " limit 50", (from || until ? [from || until] : []));
 	if(until) data = data.reverse();
 	try {
 		var navbtns = navbtnss(fdata[0].cidr, fdata[fdata.length-1].cidr, data[0].cidr, data[data.length-1].cidr, '/admin/ipacl');
@@ -4692,7 +4706,7 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
     		</div>
 
     		<div class=form-group>
-    			<label class=control-label>차단 기간 :</label>
+    			<label class=control-label>차단 기간 :</label><br />
     			<select class=form-control name=expire>
     				<option value=0 selected>영구</option>
     				<option value=300>5분</option>
@@ -5321,7 +5335,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 				)))))))
 			})</i> ${item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' ? `#${item.id}` : ''} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || (item.type == 'suspend_account' && item.duration != '-1')
-				? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})`
+				? (major == 4 && (minor >= 1 || (minor == 0 && revision >= 20)) ? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})` : `${item.duration} 동안`)
 				: ''
 			} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || item.type == 'suspend_account' || item.type == 'grant'
@@ -5341,7 +5355,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 });
 
 wiki.get(/^\/settings$/, async(req, res) => {
-    res.send(await render(req, '스킨 설정', '이 스킨은 설정 기능을 지원하지 않습니다.', { __isSkinSettingsPage: 1 }));
+    res.send(await render(req, '스킨 설정', '이 스킨은 설정 기능을 지원하지 않습니다.', {}, _, _, 'settings'));
 });
 
 if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, async(req, res, next) => {
@@ -5531,7 +5545,9 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		var data = await curs.execute("select username, password from users where lower(username) = ? and password = ? COLLATE NOCASE", [id.toLowerCase(), sha3(pw)]);
 		var invalidpw = !invalidusername && (!data.length || !pw);
 		
-		if(!invalidusername && !invalidpw) {
+		var blocked = (major > 4 || (major == 4 && minor >= 1)) ? 0 : await userblocked(id);
+		
+		if(!invalidusername && !invalidpw && !blocked) {
 			id = usr[0].username;
 			if(req.body['autologin']) {
 				const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/', 128);
@@ -5563,6 +5579,7 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
 				${!id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
 				${id.length && invalidusername ? (error = true, `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>`) : ''}
+				${id.length && !invalidusername && blocked ? (error = true, `<p class=error-desc>차단된 계정입니다.<br />차단 만료일 : ${(data.expiration == '0' ? '무기한' : new Date(Number(data.expiration)))}<br />차단 사유 : ${data.note}</p>`) : ``}
 			</div>
 
 			<div class=form-group>
