@@ -241,6 +241,7 @@ class Stack {
 
 try {
 	hostconfig = require('./config.json'); 
+	if(hostconfig.uninitialized) throw 1;
 	_ready = 1; 
 	if(hostconfig.theseed_version) {
 		var sp = hostconfig.theseed_version.split('.');
@@ -265,6 +266,7 @@ try {
 } catch(e) { (async function() {
 	print('병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n');
 	
+	if(typeof hostconfig != 'object')
 	// 호스팅 설정
 	hostconfig = {
 		host: input('호스트 주소: '),
@@ -273,6 +275,8 @@ try {
 		// search_host: input("검색서버 호스트: "),
 		// search_port: input("검색서버 포트: "),
 	};
+	
+	hostconfig.uninitialized = false;
 	
 	// 생성할 테이블
 	const tables = {
@@ -1167,7 +1171,7 @@ async function requireAsync(p) {
 }
 
 // 스킨 템플릿 렌더링
-async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = false, viewname = '') {
+async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewname = '') {
 	const skinInfo = {
 		title: title + subtitle,
 		viewName: viewname,
