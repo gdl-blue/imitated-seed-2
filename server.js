@@ -61,13 +61,15 @@ wiki.use(session({
 	cookie: {
 		expires: false,
 	},
+	resave: false,
+    saveUninitialized: true,
 }));
 wiki.use(cookieParser());
 
 // 업데이트 수준
 const updatecode = '8';
 
-// 사용지 권한
+// 사용자 권한
 var perms = [
 	'delete_thread', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
 	'update_thread_status', 'acl', 'nsacl', 'hide_thread_comment', 'grant', 'no_force_recaptcha', 
@@ -1724,12 +1726,12 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res,
 });
 
 wiki.get('/js/:filepath', function sendJS(req, res) {
-	const filepath = req.param('filepath');
+	const filepath = req.params['filepath'];
 	res.sendFile(filepath, { root: './js' });
 });
 
 wiki.get('/css/:filepath', function sendCSS(req, res) {
-	const filepath = req.param('filepath');
+	const filepath = req.params['filepath'];
 	res.sendFile(filepath, { root: './css' });
 });
 
@@ -3765,13 +3767,21 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 		return res.send(await showError(req, aclmsg, 1));
 	}
 	
-	var tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
+	if(!req.body['topic']) {
+		return res.send(await showError(req, fetchErrorString('validator_required', 'topic')));
+	}
 	
-	while(1) {
+	if(!req.body['text']) {
+		return res.send(await showError(req, fetchErrorString('validator_required', 'text')));
+	}
+	
+	var tnum;
+	
+	do {
+		tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
 		await curs.execute("select tnum from threads where tnum = ?", [tnum]);
 		if(!curs.fetchall().length) break;
-		tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
-	}
+	} while(1);
 	
 	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum) values (?, ?, ?, ?, ?, ?)",
 					[doc.title, doc.namespace, req.body['topic'], 'normal', getTime(), tnum]);
