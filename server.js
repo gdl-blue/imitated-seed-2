@@ -2,6 +2,7 @@
 
 // 기본 모듈
 const http = require('http');
+const https = require('https');
 const path = require('path');
 const geoip = require('geoip-lite');
 const inputReader = require('wait-console-input');
@@ -1339,7 +1340,7 @@ function fetchErrorString(code, ...params) {
 		revision_not_found: '해당 리비전을 찾을 수 없습니다.',
 		feature_not_implemented: '사용하려는 기능이 구현되지 않았습니다.',
 		validator_required: params[0] + '의 값은 필수입니다.',
-		user_not_found: '사용자를 찾을 수 없습니다.',
+		user_not_found: '사용자 이름이 올바르지 않습니다.',
 	};
 	
 	if(typeof(codes[code]) == 'undefined') return code;
@@ -4419,7 +4420,7 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		if(!username) return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('validator_required', '사용자 이름'), 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		if(!note) note = '';
 		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
-		if(!data.length) return res.send(await render(req, '사용자 차단', alertBalloon('계정이 존재하지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
+		if(!data.length) return res.send(await render(req, '사용자 차단', alertBalloon('사용자 이름이 올바르지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		username = data[0].username;
 		if(isNaN(Number(expire))) {
 			return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content, {
@@ -5467,29 +5468,29 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 	var content = `
 		<form method=post>
 			<div class=form-group>
-				<label>사용자 이름: </label><br />
+				<label>사용자 이름</label><br />
 				<input type=text name=username readonly class=form-control value="${html.escape(ip_check(req))}" />
 			</div>
 			
 			<div class=form-group>
-				<label>전자우편 주소: </label><br />
+				<label>전자우편 주소</label><br />
 				<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email', ''))}" />
 				${emailfilter}
 			</div>
 			
 			<div class=form-group>
-				<label>암호: </label><br />
+				<label>암호</label><br />
 				<input type=password name=password class=form-control />
 			</div>
 			
 			<div class=form-group>
-				<label>암호 확인: </label><br />
+				<label>암호 확인</label><br />
 				<input type=password name=password_check class=form-control />
 				${req.method == 'POST' && req.body['password'] && req.body['password'] != req.body['password_check'] ? (error = true, `<p class=error-desc>패스워드 확인이 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
 			<div class=form-group>
-				<label>스킨: </label><br />
+				<label>스킨</label><br />
 				<select name=skin class=form-control>
 					<option value=default ${myskin == 'default' ? 'selected' : ''}>기본스킨 (${defskin})</option>
 					${skopt}
@@ -6341,5 +6342,32 @@ wiki.use(function(req, res, next) {
 	beep();
 })();
 
+if(hostconfig.self_request) {
+	var rq = setInterval(function() {
+		https.request({
+			host: hostconfig.self_request,
+			path: '/RecentDiscuss',
+			headers: {
+				"Cookie": 'a=1; korori=a; ',
+				"Host": hostconfig.self_request,
+				"Accept-Encoding": "gzip, deflate",
+				"Connection": "keep-alive",
+				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.67 Safari/537.36",
+			},
+			port: 443,
+		}, function(res) {
+			var ret = '';
+
+			res.on('data', function(chunk) {
+				ret += chunk;
+			});
+
+			res.on('end', function() {
+				resolve(ret);
+			});
+		}).end();
+	}, (50 + Math.floor(Math.random() * 10)) * 1000);
+}
+ 
 }
 
