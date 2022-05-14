@@ -6363,7 +6363,6 @@ if(hostconfig.self_request) {
 			});
 
 			res.on('end', function() {
-				resolve(ret);
 			});
 		}).end();
 	}, (50 + Math.floor(Math.random() * 10)) * 1000);
