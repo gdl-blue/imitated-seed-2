@@ -1369,7 +1369,7 @@ function alertBalloon(content, type = 'danger', dismissible = true, classes = ''
 
 // 이름공간 목록
 function fetchNamespaces() {
-	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', config.getString('wiki.site_name', '더 시드'), '토론', '휴지통', '투표'];
+	return ['문서', '틀', '분류', '파일', '사용자', '특수기능', config.getString('wiki.site_name', '더 시드'), '토론', '휴지통', '투표'].concat(hostconfig.custom_namespaces || []);
 }
 
 // 오류화면 표시
@@ -1998,12 +1998,13 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		}
 	}
 	
-	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace), content, {
+	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
 		star_count: minor >= 9 ? 0 : undefined,
 		starred: minor >= 9 ? false : undefined,
 		date: lstedt,
 		document: doc,
 		rev,
+		user: doc.namespace == '사용자' ? true : undefined,
 	}, _, error, viewname));
 });
 
@@ -4416,12 +4417,12 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 	
 	if(req.method == 'POST') {
 		var { expire, note, username } = req.body;
-		if(!expire) return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('validator_required', 'expire'), 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		if(!username) return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('validator_required', '사용자 이름'), 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
-		if(!note) note = '';
 		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
 		if(!data.length) return res.send(await render(req, '사용자 차단', alertBalloon('사용자 이름이 올바르지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		username = data[0].username;
+		if(!note) return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('validator_required', '메모'), 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
+		if(!expire) return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('validator_required', 'expire'), 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		if(isNaN(Number(expire))) {
 			return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content, {
 			}, '', true, 'suspend_account'));
@@ -4492,17 +4493,13 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 		</form>
 	`;
 	
-	if(!username) {
-		return res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
-	}
-	
+	if(!username) return res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
 	var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
-	if(!data.length) {
-		return res.send(await showError(req, 'user_not_found'));
-	} username = data[0].username;
+	if(!data.length) 
+		return res.send(await render(req, '권한 부여', alertBalloon('사용자 이름이 올바르지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'grant'));
+	username = data[0].username;
 	
 	var chkbxs = '';
-	
 	for(var prm of perms) {
 		if(!getperm('developer', ip_check(req), 1) && 'developer' == (prm)) continue;
 		
@@ -4578,7 +4575,9 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	res.send(await render(req, '권한 부여', content, {}, _, _, 'grant'));
 });
 
-wiki.get(/^\/admin\/login_history$/, async(req, res) => {
+wiki.all(/^\/admin\/login_history$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	
 	if(!getperm('grant', ip_check(req))) {
 		return res.send(await showError(req, 'insufficient_privileges'));
 	}
@@ -4596,47 +4595,44 @@ wiki.get(/^\/admin\/login_history$/, async(req, res) => {
 		</form>
 	`;
 	
-	return res.send(await render(req, '로그인 내역', content, {}, _, _, 'login_history'));
-});
-
-wiki.post(/^\/admin\/login_history$/, async(req, res) => {
-	if(!getperm('grant', ip_check(req))) {
-		return res.send(await showError(req, 'insufficient_privileges'));
+	if(req.method == 'POST') {
+		var username = req.body['username'];
+		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
+		if(!data.length) {
+			return res.send(await render(req, '로그인 내역', alertBalloon('사용자 이름이 올바르지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'login_history'));
+		}
+		username = data[0].username;
+		
+		const id = rndval('abcdef1234567890', 64);
+		if(!loginHistory[ip_check(req)]) loginHistory[ip_check(req)] = {};
+		var history = await curs.execute("select ip, time from login_history where username = ? order by cast(time as integer) desc limit 50", [username]);
+		var ua = await curs.execute("select string from useragents where username = ?", [username]);
+		loginHistory[ip_check(req)][id] = { username, useragent: (ua[0] || { string: '' }).string, history };
+		
+		var logid = 1, lgdata = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+		if(lgdata.length) logid = Number(lgdata[0].logid) + 1;
+		insert('block_history', {
+			date: getTime(),
+			type: 'login_history',
+			duration: 0,
+			note: '',
+			ismember: islogin(req) ? 'author' : 'ip',
+			executer: ip_check(req),
+			target: username,
+			logid,
+		});
+		
+		return res.redirect('/admin/login_history/' + id);
 	}
 	
-	var username = req.body['username'];
-	var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
-	if(!data.length) {
-		return res.send(await showError(req, 'user_not_found'));
-	} username = data[0].username;
-	
-	const id = rndval('abcdef1234567890', 64);
-	if(!loginHistory[ip_check(req)]) loginHistory[ip_check(req)] = {};
-	var history = await curs.execute("select ip, time from login_history where username = ? order by cast(time as integer) desc limit 50", [username]);
-	var ua = await curs.execute("select string from useragents where username = ?", [username]);
-	loginHistory[ip_check(req)][id] = { username, useragent: (ua[0] || { string: '' }).string, history };
-	
-	var logid = 1, lgdata = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
-	if(lgdata.length) logid = Number(lgdata[0].logid) + 1;
-	insert('block_history', {
-		date: getTime(),
-		type: 'login_history',
-		duration: 0,
-		note: '',
-		ismember: islogin(req) ? 'author' : 'ip',
-		executer: ip_check(req),
-		target: username,
-		logid,
-	});
-	
-	return res.redirect('/admin/login_history/' + id);
+	return res.send(await render(req, '로그인 내역', content, {}, _, _, 'login_history'));
 });
 
 wiki.get(/^\/admin\/login_history\/(.+)$/, async(req, res) => {
 	const id = req.params[0];
 	
 	if(!loginHistory[ip_check(req)] || (loginHistory[ip_check(req)] && !loginHistory[ip_check(req)][id]))
-		return res.status(400).send(await showError(req, 'invalid'));
+		return res.redirect('/admin/login_history');
 	
 	const { username, history, useragent } = loginHistory[ip_check(req)][id];
 	
@@ -6331,6 +6327,8 @@ wiki.use(function(req, res, next) {
 	}
 	await curs.execute("update config set value = ? where key = 'update_code'", [updatecode]);
 	wikiconfig.update_code = updatecode;
+	
+	if(hostconfig.debug) print('경고! 위키가 디버그 모드에서 실행 중입니다. 알려지지 않은 취약점에 노출될 수 있습니다.\n');
 	
 	// 서버실행
 	const { host, port } = hostconfig;
