@@ -69,7 +69,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '8';
+const updatecode = '9';
 
 // 사용자 권한
 var perms = [
@@ -5427,11 +5427,13 @@ if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, asy
 		curs.execute("delete from login_history where username = ?", [username]);
 		curs.execute("delete from stars where username = ?", [username]);
 		curs.execute("delete from useragents where username = ?", [username]);
-		curs.execute("update history set username = '탈퇴한 사용자' where username = ? and ismember = 'author'", [username]);
-		curs.execute("update res set username = '탈퇴한 사용자' where username = ? and ismember = 'author'", [username]);
+		curs.execute("update history set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
+		curs.execute("update res set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
 		curs.execute("update res set hider = '탈퇴한 사용자' where hider = ?", [username]);
-		curs.execute("update block_history set executer = '탈퇴한 사용자' where executer = ? and ismember = 'author'", [username]);
+		curs.execute("update block_history set executer = '탈퇴한 사용자', ismember = 'ip' where executer = ? and ismember = 'author'", [username]);
 		curs.execute("update block_history set target = '탈퇴한 사용자' where target = ?", [username]);
+		curs.execute("update edit_requests set processor = '탈퇴한 사용자', ismember = 'ip' where processor = ? and ismember = 'author'", [username]);
+		curs.execute("update edit_requests set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
 		delete req.session.username;
 		if(permlist[username]) permlist[username] = [];
 		res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
@@ -5755,7 +5757,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 		
 		if(!hostconfig.no_username_format && (id.length < 3 || id.length > 32 || id.match(/(?:[^A-Za-z0-9_])/))) {
 			var invalidformat = 1;
-		} else if((hostconfig.reserved_usernames || []).concat(['namubot', '탈퇴한 사용자']).includes(id)) {
+		} else if((hostconfig.reserved_usernames || []).concat(['namubot']).includes(id)) {
 			var invalidusername = 1;
 		} else {
 			var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
@@ -6333,6 +6335,13 @@ wiki.use(function(req, res, next) {
 					delete wikiconfig[key];
 				}
 			} catch(e) {}
+		} case 8: {
+			// 탈퇴한 사용자 2
+			curs.execute("update history set username = '탈퇴한 사용자', ismember = 'ip' where username = '탈퇴한 사용자' and ismember = 'author'");
+			curs.execute("update res set username = '탈퇴한 사용자', ismember = 'ip' where username = '탈퇴한 사용자' and ismember = 'author'");
+			curs.execute("update block_history set executer = '탈퇴한 사용자', ismember = 'ip' where executer = '탈퇴한 사용자' and ismember = 'author'");
+			curs.execute("update edit_requests set processor = '탈퇴한 사용자', ismember = 'ip' where processor = '탈퇴한 사용자' and ismember = 'author'");
+			curs.execute("update edit_requests set username = '탈퇴한 사용자', ismember = 'ip' where username = '탈퇴한 사용자' and ismember = 'author'");
 		}
 	}
 	await curs.execute("update config set value = ? where key = 'update_code'", [updatecode]);
