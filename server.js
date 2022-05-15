@@ -1936,7 +1936,13 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	var error = false;
 	var lstedt = undefined;
 	
-	if(!rawContent.length) {
+	const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) {
+		if(minor < 5 || (minor == 5 && revision < 7)) return res.status(403).send(await showError(req, 'insufficient_privileges_read'));
+		httpstat = 403;
+		error = true;
+		content = '<h2>' + aclmsg + '</h2>';
+	} else if(!rawContent.length) {
 		viewname = 'notfound';
 		httpstat = 404;
 		var data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
@@ -1981,31 +1987,23 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			`;
 		}
 	} else {
-		const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-		if(aclmsg) {
-			if(minor < 5 || (minor == 5 && revision < 7)) return res.status(403).send(await showError(req, 'insufficient_privileges_read'));
-			httpstat = 403;
-			error = true;
-			content = '<h2>' + aclmsg + '</h2>';
-		} else {
-			if(rawContent[0].content.startsWith('#redirect ')) {
-				const ntitle = rawContent[0].content.split('\n')[0].replace('#redirect ', '');
-				
-				if(req.query['noredirect'] != '1' && !req.query['from']) {
-					return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title);
-				} else {
-					content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + '">' + html.escape(ntitle) + '</a>';
-				}
-			} else content = await markdown(rawContent[0].content, 0, doc + '');
+		if(rawContent[0].content.startsWith('#redirect ')) {
+			const ntitle = rawContent[0].content.split('\n')[0].replace('#redirect ', '');
 			
-			if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
-			if(req.query['from']) {
-				content = alertBalloon('<a href="' + encodeURIComponent(req.query['from']) + '?noredirect=1" class=document>' + html.escape(req.query['from']) + '</a>에서 넘어옴', 'info', false) + content;
+			if(req.query['noredirect'] != '1' && !req.query['from']) {
+				return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title);
+			} else {
+				content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + '">' + html.escape(ntitle) + '</a>';
 			}
-			
-			var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
-			lstedt = Number(data[0].time);
+		} else content = await markdown(rawContent[0].content, 0, doc + '');
+		
+		if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
+		if(req.query['from']) {
+			content = alertBalloon('<a href="' + encodeURIComponent(req.query['from']) + '?noredirect=1" class=document>' + html.escape(req.query['from']) + '</a>에서 넘어옴', 'info', false) + content;
 		}
+		
+		var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+		lstedt = Number(data[0].time);
 	}
 	
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
