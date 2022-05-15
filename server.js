@@ -300,20 +300,20 @@ try {
 		major = Number(sp[0]);
 		minor = Number(sp[1]);
 		revision = Number(sp[2]);
+	}
 		
-		if(minor >= 18) {
-			perms = perms.filter(item => !['ipacl', 'suspend_account'].includes(item));
-		} else {
-			perms = perms.filter(item => !['aclgroup'].includes(item));
-		}
-		
-		if(minor >= 2) {
-			perms = perms.filter(item => !['acl'].includes(item));
-		}
-		
-		if(minor < 20) {
-			perms = perms.filter(item => !['api_access'].includes(item));
-		}
+	if(minor >= 18) {
+		perms = perms.filter(item => !['ipacl', 'suspend_account'].includes(item));
+	} else {
+		perms = perms.filter(item => !['aclgroup'].includes(item));
+	}
+	
+	if(minor >= 2) {
+		perms = perms.filter(item => !['acl'].includes(item));
+	}
+	
+	if(minor < 20) {
+		perms = perms.filter(item => !['api_access'].includes(item));
 	}
 } catch(e) { (async function() {
 	print('병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n');
