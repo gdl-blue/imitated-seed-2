@@ -7,6 +7,7 @@ const path = require('path');
 const geoip = require('geoip-lite');
 const inputReader = require('wait-console-input');
 const { SHA3 } = require('sha3');
+const md5 = require('md5');
 const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
 const session = require('express-session');
@@ -197,7 +198,55 @@ function generateTime(time, fmt) {
 	const t = split(time, ' ')[1];
 	
 	return `<time datetime="${d}T${t}.000Z" data-format="${fmt}">${time}</time>`;
-} generateTime.safe = true;
+}
+generateTime.safe = true;
+
+// 로그인 여부
+function islogin(req) {
+	if(req.session.username) return true;
+	return false;
+}
+
+// 아이디 확인
+function getUsername(req, forceIP = 0) {
+	if(!forceIP && req.session.username) {
+		return req.session.username;
+	} else {
+		if(req.headers['x-forwarded-for']) {
+			return req.headers['x-forwarded-for'].split(',')[0];
+		} else {
+			return req.connection.remoteAddress;
+		}
+	}
+}
+const ip_check = getUsername;
+
+// 사용자설정 가져오기
+function getUserset(req, str, def = '') {
+    str = str.replace(/^wiki[.]/, '');
+	if(!islogin(req)) return def;
+	const username = ip_check(req);
+	
+    if(!userset[username] || !userset[username][str]) {
+        if(!userset[username]) userset[username] = {};
+        userset[username][str] = def;
+		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
+        return def;
+    }
+    return userset[username][str];
+}
+
+function getUserSetting(username, str, def = '') {
+    str = str.replace(/^wiki[.]/, '');
+	
+    if(!userset[username] || !userset[username][str]) {
+        if(!userset[username]) userset[username] = {};
+        userset[username][str] = def;
+		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
+        return def;
+    }
+    return userset[username][str];
+}
 
 // swig 필터
 swig.setFilter('encode_userdoc', function encodeUserdocURL(input) {
@@ -207,7 +256,7 @@ swig.setFilter('encode_doc', function encodeDocURL(input) {
 	return encodeURIComponent(input);
 });
 swig.setFilter('avatar_url', function(input) {
-	return 'https://www.gravatar.com/avatar/md5username?d=retro';
+	return 'https://www.gravatar.com/avatar/' + md5(getUserSetting(input.username, 'email', '')) + '?d=retro';
 });
 swig.setFilter('url_encode', function(input) {
 	return encodeURIComponent(input);
@@ -1049,26 +1098,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	return data;
 }
 
-// 로그인 여부
-function islogin(req) {
-	if(req.session.username) return true;
-	return false;
-}
-
-// 아이디 확인
-function getUsername(req, forceIP = 0) {
-	if(!forceIP && req.session.username) {
-		return req.session.username;
-	} else {
-		if(req.headers['x-forwarded-for']) {
-			return req.headers['x-forwarded-for'].split(',')[0];
-		} else {
-			return req.connection.remoteAddress;
-		}
-	}
-}
-const ip_check = getUsername;
-
 // 위키 설정
 const config = {
 	getString(str, def = '') {
@@ -1080,33 +1109,6 @@ const config = {
 		return wikiconfig[str];
 	}
 };
-
-// 사용자설정 가져오기
-function getUserset(req, str, def = '') {
-    str = str.replace(/^wiki[.]/, '');
-	if(!islogin(req)) return def;
-	const username = ip_check(req);
-	
-    if(!userset[username] || !userset[username][str]) {
-        if(!userset[username]) userset[username] = {};
-        userset[username][str] = def;
-		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
-        return def;
-    }
-    return userset[username][str];
-}
-
-function getUserSetting(username, str, def = '') {
-    str = str.replace(/^wiki[.]/, '');
-	
-    if(!userset[username] || !userset[username][str]) {
-        if(!userset[username]) userset[username] = {};
-        userset[username][str] = def;
-		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
-        return def;
-    }
-    return userset[username][str];
-}
 
 // 현재 스킨
 function getSkin(req) {
@@ -1719,11 +1721,19 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res,
 	if(!skinList.includes(skinname))
 		return next();
 	
+	if(decodeURIComponent(filepath).includes('./') || decodeURIComponent(filepath).includes('..')) {
+		return next();
+	}
+	
 	var skinconfig = skincfgs[skinname];
 	/* if(!skinconfig.static_files.includes(filepath))
 		return next(); */
 	
-	res.sendFile(filepath, { root: './skins/' + skinname + '/static' });
+	try {
+		res.sendFile(filepath, { root: './skins/' + skinname + '/static' });
+	} catch(e) {
+		next();
+	}
 });
 
 wiki.get('/js/:filepath', function sendJS(req, res) {
