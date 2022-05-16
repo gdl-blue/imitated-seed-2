@@ -1948,7 +1948,7 @@ wiki.get(/^\/search\/(.*)/, async(req, res) => {
 			`;
 			var lp = (ret.page / 10) * 10 + 10;
 			var max = ret.lastpage < lp ? ret.lastpage : lp;
-			for(var i=(ret.page / 10) * 10; i<=max; i++) {
+			for(var i=Math.floor(ret.page / 10) * 10 + 1; i<=max; i++) {
 				reshtml += `
 					<li class="page-item${ret.page == i ? ' active' : ''}">
 						<a class=page-link href="?page=${i}">${i}</a>
