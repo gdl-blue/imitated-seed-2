@@ -20,6 +20,7 @@ const { JSDOM } = require('jsdom');
 const jquery = require('jquery');
 const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
+const child_process = require('child_process');
 
 const timeFormat = 'Y-m-d H:i:s';  // 날짜 및 시간 기본 형식
 const _ = undefined;
@@ -324,8 +325,8 @@ try {
 		host: input('호스트 주소: '),
 		port: input('포트 번호: '),
 		skin: input('기본 스킨 이름: '),
-		// search_host: input("검색서버 호스트: "),
-		// search_port: input("검색서버 포트: "),
+		search_host: '127.5.5.5',
+		search_port: '25005',
 	};
 	
 	hostconfig.uninitialized = false;
@@ -1901,6 +1902,8 @@ wiki.get(/^\/search\/(.*)/, async(req, res) => {
 		</div>
 	`;
 	
+	var st = new Date().getTime() / 1000;
+	
 	if(!query.replace(/^(\s+)/, '').replace(/(\s+)$/, '')) {
 		res.send(await render(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
 	}
@@ -1908,9 +1911,64 @@ wiki.get(/^\/search\/(.*)/, async(req, res) => {
 	http.request({
 		host: hostconfig.search_host,
 		port: hostconfig.search_port,
-		path: '/',
-	}, async res => {
-		res.send(await render(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
+		path: '/search/' + encodeURIComponent(query) + '?page=' + (req.query['page'] || '1'),
+	}, async rr => {
+		var d = '';
+
+		rr.on('data', function(chunk) {
+			d += chunk;
+		});
+
+		rr.on('end', async function() {
+			const ret = JSON.parse(d);
+			var reshtml = '';
+			reshtml += `
+				<section class=search-section>
+			`;
+			for(var item of ret.result) {
+				var title = totitle(item.title, item.namespace) + '';
+				reshtml += `
+					<div class=search-item>
+						<h4>
+							<i class=ion-document></i>
+							<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a>
+						</h4>
+						<div>
+							${item.content}
+						</div>
+					</div>
+				`;
+			}
+			reshtml += `
+				<nav class=pull-right>
+					<ul class=pagination>${Number(ret.page) > 1 ? `
+						<li class=page-item>
+							<a class=page-link href="?page=${Number(ret.page) - 1}">&lt;</a>
+						</li>` : ''}
+			`;
+			var lp = (ret.page / 10) * 10 + 10;
+			var max = ret.lastpage < lp ? ret.lastpage : lp;
+			for(var i=(ret.page / 10) * 10; i<=max; i++) {
+				reshtml += `
+					<li class="page-item${ret.page == i ? ' active' : ''}">
+						<a class=page-link href="?page=${i}">${i}</a>
+					</li>
+				`;
+			}
+			if(ret.page < ret.lastpage) reshtml += `
+							<li class=page-item>
+								<a class=page-link href="?page=${Number(ret.page) + 1}">&gt;</a>
+							</li>
+						</ul>
+					</nav>
+				</section>
+			`;
+			var et = new Date().getTime() / 1000;
+			content = content + `
+				<div class=search-summary>전체 ${ret.total} 건 / 처리 시간 ${(et - st).toFixed(3).replace(/([0]+)$/, '')}초</div>
+			` + reshtml;
+			res.send(await render(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
+		});
 	}).on('error', async e => {
 		res.send(await showError(req, 'searchd_fail'));
 	}).end();
@@ -6355,6 +6413,10 @@ wiki.use(function(req, res, next) {
 		wiki.listen(port, host);
 	print(host + (port == 80 ? '' : (':' + port)) + '에서 실행 중. . .');
 	beep();
+	
+	if(hostconfig.search_autostart) {
+		child_process.execFile('node', ['search.js'], function() {});
+	}
 })();
 
 if(hostconfig.self_request) {
