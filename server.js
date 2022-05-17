@@ -327,6 +327,7 @@ try {
 		skin: input('기본 스킨 이름: '),
 		search_host: '127.5.5.5',
 		search_port: '25005',
+		owners: [input('소유자 닉네임: ')],
 	};
 	
 	hostconfig.uninitialized = false;
