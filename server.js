@@ -2089,7 +2089,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 					if(!item) continue;
 					var chk = 0;
 					for(var i=0; i<ha.length-1; i++) {
-						const fchr = item.title[0].charCodeAt(0);
+						const fchr = item.title[0].toUpperCase().charCodeAt(0);
 						
 						if((hj[i].includes(item.title[0])) || (fchr >= ha[i].charCodeAt(0) && fchr < ha[i+1].charCodeAt(0))) {
 							if(!indexes[hj[i]]) indexes[hj[i]] = [];
@@ -2098,8 +2098,8 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 							break;
 						}
 					} if(!chk) {
-						if(!indexes[item.title[0]]) indexes[item.title[0]] = [];
-						indexes[item.title[0]].push(item);
+						if(!indexes[item.title[0].toUpperCase()]) indexes[item.title[0].toUpperCase()] = [];
+						indexes[item.title[0].toUpperCase()].push(item);
 					}
 				}
 				
@@ -2485,8 +2485,8 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 				break;
 			}
 		} if(!chk) {
-			if(!indexes[item.title[0]]) indexes[item.title[0]] = [];
-			indexes[item.title[0]].push(item);
+			if(!indexes[item.title[0].toUpperCase()]) indexes[item.title[0].toUpperCase()] = [];
+			indexes[item.title[0].toUpperCase()].push(item);
 		}
 	}
 	
