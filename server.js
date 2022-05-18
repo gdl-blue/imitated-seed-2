@@ -912,7 +912,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
 		const sl = dest == title ? ' self-link' : '';
-		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + '">' + html.escape(disp) + '</a>');
+		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + '">' + disp + '</a>');
 		
 		// 역링크
 		if(xref && !external) {
@@ -1700,8 +1700,15 @@ wiki.use(function(req, res, next) {
     next();
 });
 
-// 자동 로그인
+// 자동 로그인 & 차단 로그아웃
 wiki.all('*', async function(req, res, next) {
+	if(!(major > 4 || (major == 4 && minor >= 1))) {
+		if(islogin(req) && await userblocked(ip_check(req))) {
+			delete req.session.username;
+			return next();
+		}
+	}
+	
 	if(req.session.username) return next();
 	var autologin;
 	if(autologin = req.cookies['honoka']) {
@@ -2922,257 +2929,324 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
-	await curs.execute("delete from acl where not expiration = '0' and cast(expiration as integer) < ?", [getTime()]);
 	const title = req.params[0];
 	const doc = processTitle(title);
 	if(['특수기능', '투표', '토론'].includes(doc.namespace)) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
-	const editable = Boolean(await getacl(req, doc.title, doc.namespace, 'acl'));
-	const nseditable = hasperm(req, 'nsacl');
-	const types = ['read', 'edit', 'move', 'delete', 'create_thread', 'write_thread_comment', 'edit_request', 'acl'];
-	
-	async function tbody(type, isns, edit) {
-		var ret = '';
-		if(isns) var data = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [doc.namespace, type]);
-		else var data = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [doc.title, doc.namespace, type]);
-		var i = 1;
-		for(var row of data) {
-			ret += `
-				<tr data-id="${row.id}">
-					<td>${i++}</td>
-					<td>${row.conditiontype}:${row.condition}</td>
-					<td>${({
-						allow: '허용',
-						deny: '거부',
-						gotons: '이름공간ACL 실행',
-					})[row.action]}</td>
-					<td>${row.expiration == '0' ? '영구' : generateTime(toDate(row.expiration), timeFormat)}</td>
-					<td>${edit ? `<button type="submit" class="btn btn-danger btn-sm">삭제</button></td>` : ''}</td>
-				</tr>
-			`;
-		} if(!data.length) {
-			ret += `
-				<td colspan="5" style="text-align: center;">(규칙이 존재하지 않습니다. ${isns ? '모두 거부됩니다.' : '이름공간 ACL이 적용됩니다.'})</td>
-			`;
-		}
-		return ret;
-	}
-	
-	if(req.method == 'POST') {
-		var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-		if(!rawContent[0]) rawContent = '';
-		else rawContent = rawContent[0].content;
+	if(minor >= 2) {
+		await curs.execute("delete from acl where not expiration = '0' and cast(expiration as integer) < ?", [getTime()]);
+		const editable = Boolean(await getacl(req, doc.title, doc.namespace, 'acl'));
+		const nseditable = hasperm(req, 'nsacl');
+		const types = ['read', 'edit', 'move', 'delete', 'create_thread', 'write_thread_comment', 'edit_request', 'acl'];
 		
-		var baserev;
-		var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
-		try {
-			baserev = data[0].rev;
-		} catch(e) {
-			baserev = 0;
-		}
-		
-		const { id, after_id, mode, type, isNS, condition, action, expire } = req.body;
-		if(!types.includes(type)) return res.status(400).send('');
-		
-		if(isNS && !nseditable) return res.status(403).send('');
-		if(!nseditable && !isNS && !editable) return res.status(403).send('');
-		
-		const edit = nseditable || (isNS ? nseditable : editable);
-		
-		switch(mode) {
-			case 'insert': {
-				if(!['allow', 'deny'].concat(isNS || minor < 18 ? [] : ['gotons']).includes(action)) return res.status(400).send('');
-				if(Number(expire) === NaN) return res.status(400).send('');
-				const cond = condition.split(':');
-				if(cond.length != 2) return res.status(400).send('');
-				if(!['perm', 'ip', 'member'].concat((minor >= 6 || (minor == 5 && revision >= 9)) ? ['geoip'] : []).concat(minor >= 18 ? ['aclgroup'] : []).includes(cond[0])) return res.status(400).send('');
-				if(isNS) var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.namespace]);
-				else var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.title, doc.namespace]);
-				if(data.length) return res.status(400).json({
-					status: fetchErrorString('acl_already_exists'),
-				});
-				if(cond[0] == 'aclgroup' && minor >= 18) {
-					var data = await curs.execute("select name from aclgroup_groups where name = ?", [cond[1]]);
-					if(!data.length) return res.status(400).json({
-						status: fetchErrorString('invalid_aclgroup'),
-					});
-				}
-				if(cond[0] == 'ip') {
-					if(!cond[1].match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])$/)) return res.status(400).json({
-						status: fetchErrorString('invalid_acl_condition'),
-					});
-				}
-				if(cond[0] == 'geoip') {
-					if(!cond[1].match(/^[A-Z][A-Z]$/)) return res.status(400).json({
-						status: fetchErrorString('invalid_acl_condition'),
-					});
-				}
-				if(cond[0] == 'member') {
-					var data = await curs.execute("select username from users where username = ?", [cond[1]]);
-					if(!data.length) return res.status(400).json({
-						status: '사용자 이름이 올바르지 않습니다.',
-					});
-				}
-				
-				const expiration = String(expire ? (getTime() + Number(expire) * 1000) : 0);
-				if(isNS) var data = await curs.execute("select id from acl where type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [type, doc.namespace]);
-				else var data = await curs.execute("select id from acl where type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [type, doc.title, doc.namespace]);
-				
-				if(isNS) var ff = await curs.execute("select id from acl where id = '1' and type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [type, doc.namespace]);
-				else var ff = await curs.execute("select id from acl where id = '1' and type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [type, doc.title, doc.namespace]);
-				
-				var aclid = '1';
-				if(data.length && ff.length) aclid = String(Number(data[0].id) + 1);
-				
-				await curs.execute("insert into acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) values (?, ?, ?, ?, ?, ?, ?, ?, ?)", [isNS ? '' : doc.title, doc.namespace, aclid, type, action, expire == '0' ? '0' : expiration, cond[0], cond[1], isNS ? '1' : '0']);
-				
-				if(!isNS) curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
-					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-					doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + action + ',' + condition
-				]);
-				
-				return res.send(await tbody(type, isNS, edit));
-			} case 'delete': {
-				var data = await curs.execute("select action, conditiontype, condition from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
-				if(!data.length) return res.status(400).send('');
-				await curs.execute("delete from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
-				
-				if(!isNS) curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
-					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-					doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + data[0].action + ',' + data[0].conditiontype + ':' + data[0].condition
-				]);
-				
-				return res.send(await tbody(type, isNS, edit));
-			} case 'move': {
-				if(id > after_id) {  // 위로 올림
-					for(var i=id; i>=after_id+2; i--) {
-						const rndv = rndval('0123456789abcdefghijklmnopqrstuvwxyz') + ip_check(req) + getTime();
-						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [rndv, String(i - 1), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
-						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i - 1), String(i), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
-						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i), rndv, isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
-					}
-				} else {  // 아래로 내림
-					for(var i=id; i<after_id; i++) {
-						const rndv = rndval('0123456789abcdefghijklmnopqrstuvwxyz') + ip_check(req) + getTime();
-						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [rndv, String(i + 1), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
-						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i + 1), String(i), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
-						await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i), rndv, isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
-					}
-				}
-				
-				return res.send(await tbody(type, isNS, edit));
+		async function tbody(type, isns, edit) {
+			var ret = '';
+			if(isns) var data = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [doc.namespace, type]);
+			else var data = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [doc.title, doc.namespace, type]);
+			var i = 1;
+			for(var row of data) {
+				ret += `
+					<tr data-id="${row.id}">
+						<td>${i++}</td>
+						<td>${row.conditiontype}:${row.condition}</td>
+						<td>${({
+							allow: '허용',
+							deny: '거부',
+							gotons: '이름공간ACL 실행',
+						})[row.action]}</td>
+						<td>${row.expiration == '0' ? '영구' : generateTime(toDate(row.expiration), timeFormat)}</td>
+						<td>${edit ? `<button type="submit" class="btn btn-danger btn-sm">삭제</button></td>` : ''}</td>
+					</tr>
+				`;
+			} if(!data.length) {
+				ret += `
+					<td colspan="5" style="text-align: center;">(규칙이 존재하지 않습니다. ${isns ? '모두 거부됩니다.' : '이름공간 ACL이 적용됩니다.'})</td>
+				`;
 			}
+			return ret;
 		}
-	} else {
-		var content = ``;
-		for(var isns of [false, true]) {
-			content += `
-				<h2 class="wiki-heading">${isns ? '이름공간' : '문서'} ACL</h2>
-				<div>
-			`;
-			for(var type of types) {
-				const edit = nseditable || (isns ? nseditable : editable);
-				content += `
-					<h4 class="wiki-heading">${acltype[type]}</h4>
-					<div class="seed-acl-div" data-type="${type}" data-editable="${edit}" data-isns="${isns}">
-						<div class="table-wrap">
-							<table class="table" style="width:100%">
-								<colgroup>
-									<col style="width: 60px">
-									<col>
-									<col style="width: 80px">
-									<col style="width: 200px">
-									<col style="width: 60px;">
-								</colgroup>
-								
-								<thead>
-									<tr>
-										<th>No</th>
-										<th>Condition</th>
-										<th>Action</th>
-										<th>Expiration</th>
-										<th></th>
-									</tr>
-								</thead>
-
-								<tbody class="seed-acl-tbody">
-				`;
-				content += await tbody(type, isns, edit);
-				content += `
-						</tbody>
-					</table>
-				`;
-				if(edit) {
-					var aclpermopt = '';
-					for(var prm in aclperms) {
-						if(!aclperms[prm]) continue;
-						aclpermopt += `<option value=${prm}>${aclperms[prm]}${minor >= 18 ? '' : (exaclperms.includes(prm) ? ' [*]' : '')}</option>`;
+		
+		if(req.method == 'POST') {
+			var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+			if(!rawContent[0]) rawContent = '';
+			else rawContent = rawContent[0].content;
+			
+			var baserev;
+			var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
+			try {
+				baserev = data[0].rev;
+			} catch(e) {
+				baserev = 0;
+			}
+			
+			const { id, after_id, mode, type, isNS, condition, action, expire } = req.body;
+			if(!types.includes(type)) return res.status(400).send('');
+			
+			if(isNS && !nseditable) return res.status(403).send('');
+			if(!nseditable && !isNS && !editable) return res.status(403).send('');
+			
+			const edit = nseditable || (isNS ? nseditable : editable);
+			
+			switch(mode) {
+				case 'insert': {
+					if(!['allow', 'deny'].concat(isNS || minor < 18 ? [] : ['gotons']).includes(action)) return res.status(400).send('');
+					if(Number(expire) === NaN) return res.status(400).send('');
+					const cond = condition.split(':');
+					if(cond.length != 2) return res.status(400).send('');
+					if(!['perm', 'ip', 'member'].concat((minor >= 6 || (minor == 5 && revision >= 9)) ? ['geoip'] : []).concat(minor >= 18 ? ['aclgroup'] : []).includes(cond[0])) return res.status(400).send('');
+					if(isNS) var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.namespace]);
+					else var data = await curs.execute("select id from acl where conditiontype = ? and condition = ? and type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [cond[0], cond[1], type, doc.title, doc.namespace]);
+					if(data.length) return res.status(400).json({
+						status: fetchErrorString('acl_already_exists'),
+					});
+					if(cond[0] == 'aclgroup' && minor >= 18) {
+						var data = await curs.execute("select name from aclgroup_groups where name = ?", [cond[1]]);
+						if(!data.length) return res.status(400).json({
+							status: fetchErrorString('invalid_aclgroup'),
+						});
+					}
+					if(cond[0] == 'ip') {
+						if(!cond[1].match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])$/)) return res.status(400).json({
+							status: fetchErrorString('invalid_acl_condition'),
+						});
+					}
+					if(cond[0] == 'geoip') {
+						if(!cond[1].match(/^[A-Z][A-Z]$/)) return res.status(400).json({
+							status: fetchErrorString('invalid_acl_condition'),
+						});
+					}
+					if(cond[0] == 'member') {
+						var data = await curs.execute("select username from users where username = ?", [cond[1]]);
+						if(!data.length) return res.status(400).json({
+							status: '사용자 이름이 올바르지 않습니다.',
+						});
 					}
 					
+					const expiration = String(expire ? (getTime() + Number(expire) * 1000) : 0);
+					if(isNS) var data = await curs.execute("select id from acl where type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [type, doc.namespace]);
+					else var data = await curs.execute("select id from acl where type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [type, doc.title, doc.namespace]);
+					
+					if(isNS) var ff = await curs.execute("select id from acl where id = '1' and type = ? and namespace = ? and ns = '1' order by cast(id as integer) desc limit 1", [type, doc.namespace]);
+					else var ff = await curs.execute("select id from acl where id = '1' and type = ? and title = ? and namespace = ? and ns = '0' order by cast(id as integer) desc limit 1", [type, doc.title, doc.namespace]);
+					
+					var aclid = '1';
+					if(data.length && ff.length) aclid = String(Number(data[0].id) + 1);
+					
+					await curs.execute("insert into acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) values (?, ?, ?, ?, ?, ?, ?, ?, ?)", [isNS ? '' : doc.title, doc.namespace, aclid, type, action, expire == '0' ? '0' : expiration, cond[0], cond[1], isNS ? '1' : '0']);
+					
+					if(!isNS) curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+						doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + action + ',' + condition
+					]);
+					
+					return res.send(await tbody(type, isNS, edit));
+				} case 'delete': {
+					var data = await curs.execute("select action, conditiontype, condition from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
+					if(!data.length) return res.status(400).send('');
+					await curs.execute("delete from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
+					
+					if(!isNS) curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+						doc.title, doc.namespace, rawContent, String(Number(baserev) + 1), ip_check(req), getTime(), '0', '', '0', '-1', islogin(req) ? 'author' : 'ip', 'acl', mode + ',' + type + ',' + data[0].action + ',' + data[0].conditiontype + ':' + data[0].condition
+					]);
+					
+					return res.send(await tbody(type, isNS, edit));
+				} case 'move': {
+					if(id > after_id) {  // 위로 올림
+						for(var i=id; i>=after_id+2; i--) {
+							const rndv = rndval('0123456789abcdefghijklmnopqrstuvwxyz') + ip_check(req) + getTime();
+							await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [rndv, String(i - 1), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+							await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i - 1), String(i), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+							await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i), rndv, isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+						}
+					} else {  // 아래로 내림
+						for(var i=id; i<after_id; i++) {
+							const rndv = rndval('0123456789abcdefghijklmnopqrstuvwxyz') + ip_check(req) + getTime();
+							await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [rndv, String(i + 1), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+							await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i + 1), String(i), isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+							await curs.execute("update acl set id = ? where id = ? and title = ? and namespace = ? and type = ? and ns = ?", [String(i), rndv, isNS ? '' : doc.title, doc.namespace, type, isNS ? '1' : '0']);
+						}
+					}
+					
+					return res.send(await tbody(type, isNS, edit));
+				}
+			}
+		} else {
+			var content = ``;
+			for(var isns of [false, true]) {
+				content += `
+					<h2 class="wiki-heading">${isns ? '이름공간' : '문서'} ACL</h2>
+					<div>
+				`;
+				for(var type of types) {
+					const edit = nseditable || (isns ? nseditable : editable);
 					content += `
-						<div class="form-inline">
-							<div class="form-group">
-								<label class="control-label">Condition :</label> 
-								<div>
-									<select class="seed-acl-add-condition-type form-control" id="permTypeWTC">
-										<option value="perm">권한</option>
-										<option value="member">사용자</option>
-										<option value="ip">아이피</option>
-										${(minor >= 6 || (minor == 5 && revision >= 9)) ? `<option value="geoip">GeoIP</option>` : ''}
-										${minor >= 18 ? `<option value="aclgroup">ACL그룹</option>` : ''}
-									</select>
-									<select class="seed-acl-add-condition-value-perm form-control" id="permTextWTC">
-										${aclpermopt}
-									</select>
-									<input class="seed-acl-add-condition-value form-control" style="display: none;" type="text"> 
-								</div>
-							</div>
-							<div class="form-group">
-								<label class="control-label">Action :</label> 
-								<div>
-									<select class="seed-acl-add-action form-control">
-										<option value="allow">허용</option>
-										<option value="deny">거부</option>
-										${isns || minor < 18 ? '' : `<option value="gotons">이름공간ACL 실행</option>`}
-									</select>
-								</div>
-							</div>
-							<div class="form-group">
-								<label class="control-label">Duration :</label> 
-								<div>
-									<select class="form-control seed-acl-add-expire">
-										<option value="0" selected="">영구</option>
-										<option value="300">5분</option>
-										<option value="600">10분</option>
-										<option value="1800">30분</option>
-										<option value="3600">1시간</option>
-										<option value="7200">2시간</option>
-										<option value="86400">하루</option>
-										<option value="259200">3일</option>
-										<option value="432000">5일</option>
-										<option value="604800">7일</option>
-										<option value="1209600">2주</option>
-										<option value="1814400">3주</option>
-										<option value="2419200">4주</option>
-										<option value="4838400">2개월</option>
-										<option value="7257600">3개월</option>
-										<option value="14515200">6개월</option>
-										<option value="29030400">1년</option>
-									</select>
-								</div>
-							</div>
-							<button type="submit" class="btn btn-primary seed-acl-add-btn">추가</button> 
-						</div>
-						${minor >= 18 ? '' : `<small>[*] 차단된 사용자는 포함되지 않습니다.</small>`}
+						<h4 class="wiki-heading">${acltype[type]}</h4>
+						<div class="seed-acl-div" data-type="${type}" data-editable="${edit}" data-isns="${isns}">
+							<div class="table-wrap">
+								<table class="table" style="width:100%">
+									<colgroup>
+										<col style="width: 60px">
+										<col>
+										<col style="width: 80px">
+										<col style="width: 200px">
+										<col style="width: 60px;">
+									</colgroup>
+									
+									<thead>
+										<tr>
+											<th>No</th>
+											<th>Condition</th>
+											<th>Action</th>
+											<th>Expiration</th>
+											<th></th>
+										</tr>
+									</thead>
+
+									<tbody class="seed-acl-tbody">
 					`;
-				} content += `
+					content += await tbody(type, isns, edit);
+					content += `
+							</tbody>
+						</table>
+					`;
+					if(edit) {
+						var aclpermopt = '';
+						for(var prm in aclperms) {
+							if(!aclperms[prm]) continue;
+							aclpermopt += `<option value=${prm}>${aclperms[prm]}${minor >= 18 ? '' : (exaclperms.includes(prm) ? ' [*]' : '')}</option>`;
+						}
+						
+						content += `
+							<div class="form-inline">
+								<div class="form-group">
+									<label class="control-label">Condition :</label> 
+									<div>
+										<select class="seed-acl-add-condition-type form-control" id="permTypeWTC">
+											<option value="perm">권한</option>
+											<option value="member">사용자</option>
+											<option value="ip">아이피</option>
+											${(minor >= 6 || (minor == 5 && revision >= 9)) ? `<option value="geoip">GeoIP</option>` : ''}
+											${minor >= 18 ? `<option value="aclgroup">ACL그룹</option>` : ''}
+										</select>
+										<select class="seed-acl-add-condition-value-perm form-control" id="permTextWTC">
+											${aclpermopt}
+										</select>
+										<input class="seed-acl-add-condition-value form-control" style="display: none;" type="text"> 
+									</div>
+								</div>
+								<div class="form-group">
+									<label class="control-label">Action :</label> 
+									<div>
+										<select class="seed-acl-add-action form-control">
+											<option value="allow">허용</option>
+											<option value="deny">거부</option>
+											${isns || minor < 18 ? '' : `<option value="gotons">이름공간ACL 실행</option>`}
+										</select>
+									</div>
+								</div>
+								<div class="form-group">
+									<label class="control-label">Duration :</label> 
+									<div>
+										<select class="form-control seed-acl-add-expire">
+											<option value="0" selected="">영구</option>
+											<option value="300">5분</option>
+											<option value="600">10분</option>
+											<option value="1800">30분</option>
+											<option value="3600">1시간</option>
+											<option value="7200">2시간</option>
+											<option value="86400">하루</option>
+											<option value="259200">3일</option>
+											<option value="432000">5일</option>
+											<option value="604800">7일</option>
+											<option value="1209600">2주</option>
+											<option value="1814400">3주</option>
+											<option value="2419200">4주</option>
+											<option value="4838400">2개월</option>
+											<option value="7257600">3개월</option>
+											<option value="14515200">6개월</option>
+											<option value="29030400">1년</option>
+										</select>
+									</div>
+								</div>
+								<button type="submit" class="btn btn-primary seed-acl-add-btn">추가</button> 
+							</div>
+							${minor >= 18 ? '' : `<small>[*] 차단된 사용자는 포함되지 않습니다.</small>`}
+						`;
+					} content += `
+							</div>
 						</div>
+					`;
+				}
+				content += `
 					</div>
 				`;
 			}
-			content += `
-				</div>
-			`;
+			
+			return res.send(await render(req, doc + ' (ACL)', content, {
+				document: doc,
+			}, '', false, 'acl'));
 		}
+	} else {
+		if(!hasperm(req, 'acl')) return res.send(await showError(req, 'insufficient_privileges'));
+		
+		// 내가 나무위키 자체는 ACL 개편 전에도 했지만, ACL 인터페이스는 개편 후 처음 접했음. 원본 HTML 코드는 모르고 캡춰 화면 보고 내 나름대로 씀.
+		var content = `
+			<form method=post>
+				<div class=form-group>
+					<label>읽기 : </label><br />
+					<select name=read class=form-control>
+						<option value=everyone>모두</option>
+						<option value=member>로그인한 사용자</option>
+						<option value=admin>괸리자</option>
+					</select>
+				</div>
+				
+				<div class=form-group>
+					<label>편집 : </label><br />
+					<select name=edit class=form-control>
+						<option value=everyone>모두</option>
+						<option value=member>로그인한 사용자</option>
+						<option value=admin>괸리자</option>
+					</select>
+				</div>
+				
+				<div class=form-group>
+					<label>삭제 : </label><br />
+					<select name=delete class=form-control>
+						<option value=everyone>모두</option>
+						<option value=member>로그인한 사용자</option>
+						<option value=admin>괸리자</option>
+					</select>
+				</div>
+				
+				<div class=form-group>
+					<label>토론 : </label><br />
+					<select name=discuss class=form-control>
+						<option value=everyone>모두</option>
+						<option value=member>로그인한 사용자</option>
+						<option value=admin>괸리자</option>
+					</select>
+				</div>
+				
+				<div class=form-group>
+					<label>이동 : </label><br />
+					<select name=move class=form-control>
+						<option value=everyone>모두</option>
+						<option value=member>로그인한 사용자</option>
+						<option value=admin>괸리자</option>
+					</select>
+				</div>
+				
+				<div class=form-group>
+					<label>요약 : </label><br />
+					<input name=log type=text id=logInput style="width: 100%;" />
+				</div>
+				
+				<div>
+					<button type=submit>삽입</button>
+				</div>
+			</form>
+		`;
 		
 		return res.send(await render(req, doc + ' (ACL)', content, {
 			document: doc,
@@ -5492,6 +5566,7 @@ if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, asy
 		curs.execute("update edit_requests set processor = '탈퇴한 사용자', ismember = 'ip' where processor = ? and ismember = 'author'", [username]);
 		curs.execute("update edit_requests set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
 		delete req.session.username;
+		delete userset[username];
 		if(permlist[username]) permlist[username] = [];
 		res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
 		return res.send(await render(req, '계정 삭제', `
@@ -5500,6 +5575,97 @@ if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, asy
 	}
 	
 	return res.send(await render(req, '계정 삭제', content, {}, _, error, 'delete_account'));
+});
+
+if(hostconfig.allow_account_rename) wiki.all(/^\/member\/change_username$/, async(req, res, next) => {
+	if(!['GET', 'POST'].includes(req.method)) return next();
+	if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fdelete_account');
+	const username = ip_check(req);
+	var error = false;
+	
+	var { password } = (await curs.execute("select password from users where username = ?", [username]))[0];
+	
+	if(req.method == 'POST') {
+		if(!req.body['new_username'])
+			var nonewusername = 1;
+		
+		var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [req.body['new_username'].toLowerCase()]);
+		if(data.length)
+			var duplicate = 1;
+		
+		if(!hostconfig.no_username_format && (id.length < 3 || id.length > 32 || id.match(/(?:[^A-Za-z0-9_])/)))
+			var invalidformat = 1;
+	}
+	
+	var content = `
+		<form method=post onsubmit="return confirm('마지막 경고입니다. 변경하려면 [확인]을 누르십시오.');">
+			${!error && req.method == 'POST' && nonewusername ? (error = true, alertBalloon(fetchErrorString('validator_required', 'new_username'), 'danger', true, 'fade in')) : ''}
+			${(hostconfig.owners || []).includes(username) ? `<p style="font-weight: bold; color: red;">수정 후 반드시 config.json의 &lt;owners&gt; 값을 바꿔 주세요.</p>` : ''}
+			<p>이름을 바꾸면 다른 사람이 당신의 기존 이름으로 가입할 수 있습니다.</p>
+			
+			<div class=form-group>
+				<label>현재 이름 확인 (${html.escape(username)}):</label><br />
+				<input type=text name=username class=form-control placeholder="${html.escape(username)}" value="${html.escape(req.body['username'] || '')}" />
+				${!error && req.method == 'POST' && req.body['username'] != username ? (error = true, `<p class=error-desc>자신의 사용자 이름을 입력해주세요.</p>`) : ''}
+			</div>
+			
+			<div class=form-group>
+				<label>비밀번호 확인:</label><br />
+				<input type=password name=password class=form-control />
+				${!error && req.method == 'POST' && sha3(req.body['password'] + '') != password ? (error = true, `<p class=error-desc>비밀번호를 확인해주세요.</p>`) : ''}
+			</div>
+			
+			<div class=form-group>
+				<label>새로운 사용자 이름:</label><br />
+				<input type=text name=new_username class=form-control value="${html.escape(req.body['new_username'] || '')}" />
+				${!error && req.method == 'POST' && duplicate ? (error = true, `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>`) : ''}
+				${!error && req.method == 'POST' && invalidformat ? (error = true, `<p class=error-desc>사용자 이름을 형식에 맞게 입력해주세요.</p>`) : ''}
+			</div>
+			
+			<div class=btns>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<button type=submit class="btn btn-danger">변경</button>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<a class="btn btn-secondary" href="/">취소</a>
+				<a class="btn btn-secondary" href="/">취소</a>
+			</div>
+		</form>
+	`;
+	
+	if(req.method == 'POST' && !error) {
+		var newusername = req.body['new_username'];
+		await curs.execute("update users set username = ? where username = ?", [newusername, username]);
+		await curs.execute("update perms set username = ? where username = ?", [newusername, username]);
+		await curs.execute("update suspend_account set username = ? where username = ?", [newusername, username]);
+		await curs.execute("update user_settings set username = ? where username = ?", [newusername, username]);
+		await curs.execute("update acl set title = ? where title = ? and namespace = '사용자'", [newusername, username]);
+		await curs.execute("update classic_acl set title = ? where title = ? and namespace = '사용자'", [newusername, username]);
+		await curs.execute("update documents set title = ? where title = ? and namespace = '사용자'", [newusername, username]);
+		await curs.execute("update threads set title = ? where title = ? and namespace = '사용자'", [newusername, username]);
+		await curs.execute("update edit_requests set title = ? where title = ? and namespace = '사용자'", [newusername, username]);
+		await curs.execute("update history set title = ? where title = ? and namespace = '사용자'", [newusername, username]);
+		await curs.execute("update login_history set username = ? where username = ?", [newusername, username]);
+		await curs.execute("update stars set username = ? where username = ?", [newusername, username]);
+		await curs.execute("update useragents set username = ? where username = ?", [newusername, username]);
+		await curs.execute("update history set username = ? where username = ? and ismember = 'author'", [newusername, username]);
+		await curs.execute("update res set username = ? where username = ? and ismember = 'author'", [newusername, username]);
+		await curs.execute("update res set hider = ? where hider = ?", [newusername, username]);
+		await curs.execute("update block_history set executer = ? where executer = ? and ismember = 'author'", [newusername, username]);
+		await curs.execute("update block_history set target = ? where target = ?", [newusername, username]);
+		await curs.execute("update edit_requests set processor = ? where processor = ? and ismember = 'author'", [newusername, username]);
+		await curs.execute("update edit_requests set username = ? where username = ? and ismember = 'author'", [newusername, username]);
+		req.session.username = newusername;
+		permlist[newusername] = permlist[username];
+		delete permlist[username];
+		userset[newusername] = userset[username];
+		delete userset[username];
+		return res.send(await render(req, '사용자 이름 변경', `
+			<p><strong>${html.escape(newusername)}</strong>로 이름을 변경하였습니다.</p>
+		`, {}, _, false, 'delete_account'));
+	}
+	
+	return res.send(await render(req, '사용자 이름 변경', content, {}, _, error, 'delete_account'));
 });
 
 wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
@@ -5659,14 +5825,14 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
 				${!id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
 				${id.length && invalidusername ? (error = true, `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>`) : ''}
-				${id.length && !invalidusername && blocked ? (error = true, `<p class=error-desc>차단된 계정입니다.<br />차단 만료일 : ${(data.expiration == '0' ? '무기한' : new Date(Number(data.expiration)))}<br />차단 사유 : ${data.note}</p>`) : ``}
+				${id.length && !invalidusername && blocked ? (error = true, `<p class=error-desc>차단된 계정입니다.<br />차단 만료일 : ${(blocked.expiration == '0' ? '무기한' : new Date(Number(blocked.expiration)))}<br />차단 사유 : ${blocked.note}</p>`) : ``}
 			</div>
 
 			<div class=form-group>
 				<label>Password</label><br>
 				<input class=form-control name="password" type="password" />
-				${id.length && !invalidusername && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
-				${id.length && !invalidusername && pw.length && invalidpw ? (error = true, `<p class=error-desc>암호가 올바르지 않습니다.</p>`) : ''}
+				${id.length && !invalidusername && !blocked && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
+				${id.length && !invalidusername && !blocked && pw.length && invalidpw ? (error = true, `<p class=error-desc>암호가 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
 			<div class="checkbox" style="display: inline-block;">
@@ -6211,9 +6377,10 @@ wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 			curs.execute("update acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 		}
 		
+		if(!req.body['wiki.email_filter_enabled']) req.body['wiki.email_filter_enabled'] = 'false';
+		
 		// 어차피 소유자 전용이니까 취약점 고려는 굳이...?
 		for(var item in req.body) {
-			if(!req.body['wiki.email_filter_enabled']) req.body['wiki.email_filter_enabled'] = 'false';
 			if(item == 'filters') {
 				await curs.execute("delete from email_filters");
 				for(var f of req.body['filters'].split(';')) {
@@ -6255,50 +6422,53 @@ if(hostconfig.debug) wiki.get('/ResetXref', function(req, res) {
 // 404 페이지
 wiki.use(function(req, res, next) {
     return res.status(404).send(`
-		<head>
-			<meta charset="utf-8">
-			<meta name="viewport" content="width=1240">
-			<title>Page is not found!</title>
-			<style>
-				section {
-					position: fixed;
-					top: 0;
-					right: 0;
-					bottom: 0;
-					left: 0;
-					padding: 80px 0 0;
-					background-color:#EFEFEF;
-					font-family: "Open Sans", sans-serif;
-					text-align: center;
-				}
-				
-				h1 {
-					margin: 0 0 19px;
-					font-size: 40px;
-					font-weight: normal;
-					color: #E02B2B;
-					line-height: 40px;
-				}
-				
-				p {
-					margin: 0 0 57px;
-					font-size: 16px;
-					color:#444;
-					line-height: 23px;
-				}
-			</style>
-		</head>
-		
-		<body>
-			<section>
-				<h1>404</h1>
-				
-				<p>
-					Page is not found!<br>
-					<a href="/">Back to home</a>
-				</p>
-			</section>
-		</body>
+		<!DOCTYPE html>
+		<html>
+			<head>
+				<meta charset=utf-8>
+				<meta name=viewport content="width=1240">
+				<title>Page is not found!</title>
+				<style>
+					section {
+						position: fixed;
+						top: 0;
+						right: 0;
+						bottom: 0;
+						left: 0;
+						padding: 80px 0 0;
+						background-color:#EFEFEF;
+						font-family: "Open Sans", sans-serif;
+						text-align: center;
+					}
+					
+					h1 {
+						margin: 0 0 19px;
+						font-size: 40px;
+						font-weight: normal;
+						color: #E02B2B;
+						line-height: 40px;
+					}
+					
+					p {
+						margin: 0 0 57px;
+						font-size: 16px;
+						color:#444;
+						line-height: 23px;
+					}
+				</style>
+			</head>
+			
+			<body>
+				<section>
+					<h1>404</h1>
+					
+					<p>
+						Page is not found!<br>
+						<a href="/">Back to home</a>
+					</p>
+				</section>
+			</body>
+		</html>
 	`);
 });
 
@@ -6331,7 +6501,7 @@ wiki.use(function(req, res, next) {
 			// 역링크, 4.2.0 미만용 ACL
 			try {
 				await curs.execute("create table backlink (title text default '', namespace text default '', link text default '', linkns text default '', type text default 'link')");
-				await curs.execute("create table classic_acl (title text default '', namespace text default '', blockkorea text default '', blockbot text default '', read text default '', edit text default '', delete text default '', discuss text default '', move text default '')");
+				await curs.execute("create table classic_acl (title text default '', namespace text default '', blockkorea text default '', blockbot text default '', read text default '', edit text default '', del text default '', discuss text default '', move text default '')");
 			} catch(e) {}
 		} case 2: {
 			// 역링크 테이블에 문서 존재 여부 열 추가
