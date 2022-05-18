@@ -1838,27 +1838,27 @@ wiki.get('/', redirectToFrontPage);
 
 wiki.get(/^\/sidebar[.]json$/, (req, res) => {
 	curs.execute("select time, title, namespace from history where namespace = '문서' order by cast(time as integer) desc limit 1000")
-	.then(async dbdata => {
-		var ret = [], cnt = 0, used = [];
-		for(var item of dbdata) {
-			if(used.includes(item.title)) continue;
-			used.push(item.title);
-			
-			const del = (await curs.execute("select title from documents where title = ? and namespace = ?", [item.title, item.namespace])).length;
-			ret.push({
-				document: totitle(item.title, item.namespace) + '',
-				status: (del ? 'normal' : 'delete'),
-				date: Math.floor(Number(item.time) / 1000),
-			});
-			cnt++;
-			if(cnt > 20) break;
-		}
-		res.json(ret);
-	})
-	.catch(e => {
-		print(e.stack);
-		res.json('[]');
-	});
+		.then(async dbdata => {
+			var ret = [], cnt = 0, used = [];
+			for(var item of dbdata) {
+				if(used.includes(item.title)) continue;
+				used.push(item.title);
+				
+				const del = (await curs.execute("select title from documents where title = ? and namespace = ?", [item.title, item.namespace])).length;
+				ret.push({
+					document: totitle(item.title, item.namespace) + '',
+					status: (del ? 'normal' : 'delete'),
+					date: Math.floor(Number(item.time) / 1000),
+				});
+				cnt++;
+				if(cnt > 20) break;
+			}
+			res.json(ret);
+		})
+		.catch(e => {
+			print(e.stack);
+			res.json('[]');
+		});
 });
 
 wiki.get(/^\/complete\/(.*)/, (req, res) => {
@@ -2070,6 +2070,64 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		
 		var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 		lstedt = Number(data[0].time);
+		
+		if(doc.namespace == '분류') {
+			const dbdata = await curs.execute("select title, namespace, type from backlink where type = 'category' and link = ? and linkns = ?", [doc.title, doc.namespace]);
+			const _nslist = dbdata.map(item => item.namespace);
+			const nslistd = fetchNamespaces().filter(item => _nslist.includes(item));
+			const nslist = (nslistd.includes('분류') ? ['분류'] : []).concat(nslistd.filter(item => item != '분류'));
+			var nsopt = '';
+			for(var ns of nslist) {
+				const data = dbdata.filter(item => item.namespace == ns);
+				var cnt = data.length;
+				if(!cnt) continue;
+				
+				var indexes = {};
+				const hj = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+				const ha = ['가', '나', '다', '라', '마', '바', '사', '아', '자', '차', '카', '타', '파', '하', String.fromCharCode(55204)];
+				for(var item of data) {
+					if(!item) continue;
+					var chk = 0;
+					for(var i=0; i<ha.length-1; i++) {
+						const fchr = item.title[0].charCodeAt(0);
+						
+						if((hj[i].includes(item.title[0])) || (fchr >= ha[i].charCodeAt(0) && fchr < ha[i+1].charCodeAt(0))) {
+							if(!indexes[hj[i]]) indexes[hj[i]] = [];
+							indexes[hj[i]].push(item);
+							chk = 1;
+							break;
+						}
+					} if(!chk) {
+						if(!indexes[item.title[0]]) indexes[item.title[0]] = [];
+						indexes[item.title[0]].push(item);
+					}
+				}
+				
+				content += `
+					<h2 class=wiki-heading>${ns == '분류' ? '하위 분류' : ('"' + doc.title + '" 분류에 속하는 ' + ns)}</h2>
+					<div>전체 ${cnt}개 문서</div>
+				`;
+				
+				var listc = '<div class=wiki-category-container>';
+				var list = '';
+				for(var idx of Object.keys(indexes).sort()) {
+					list += `
+						<div>
+							<h3 class=wiki-heading>${html.escape(idx)}</h3>
+							<ul class=wiki-list>
+					`;
+					for(var item of indexes[idx])
+						list += `
+							<li>
+								<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(totitle(item.title, item.namespace) + '')}</a>
+							</li>
+						`;
+					list += '</ul></div>';
+				}
+				listc += list + '</div>';
+				content += listc;
+			}
+		}
 	}
 	
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
@@ -2082,7 +2140,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	}, _, error, viewname));
 });
 
-wiki.get(/^\/raw\/(.*)/, async function API_viewRaw_v2(req, res) {
+wiki.get(/^\/raw\/(.*)/, async(req, res) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	const rev = req.query['rev'];
@@ -2315,41 +2373,44 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 	header += skinconfig['additional_heads'];
 	
 	res.send(`
-		<head>
-			<meta charset=utf8 />
-			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-		${hostconfig.use_external_css ? `
-			<link rel=stylesheet href="https://theseed.io/css/diffview.css">
-			<link rel=stylesheet href="https://theseed.io/css/katex.min.css">
-			<link rel=stylesheet href="https://theseed.io/css/wiki.css">
-		` : `
-			<link rel=stylesheet href="/css/diffview.css">
-			<link rel=stylesheet href="/css/katex.min.css">
-			<link rel=stylesheet href="/css/wiki.css">
-		`}
-		${hostconfig.use_external_js ? `
-			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-			<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
-			<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
-			<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
-			<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
+		<!DOCTYPE html>
+		<html>
+			<head>
+				<meta charset=utf8 />
+				<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+			${hostconfig.use_external_css ? `
+				<link rel=stylesheet href="https://theseed.io/css/diffview.css">
+				<link rel=stylesheet href="https://theseed.io/css/katex.min.css">
+				<link rel=stylesheet href="https://theseed.io/css/wiki.css">
+			` : `
+				<link rel=stylesheet href="/css/diffview.css">
+				<link rel=stylesheet href="/css/katex.min.css">
+				<link rel=stylesheet href="/css/wiki.css">
+			`}
+			${hostconfig.use_external_js ? `
+				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+				<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+				<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
+				<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
+				<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
+				
+			` : `
+				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+				<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
+				<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
+				<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
+				<script type="text/javascript" src="/js/theseed.js?24141115"></script>
+			`}
+				${header}
+			</head>
 			
-		` : `
-			<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-			<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
-			<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
-			<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
-			<script type="text/javascript" src="/js/theseed.js?24141115"></script>
-		`}
-			${header}
-		</head>
-		
-		<body>
-			<h1 class=title>${html.escape(doc + '')}</h1>
-			<div class=wiki-article>
-				${await markdown(req.body['text'], 0, doc + '', 'preview')}
-			</div>
-		</body>
+			<body>
+				<h1 class=title>${html.escape(doc + '')}</h1>
+				<div class=wiki-article>
+					${await markdown(req.body['text'], 0, doc + '', 'preview')}
+				</div>
+			</body>
+		</html>
 	`);
 });
 
