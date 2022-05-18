@@ -2119,7 +2119,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 					for(var item of indexes[idx])
 						list += `
 							<li>
-								<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(totitle(item.title, item.namespace) + '')}</a>
+								<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(item.title)}</a>
 							</li>
 						`;
 					list += '</ul></div>';
