@@ -51,6 +51,7 @@ function fetchComments(tnum) {
 	if($(loadingRes2).length) {
 		var loadingID = $(loadingRes2)[0].getAttribute('data-id');
 		$(loadingRes2).attr('data-locked', 'true');
+		window.status = '#' + loadingID + '번 댓글을 불러오는 중...';
 
 		$.ajax({
 			type: "GET",
@@ -62,13 +63,14 @@ function fetchComments(tnum) {
 				data.filter('div.res-wrapper').each(function() {
 					var itm = $(this);
 					var res = $('div.res-wrapper.res-loading[data-id="' + itm.attr('data-id') + '"]');
-					
+					window.status = '#' + itm.attr('data-id') + '번 댓글을 불러오는 중...';
 					res.after(itm).remove();
 					itm.find('time').each(function () {
 						$(this).html(formatDate(new Date($(this).attr('datetime')), $(this).attr('data-format')));
 					});
 				});
-
+				
+				window.status = '완료';
 			},
 			error: function(e) {
 			}
@@ -175,6 +177,9 @@ function discussPollStart(tnum) {
 			success: function(data) {
 				var tid = atoi(data['comment_id']);
 				var rescount = $('#res-container div.res-wrapper').length;
+				if(rescount < tid) {
+					window.status = '새로운 댓글 ' + (tid - rescount) + '개가 있습니다.';
+				}
 
 				for(var i=rescount+1; i<=tid; i++, rescount++) {
 					$('div.res-wrapper[data-id="' + itoa(rescount) + '"]').after($(
@@ -218,3 +223,4 @@ window.discussPollStart = discussPollStart;
 setTimeout(() => window.discussPollStart = discussPollStart, 1);
 setTimeout(() => window.discussPollStart = discussPollStart, 2);
 setTimeout(() => window.discussPollStart = discussPollStart, 3);
+
