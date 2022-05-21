@@ -2126,16 +2126,78 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	}
 	
 	const dpg = await curs.execute("select tnum, time from threads where namespace = ? and title = ? and status = 'normal'", [doc.namespace, doc.title]);
+	var star_count = 0, starred = false;
+	
+	if(rawContent.length) {
+		var dbdata = await curs.execute("select title, namespace from stars where username = ? and title = ? and namespace = ?", [ip_check(req), doc.title, doc.namespace]);
+		if(dbdata.length) starred = true;
+		var dd = await curs.execute("select count(title) from stars where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		star_count = dd[0]['count(title)'];
+	}
 	
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
-		star_count: minor >= 9 ? 0 : undefined,
-		starred: minor >= 9 ? false : undefined,
+		star_count: minor >= 9 && rawContent.length ? star_count : undefined,
+		starred: minor >= 9 && rawContent.length ? starred : undefined,
 		date: lstedt,
 		document: doc,
 		rev,
 		user: doc.namespace == '사용자' ? true : false,
 		discuss_progress: dpg.length ? true : false,
 	}, _, error, viewname));
+});
+
+if(minor >= 9) wiki.get(/^\/member\/star\/(.*)$/, async (req, res) => {
+	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
+	
+	const title = req.params[0];
+	const doc = processTitle(title);
+	
+	var dbdata = await curs.execute("select title, namespace from stars where username = ? and title = ? and namespace = ?", [ip_check(req), doc.title, doc.namespace]);
+	if(dbdata.length) return res.send(await showError(req, 'already_starred_document'));
+	
+	var dbdata = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+	if(!dbdata.length) return res.send(await showError(req, 'document_not_found'));
+	
+	await curs.execute('insert into stars (title, namespace, username, lastedit) values (?, ?, ?, ?)', [doc.title, doc.namespace, ip_check(req), dbdata[0]['time']]);
+
+	res.redirect('/w/' + encodeURIComponent(title));
+});
+
+if(minor >= 9) wiki.get(/^\/member\/unstar\/(.*)$/, async (req, res) => {
+	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
+	
+	const title = req.params[0];
+	const doc = processTitle(title);
+	
+	var dbdata = await curs.execute("select title, namespace from stars where username = ? and title = ? and namespace = ?", [ip_check(req), doc.title, doc.namespace]);
+	if(!dbdata.length) return res.send(await showError(req, 'already_unstarred_document'));
+	
+	var dbdata = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+	if(!dbdata.length) return res.send(await showError(req, 'document_not_found'));
+	
+	
+	await curs.execute('delete from stars where title = ? and namespace = ? and username = ?', [doc.title, doc.namespace, ip_check(req)]);
+
+	res.redirect('/w/' + encodeURIComponent(title));
+});
+
+
+if(minor >= 9) wiki.get(/^\/member\/starred_documents$/, async (req, res) => {
+	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/starred_documents'));
+	
+	var dd = await curs.execute("select title, namespace, lastedit from stars where username = ? order by cast(lastedit as integer) desc", [ip_check(req)]);
+	var content = `<ul class=wiki-list>`;
+	for(var doc of dd) {
+		content += `
+			<li>
+				<a href="/w/${encodeURIComponent(totitle(doc.title, doc.namespace) + '')}">${html.escape(totitle(doc.title, doc.namespace) + '')}</a> (수정시각:${generateTime(toDate(doc.lastedit), timeFormat)})
+			</li>
+		`;
+	}
+	
+	content += '</ul>';
+
+	res.send(await render(req, '내 문서함', content, {}, _, _, 'starred_documents'));
 });
 
 wiki.get(/^\/raw\/(.*)/, async(req, res) => {
