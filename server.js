@@ -1,6 +1,5 @@
 /* 병아리 엔진 - the seed 모방 프로젝트 */
 
-// 기본 모듈
 const http = require('http');
 const https = require('https');
 const path = require('path');
@@ -61,9 +60,7 @@ wiki.use(express.static('public'));
 wiki.use(session({
 	key: 'kotori',
 	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
-	cookie: {
-		expires: false,
-	},
+	cookie: { expires: false },
 	resave: false,
     saveUninitialized: true,
 }));
@@ -80,29 +77,6 @@ var perms = [
 	'aclgroup', 'api_access', 
 ];
 
-// 배열에서 찾기
-const find = (obj, fnc) => {
-    if(typeof(obj) != 'object') {
-        throw TypeError(`Cannot find from ${typeof(obj)}`);
-    }
-    
-    if(typeof(fnc) != 'function') {
-        throw TypeError(`${fnc} is not a function`);
-    }
-    
-    for(var i in obj) {
-        if(fnc(obj[i])) return i;
-    }
-    
-    return -1;
-};
-
-// 함수형 조건문
-function iff(condition, thenf, elsef) {
-	if(condition) thenf(condition);
-	else if(elsef) elsef(condition);
-}
-
 // 로그출력
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
@@ -110,7 +84,7 @@ function prt(x) { process.stdout.write(x); }
 // 삐
 function beep(cnt = 1) { // 경고음 재생
 	for(var i=1; i<=cnt; i++)
-		prt("");
+		prt('');
 }
 
 // 입력받기
@@ -119,8 +93,6 @@ function input(prpt) {
 	return inputReader.readLine('');
 }
 
-const exec = eval;
-
 // SHA-3 암호화
 function sha3(str, bit) {
     const hash = new SHA3(bit || 256);
@@ -128,18 +100,11 @@ function sha3(str, bit) {
     return hash.digest('hex');
 }
 
-// VB6 함수 모방
-function Split(str, del) { return str.split(del); }; const split = Split;
-function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
-function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
-
 // 파이선 SQLite 모방
-conn.commit = function() {};
-conn.sd = [];
 const curs = {
 	execute(sql, params = []) {
 		return new Promise((resolve, reject) => {
-			if(UCase(sql).startsWith("SELECT")) {
+			if(sql.toUpperCase().startsWith("SELECT")) {
 				conn.all(sql, params, (err, retval) => {
 					if(err) return reject(err);
 					conn.sd = retval;
@@ -152,10 +117,7 @@ const curs = {
 				});
 			}
 		});
-	},
-	fetchall() {
-		return conn.sd;
-	},
+	}
 };
 
 // 데이타 베이스에 추가
@@ -176,8 +138,7 @@ function insert(table, obj) {
 wiki.disable('x-powered-by');
 
 // 현재 시간 타임스탬프
-function getTime() { return Math.floor(new Date().getTime()); }; 
-const get_time = getTime;
+function getTime() { return Math.floor(new Date().getTime()); };
 
 // 시간 포맷
 function toDate(t) {
@@ -209,7 +170,7 @@ function islogin(req) {
 }
 
 // 아이디 확인
-function getUsername(req, forceIP = 0) {
+function ip_check(req, forceIP = 0) {
 	if(!forceIP && req.session.username) {
 		return req.session.username;
 	} else {
@@ -220,7 +181,6 @@ function getUsername(req, forceIP = 0) {
 		}
 	}
 }
-const ip_check = getUsername;
 
 // 사용자설정 가져오기
 function getUserset(req, str, def = '') {
@@ -302,24 +262,16 @@ try {
 		minor = Number(sp[1]);
 		revision = Number(sp[2]);
 	}
-		
-	if(minor >= 18) {
-		perms = perms.filter(item => !['ipacl', 'suspend_account'].includes(item));
-	} else {
-		perms = perms.filter(item => !['aclgroup'].includes(item));
-	}
-	
-	if(minor >= 2) {
-		perms = perms.filter(item => !['acl'].includes(item));
-	}
-	
-	if(minor < 20) {
-		perms = perms.filter(item => !['api_access'].includes(item));
-	}
+	if(minor >= 18) perms = perms.filter(item => !['ipacl', 'suspend_account'].includes(item));
+	else perms = perms.filter(item => !['aclgroup'].includes(item));
+	if(minor >= 2) perms = perms.filter(item => !['acl'].includes(item));
+	if(minor < 20) perms = perms.filter(item => !['api_access'].includes(item));
+	if(hostconfig.debug) perms.push('debug');
 } catch(e) { (async function() {
 	print('병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n');
 	
 	if(typeof hostconfig != 'object')
+	
 	// 호스팅 설정
 	hostconfig = {
 		host: input('호스트 주소: '),
@@ -329,17 +281,15 @@ try {
 		search_port: '25005',
 		owners: [input('소유자 닉네임: ')],
 	};
-	
 	hostconfig.uninitialized = false;
 	
-	// 생성할 테이블
+	// 만들 테이블
 	const tables = {
 		'documents': ['title', 'content', 'namespace', 'time'],
 		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags'],
 		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
 		'users': ['username', 'password'],
 		'user_settings': ['username', 'key', 'value'],
-		// 'acl': ['title', 'no', 'type', 'content', 'action', 'expire'],
 		'nsacl': ['namespace', 'no', 'type', 'content', 'action', 'expire'],
 		'config': ['key', 'value'],
 		'email_filters': ['address'],
@@ -364,8 +314,7 @@ try {
 		'trusted_devices': ['username', 'id'],
 	};
 	
-	
-	// 테이블 생성
+	// 테이블 만들기
 	for(var table in tables) {
 		var sql = '';
 		sql = `CREATE TABLE ${table} ( `;
@@ -3987,8 +3936,8 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	
 	do {
 		tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
-		await curs.execute("select tnum from threads where tnum = ?", [tnum]);
-		if(!curs.fetchall().length) break;
+		var dd = await curs.execute("select tnum from threads where tnum = ?", [tnum]);
+		if(!dd.length) break;
 	} while(1);
 	
 	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum) values (?, ?, ?, ?, ?, ?)",
@@ -4394,8 +4343,8 @@ wiki.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/delete/, async function delete
 
 wiki.post(/^\/notify\/thread\/([a-zA-Z0-9]{18,24})$/, async function notifyEvent(req, res) {
 	var tnum = req.params[0];
-	await curs.execute("select id from res where tnum = ?", [tnum]);
-	const rescount = curs.fetchall().length;
+	var dd = await curs.execute("select id from res where tnum = ?", [tnum]);
+	const rescount = dd.length;
 	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
 	var data = await curs.execute("select id from res where tnum = ? order by cast(time as integer) desc limit 1", [tnum]);
 	res.json({
