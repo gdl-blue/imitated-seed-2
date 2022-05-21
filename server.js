@@ -5116,6 +5116,10 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 		if(!ip.includes('/')) ip += '/32';
 		if(!ip.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/)) error = true, content = alertBalloon(fetchErrorString('invalid_cidr'), 'danger', true, 'fade in') + content;
 		else {
+			if(!note) {
+				return res.send(await render(req, 'IPACL', alertBalloon(fetchErrorString('validator_required', '메모'), 'danger', true, 'fade in') + content, {
+				}, '', true, 'ipacl'));
+			}
 			const date = getTime();
 			if(isNaN(Number(expire))) {
 				return res.send(await render(req, 'IPACL', alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content, {
