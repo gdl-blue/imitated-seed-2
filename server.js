@@ -1034,6 +1034,68 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	// 각주
 	if(fnhtml) data += fnhtml;
 	
+	if(!discussion && doc.namespace == '분류') {
+		let content = '';
+		
+		const dbdata = await curs.execute("select title, namespace, type from backlink where type = 'category' and link = ? and linkns = ?", [doc.title, doc.namespace]);
+		const _nslist = dbdata.map(item => item.namespace);
+		const nslistd = fetchNamespaces().filter(item => _nslist.includes(item));
+		const nslist = (nslistd.includes('분류') ? ['분류'] : []).concat(nslistd.filter(item => item != '분류'));
+		let nsopt = '';
+		for(let ns of nslist) {
+			const data = dbdata.filter(item => item.namespace == ns);
+			let cnt = data.length;
+			if(!cnt) continue;
+			
+			let indexes = {};
+			const hj = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+			const ha = ['가', '나', '다', '라', '마', '바', '사', '아', '자', '차', '카', '타', '파', '하', String.fromCharCode(55204)];
+			for(let item of data) {
+				if(!item) continue;
+				let chk = 0;
+				for(let i=0; i<ha.length-1; i++) {
+					const fchr = item.title[0].toUpperCase().charCodeAt(0);
+					
+					if((hj[i].includes(item.title[0])) || (fchr >= ha[i].charCodeAt(0) && fchr < ha[i+1].charCodeAt(0))) {
+						if(!indexes[hj[i]]) indexes[hj[i]] = [];
+						indexes[hj[i]].push(item);
+						chk = 1;
+						break;
+					}
+				} if(!chk) {
+					if(!indexes[item.title[0].toUpperCase()]) indexes[item.title[0].toUpperCase()] = [];
+					indexes[item.title[0].toUpperCase()].push(item);
+				}
+			}
+			
+			content += `
+				<h2 class=wiki-heading>${ns == '분류' ? '하위 분류' : ('"' + doc.title + '" 분류에 속하는 ' + ns)}</h2>
+				<div>전체 ${cnt}개 문서</div>
+			`;
+			
+			let listc = '<div class=wiki-category-container>';
+			let list = '';
+			for(let idx of Object.keys(indexes).sort()) {
+				list += `
+					<div>
+						<h3 class=wiki-heading>${html.escape(idx)}</h3>
+						<ul class=wiki-list>
+				`;
+				for(let item of indexes[idx])
+					list += `
+						<li>
+							<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(item.title)}</a>
+						</li>
+					`;
+				list += '</ul></div>';
+			}
+			listc += list + '</div>';
+			content += listc;
+		}
+		
+		data += content;
+	}
+	
 	if(!discussion) data = '<div class="wiki-content clearfix">' + data + '</div>';
 	
 	// 분류
@@ -2046,64 +2108,6 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		
 		var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 		lstedt = Number(data[0].time);
-		
-		if(doc.namespace == '분류') {
-			const dbdata = await curs.execute("select title, namespace, type from backlink where type = 'category' and link = ? and linkns = ?", [doc.title, doc.namespace]);
-			const _nslist = dbdata.map(item => item.namespace);
-			const nslistd = fetchNamespaces().filter(item => _nslist.includes(item));
-			const nslist = (nslistd.includes('분류') ? ['분류'] : []).concat(nslistd.filter(item => item != '분류'));
-			var nsopt = '';
-			for(var ns of nslist) {
-				const data = dbdata.filter(item => item.namespace == ns);
-				var cnt = data.length;
-				if(!cnt) continue;
-				
-				var indexes = {};
-				const hj = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-				const ha = ['가', '나', '다', '라', '마', '바', '사', '아', '자', '차', '카', '타', '파', '하', String.fromCharCode(55204)];
-				for(var item of data) {
-					if(!item) continue;
-					var chk = 0;
-					for(var i=0; i<ha.length-1; i++) {
-						const fchr = item.title[0].toUpperCase().charCodeAt(0);
-						
-						if((hj[i].includes(item.title[0])) || (fchr >= ha[i].charCodeAt(0) && fchr < ha[i+1].charCodeAt(0))) {
-							if(!indexes[hj[i]]) indexes[hj[i]] = [];
-							indexes[hj[i]].push(item);
-							chk = 1;
-							break;
-						}
-					} if(!chk) {
-						if(!indexes[item.title[0].toUpperCase()]) indexes[item.title[0].toUpperCase()] = [];
-						indexes[item.title[0].toUpperCase()].push(item);
-					}
-				}
-				
-				content += `
-					<h2 class=wiki-heading>${ns == '분류' ? '하위 분류' : ('"' + doc.title + '" 분류에 속하는 ' + ns)}</h2>
-					<div>전체 ${cnt}개 문서</div>
-				`;
-				
-				var listc = '<div class=wiki-category-container>';
-				var list = '';
-				for(var idx of Object.keys(indexes).sort()) {
-					list += `
-						<div>
-							<h3 class=wiki-heading>${html.escape(idx)}</h3>
-							<ul class=wiki-list>
-					`;
-					for(var item of indexes[idx])
-						list += `
-							<li>
-								<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(item.title)}</a>
-							</li>
-						`;
-					list += '</ul></div>';
-				}
-				listc += list + '</div>';
-				content += listc;
-			}
-		}
 	}
 	
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
