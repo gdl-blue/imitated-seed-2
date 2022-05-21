@@ -2002,8 +2002,10 @@ wiki.get(/^\/search\/(.*)/, async(req, res) => {
 				reshtml += `
 					<div class=search-item>
 						<h4>
-							<i class=ion-document></i>
-							<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a>
+							<a href="/w/${encodeURIComponent(title)}">
+								<span class="icon ion-android-document arrow-circle"></span>
+								${html.escape(title)}
+							</a>
 						</h4>
 						<div>
 							${item.content}
@@ -2013,24 +2015,18 @@ wiki.get(/^\/search\/(.*)/, async(req, res) => {
 			}
 			reshtml += `
 				<nav class=pull-right>
-					<ul class=pagination>${Number(ret.page) > 1 ? `
-						<li class=page-item>
-							<a class=page-link href="?page=${Number(ret.page) - 1}">&lt;</a>
-						</li>` : ''}
+					<ul class=pagination>
 			`;
 			var lp = (ret.page / 10) * 10 + 10;
 			var max = ret.lastpage < lp ? ret.lastpage : lp;
 			for(var i=Math.floor(ret.page / 10) * 10 + 1; i<=max; i++) {
 				reshtml += `
-					<li class="page-item${ret.page == i ? ' active' : ''}">
+					<li class=page-item>
 						<a class=page-link href="?page=${i}">${i}</a>
 					</li>
 				`;
 			}
-			if(ret.page < ret.lastpage) reshtml += `
-							<li class=page-item>
-								<a class=page-link href="?page=${Number(ret.page) + 1}">&gt;</a>
-							</li>
+			reshtml += `
 						</ul>
 					</nav>
 				</section>
