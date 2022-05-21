@@ -5336,63 +5336,62 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 	
 	content = `
 		<form method="post" id="uploadForm" enctype="multipart/form-data" accept-charset="utf8">
-			<div class=form-group>
-				<input type=hidden name=baserev value="0" />
-				<input type="file" id="fileInput" name="file" hidden="" />
-				<input type=hidden name=identifier value="${islogin(req) ? 'm' : 'i'}:${html.escape(ip_check(req))}" />
-				
-				<div class="row">
-					<div class="col-xs-12 col-md-7 form-group">
-						<label class=control-label for="fakeFileInput">파일 선택</label>
-						<div class="input-group">
-							<input type="text" class=form-control id="fakeFileInput" readonly="" />
-							<span class="input-group-btn">
-								<button class="btn btn-secondary" type="button" id="fakeFileButton">Select</button>
-							</span>
-						</div>
+			<input type=hidden name=baserev value="0" />
+			<input type="file" id="fileInput" name="file" hidden="" />
+			<input type=hidden name=identifier value="${islogin(req) ? 'm' : 'i'}:${html.escape(ip_check(req))}" />
+			
+			<div class="row">
+				<div class="col-xs-12 col-md-7 form-group">
+					<label class=control-label for="fakeFileInput">파일 선택</label>
+					<div class="input-group">
+						<input type="text" class=form-control id="fakeFileInput" readonly="" />
+						<span class="input-group-btn">
+							<button class="btn btn-secondary" type="button" id="fakeFileButton">Select</button>
+						</span>
 					</div>
 				</div>
-				
-				<div class="row">
-					<div class="col-xs-12 col-md-7 form-group">
-						<label class=control-label for="fakeFileInput">파일 이름</label>
-						<input type="text" class=form-control name="document" id=documentInput value="${html.escape(req.method == 'POST' ? req.body['document'] : '')}" />
-					</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-xs-12 col-md-7 form-group">
+					<label class=control-label for="fakeFileInput">파일 이름</label>
+					<input type="text" class=form-control name="document" id=documentInput value="${html.escape(req.method == 'POST' ? req.body['document'] : '')}" />
 				</div>
+			</div>
 
-				<textarea name="text" type="text" rows="25" id="textInput" class=form-control>${(req.method == 'POST' ? req.body['text'] : '').replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
-			${req.method == 'GET' ? `
-				<div class=row>
-					<div class="col-xs-12 col-md-5 form-group">
-						<label class=control-label for="licenseSelect">라이선스</label>
-						<select id=licenseSelect class=form-control>${ liceopts }</select>
-					</div>
+			<textarea name="text" type="text" rows="25" id="textInput" class=form-control>${(req.method == 'POST' ? req.body['text'] : '').replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
+		${req.method == 'GET' ? `
+			<div class=row>
+				<div class="col-xs-12 col-md-5 form-group">
+					<label class=control-label for="licenseSelect">라이선스</label>
+					<select id=licenseSelect class=form-control>${ liceopts }</select>
 				</div>
-				
-				<p style="font-weight: bold; color: red;">[주의!] 파일문서의 라이선스(문서 본문)와 올리는 파일의 라이선스는 다릅니다. 파일의 라이선스를 올바르게 지정하였는지 확인하세요.</p>
-				
-				<div class=row>
-					<div class="col-xs-12 col-md-5 form-group">
-						<label class=control-label for="categorySelect">분류</label>
-						<select id=categorySelect class=form-control>
-							<option value>선택</option>
-							${cateopts}
-						</select>
-					</div>
+			</div>
+			
+			<p style="font-weight: bold; color: red;">[주의!] 파일문서의 라이선스(문서 본문)와 올리는 파일의 라이선스는 다릅니다. 파일의 라이선스를 올바르게 지정하였는지 확인하세요.</p>
+			
+			<div class=row>
+				<div class="col-xs-12 col-md-5 form-group">
+					<label class=control-label for="categorySelect">분류</label>
+					<select id=categorySelect class=form-control>
+						<option value>선택</option>
+						${cateopts}
+					</select>
 				</div>
-			` : ''}
-				<div class="form-group">
-					<label class=control-label>요약</label>
-					<input type="text" id="logInput" class=form-control name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
-				</div>
-				
-				<p>${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</p>
-				
-				${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
-				
-				<div class="btns">
-					<button id="uploadBtn" type="submit" class="btn btn-primary">올리기</button>
-				</div>
+			</div>
+		` : ''}
+			<div class="form-group">
+				<label class=control-label>요약</label>
+				<input type="text" id="logInput" class=form-control name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
+			</div>
+			
+			<p>${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</p>
+			
+			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
+			
+			<div class="btns">
+				<button id="uploadBtn" type="submit" class="btn btn-primary">올리기</button>
+			</div>
 		</form>
 		
 		<script>uploadInit();</script>
