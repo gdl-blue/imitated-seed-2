@@ -2650,7 +2650,7 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 	for(var i=0; i<skinconfig["auto_js_targets"]['*'].length; i++) {
 		header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + skinconfig["auto_js_targets"]['*'][i]['path'] + '"></script>';
 	}
-	header += skinconfig['additional_heads'];
+	header += skinconfig.additional_heads;
 	
 	return res.send(`
 		<head>
@@ -2729,7 +2729,7 @@ wiki.post(/^\/edit_request\/(\d+)\/accept$/, async(req, res, next) => {
 	}
 	var original = await curs.execute("select content from documents where title = ? and namespace = ?", [item.title, item.namespace]);
 	if(!original[0]) original = '';
-	else original = original[0]['content'];
+	else original = original[0].content;
 	
 	const rawChanges = item.content.length - original.length;
 	const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
@@ -2751,6 +2751,10 @@ wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 	if(!data.length) return res.send(await showError(req, 'edit_request_not_found'));
 	const item = data[0];
 	const doc = totitle(item.title, item.namespace);
+	
+	const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) return res.status(403).send(await showError(req, 'insufficient_privileges_read'));
+	
 	var data = await curs.execute("select content from history where title = ? and namespace = ? and rev = ?", [item.title, item.namespace, item.baserev]);
 	var base = '';
 	if(data.length) base = data[0].content;
@@ -2763,26 +2767,26 @@ wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 			const editable   = ((islogin(req) ? 'author' : 'ip') == item.ismember && item.username == ip_check(req));
 			
 			card = `
-				<h4 class="card-title">이 편집 요청을...</h4>
-				<p class="card-text">${generateTime(toDate(item.lastupdate), timeFormat)}에 마지막으로 수정됨</p>
-				<form id="edit-request-accept-form" action="/edit_request/${id}/accept" method=post style="display: inline;">
-					<button${acceptable ? '' : ' disabled'} class="btn btn-lg btn-success${acceptable ? '' : ' disabled'}" data-toggle="tooltip" data-placement="top" title="${acceptable ? '이 편집 요청을 문서에 적용합니다.' : '이 문서를 편집할 수 있는 권한이 없습니다.'}" type="submit">Accept</button>
+				<h4 class=card-title>이 편집 요청을...</h4>
+				<p class=card-text>${generateTime(toDate(item.lastupdate), timeFormat)}에 마지막으로 수정됨</p>
+				<form id=edit-request-accept-form action="/edit_request/${id}/accept" method=post style="display: inline;">
+					<button${acceptable ? '' : ' disabled'} class="btn btn-lg btn-success${acceptable ? '' : ' disabled'}" data-toggle=tooltip data-placement=top title="${acceptable ? '이 편집 요청을 문서에 적용합니다.' : '이 문서를 편집할 수 있는 권한이 없습니다.'}" type=submit>Accept</button>
 				</form>
-				<span data-toggle="modal" data-target="#edit-request-close-modal">
-					<button${closable ? '' : ' disabled'} class="btn btn-lg${closable ? '' : ' disabled'}" data-toggle="tooltip" data-placement="top" title="${closable ? '이 편집 요청을 닫습니다.' : '편집 요청을 닫기 위해서는 요청자 본인이거나 권한이 있어야 합니다.'}" type="button">Close</button>
+				<span data-toggle=modal data-target="#edit-request-close-modal">
+					<button${closable ? '' : ' disabled'} class="btn btn-lg${closable ? '' : ' disabled'}" data-toggle=tooltip data-placement=top title="${closable ? '이 편집 요청을 닫습니다.' : '편집 요청을 닫기 위해서는 요청자 본인이거나 권한이 있어야 합니다.'}" type=button>Close</button>
 				</span>
-				<a class="btn btn-info btn-lg${editable ? '' : ' disabled'}" data-toggle="tooltip" data-placement="top" title="${editable ? '이 편집 요청을 수정합니다.' : '요청자 본인만 수정할 수 있습니다.'}" href="/edit_request/${id}/edit">Edit</a>
+				<a class="btn btn-info btn-lg${editable ? '' : ' disabled'}" data-toggle=tooltip data-placement=top title="${editable ? '이 편집 요청을 수정합니다.' : '요청자 본인만 수정할 수 있습니다.'}" href="/edit_request/${id}/edit">Edit</a>
 			`;
 		} break; case 'closed': {
 			card = `
-				<h4 class="card-title">편집 요청이 닫혔습니다.</h4>
-				<p class="card-text">${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1)}가 편집 요청을 닫았습니다.</p>
-				${item.reason ? `<p class="card-text">사유 : ${html.escape(item.reason)}</p>` : ''}
+				<h4 class=card-title>편집 요청이 닫혔습니다.</h4>
+				<p class=card-text>${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1)}가 편집 요청을 닫았습니다.</p>
+				${item.reason ? `<p class=card-text>사유 : ${html.escape(item.reason)}</p>` : ''}
 			`;
 		} break; case 'accepted': {
 			card = `
-				<h4 class="card-title">편집 요청이 승인되었습니다.</h4>
-				<p class="card-text">${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1)}가 r${item.rev}으로 승인함.</p>
+				<h4 class=card-title>편집 요청이 승인되었습니다.</h4>
+				<p class=card-text>${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1)}가 r${item.rev}으로 승인함.</p>
 			`;
 		}
 	}
@@ -2790,43 +2794,43 @@ wiki.get(/^\/edit_request\/(\d+)$/, async(req, res, next) => {
 	var content = `
 		<h3> ${ip_pas(item.username, item.ismember, 1)}가 ${generateTime(toDate(item.date), timeFormat)}에 요청</h3>
 		<hr />
-		<div class="form-group">
-			<label class="control-label">기준 판</label> r${item.baserev}
+		<div class=form-group>
+			<label class=control-label>기준 판</label> r${item.baserev}
 		</div>
 		
-		<div class="form-group">
-			<label class="control-label">편집 요약</label> ${html.escape(item.log)}
+		<div class=form-group>
+			<label class=control-label>편집 요약</label> ${html.escape(item.log)}
 		</div>
 		
 		${item.state == 'open' ? `
-			<div id="edit-request-close-modal" class="modal fade" role="dialog" style="display: none;" aria-hidden="true">
-				<div class="modal-dialog">
-					<form id="edit-request-close-form" method="post" action="/edit_request/${id}/close">
-						<div class="modal-content">
-							<div class="modal-header">
-								<button type="button" class="close" data-dismiss="modal">×</button> 
-								<h4 class="modal-title">편집 요청 닫기</h4>
+			<div id=edit-request-close-modal class="modal fade" role=dialog style="display: none;" aria-hidden=true>
+				<div class=modal-dialog>
+					<form id=edit-request-close-form method=post action="/edit_request/${id}/close">
+						<div class=modal-content>
+							<div class=modal-header>
+								<button type=button class=close data-dismiss=modal>×</button> 
+								<h4 class=modal-title>편집 요청 닫기</h4>
 							</div>
-							<div class="modal-body">
+							<div class=modal-body>
 								<p>사유:</p>
-								<input name="close_reason" type="text"> 
+								<input name=close_reason type=text> 
 							</div>
-							<div class="modal-footer"> <button type="submit" class="btn btn-primary" style="width:auto">확인</button> <button type="button" class="btn btn-default" data-dismiss="modal" style="background:#efefef">취소</button> </div>
+							<div class=modal-footer> <button type=submit class="btn btn-primary">확인</button> <button type=button class="btn btn-default" data-dismiss=modal>취소</button> </div>
 						</div>
 					</form>
 				</div>
 			</div>
 		` : ''}
 		
-		<div class="card">
-			<div class="card-block">
+		<div class=card>
+			<div class=card-block>
 				${card}
 			</div>
 		</div>
 		
 		<br />
 		
-		${diff(base, item.content, '1', '2').replace('<th class="texttitle">1 vs. 2</th>', '<th class="texttitle"><a target=_blank href="/edit_request/' + id + '/preview">(미리보기)</a></th>')}
+		${item.state != 'accepted' ? diff(base, item.content, '1', '2').replace('<th class="texttitle">1 vs. 2</th>', '<th class="texttitle"><a target=_blank href="/edit_request/' + id + '/preview">(미리보기)</a></th>') : ''}
 	`;
 	
 	var error = false;
