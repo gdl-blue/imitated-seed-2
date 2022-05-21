@@ -39,6 +39,7 @@ var skinList = [];  // 스킨 목록 캐시
 var skincfgs = {};  // 스킨 구성설정 캐시
 
 var loginHistory = {};
+var neededPages = {};
 
 // https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
 // 무작위 문자열 생성
@@ -604,9 +605,9 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	const xref = flags.includes('backlinkinit');
 	
 	// 역링크 초기화
-	if(xref) {
+	if(xref)
 		await curs.execute("delete from backlink where title = ? and namespace = ?", [doc.title, doc.namespace]);
-	}
+	const xrefl = [];
 	
 	if(!data.includes('\n') && data.includes('\r')) data = data.replace(/\r/g, '\n');
 	if(data.includes('\n') && data.includes('\r')) data = data.replace(/\r\n/g, '\n');
@@ -866,7 +867,10 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		// 역링크
 		if(xref && !external) {
 			var linkdoc = processTitle(dest);
-			curs.execute("insert into backlink (title, namespace, link, linkns, type, exist) values (?, ?, ?, ?, 'link', ?)", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace, notexist ? '0' : '1']);
+			if(!xrefl.includes(linkdoc.title + '\n' + linkdoc.namespace)) {
+				xrefl.push(linkdoc.title + '\n' + linkdoc.namespace);
+				curs.execute("insert into backlink (title, namespace, link, linkns, type, exist) values (?, ?, ?, ?, 'link', ?)", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace, notexist ? '0' : '1']);
+			}
 		}
 	}
 	
@@ -1591,6 +1595,8 @@ function navbtn(total, start, end, href) {
 	href = href.split('?')[0];
 	start = Number(start);
 	end = Number(end);
+	total = Number(total);
+	
 	return `
 		<div class=btn-group role=group>
 			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
@@ -1603,16 +1609,34 @@ function navbtn(total, start, end, href) {
 	`;
 }
 
+function navbtnr(total, start, end, href) {
+	href = href.split('?')[0];
+	start = Number(start);
+	end = Number(end);
+	total = Number(total);
+	
+	return `
+		<div class=btn-group role=group>
+			<a ${start <= 1 ? '' : `href="${(href + '?until=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
+				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
+			</a>
+			<a ${end == total ? '' : `href="${(href + '?from=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
+				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
+			</a>
+		</div>
+	`;
+}
+
 function navbtnss(ts, te, start, end, href) {
 	href = href.split('?')[0];
 	start = start;
 	end = end;
 	return `
 		<div class=btn-group role=group>
-			<a ${end == te ? '' : `href="${(href + '?until=' + encodeURIComponent(end))}" `}class="btn btn-secondary btn-sm${end == te ? ' disabled' : ''}">
+			<a ${start == ts ? '' : `href="${(href + '?until=' + encodeURIComponent(start))}" `}class="btn btn-secondary btn-sm${start == ts ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
 			</a>
-			<a ${start == ts ? '' : `href="${(href + '?from=' + encodeURIComponent(start))}" `}class="btn btn-secondary btn-sm${start == ts ? ' disabled' : ''}">
+			<a ${end == te ? '' : `href="${(href + '?from=' + encodeURIComponent(end))}" `}class="btn btn-secondary btn-sm${end == te ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>
@@ -1706,7 +1730,7 @@ wiki.get('/css/:filepath', function sendCSS(req, res) {
 
 function processTitle(d) {
 	const sp = d.split(':');
-	var ns = sp[0];
+	var ns = sp.length > 1 ? sp[0] : '문서';
 	var title = d;
 	var forceShowNamespace = false;
 	var nslist = fetchNamespaces();
@@ -2150,7 +2174,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		baserev = 0;
 	}
 	
-	var textarea = `<textarea id="textInput" name="text" wrap="soft" class="form-control">${(req.method == 'POST' ? req.body['text'] : rawContent).replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`;
+	var textarea = `<textarea id="textInput" name="text" wrap="soft" class=form-control>${(req.method == 'POST' ? req.body['text'] : rawContent).replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`;
 	
 	content = `
 		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${html.escape(doc + '')}" data-recaptcha="0">
@@ -2196,8 +2220,8 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	} else {
 		content += `
 				<div class="form-group" style="margin-top: 1rem;">
-					<label class="control-label" for="summaryInput">요약</label>
-					<input type="text" class="form-control" id="logInput" name="log" value="${req.method == 'POST' ? html.escape(req.body['log']) : ''}" />
+					<label class=control-label for="summaryInput">요약</label>
+					<input type="text" class=form-control id="logInput" name="log" value="${req.method == 'POST' ? html.escape(req.body['log']) : ''}" />
 				</div>
 
 				<label><input ${req.cookies['agree'] == '1' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y"${req.method == 'POST' && req.body['agree'] == 'Y' ? ' checked' : ''}>&nbsp;${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
@@ -2268,7 +2292,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', alertBalloon('편집 도중에 다른 사용자가 먼저 편집을 했습니다.', 'danger', true, 'fade in edit-alert') + `
 				${diff(oc, text, 'r' + baserev, '사용자 입력')}
 				<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>
-			` + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class="form-control">${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`), {
+			` + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class=form-control>${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`), {
 				document: doc,
 			}, _, true, 'edit'));
 		}
@@ -2384,7 +2408,26 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 		)
 	);
 	
-	const dbdata = await curs.execute("select title, namespace, type from backlink where not type = 'category' and link = ? and linkns = ?" + (flag != '0' ? " and type = ?" : ''), [doc.title, doc.namespace].concat(flag != '0' ? [type] : []));
+	var sa = '', sd = [];
+	if(req.query['from']) {
+		sa = ' and title >= ? order by title asc ';
+		sd.push(req.query['from']);
+	} else if(req.query['until']) {
+		sa = ' and title <= ? order by title desc ';
+		sd.push(req.query['until']);
+	} else {
+		sa = ' order by title asc ';
+	}
+	const fd = await curs.execute("select title from backlink where not type = 'category' and link = ? and linkns = ? " + (flag != '0' ? " and type = ?" : '') + " order by title asc limit 1", [doc.title, doc.namespace].concat(flag != '0' ? [type] : []));
+	const ld = await curs.execute("select title from backlink where not type = 'category' and link = ? and linkns = ? " + (flag != '0' ? " and type = ?" : '') + " order by title desc limit 1", [doc.title, doc.namespace].concat(flag != '0' ? [type] : []));
+	const dbdata = await curs.execute("select title, namespace, type from backlink where not type = 'category' and link = ? and linkns = ? " + (flag != '0' ? " and type = ?" : '') + sa + " limit 50", [doc.title, doc.namespace].concat(flag != '0' ? [type] : []).concat(sd));
+	
+	try {
+		var navbtns = navbtnss(fd[0].title, ld[0].title, dbdata[0].title, dbdata[dbdata.length-1].title, (minor >= 14 ? '/backlink/' : '/xref/') + encodeURIComponent(title));
+	} catch(e) {
+		var navbtns = navbtn(0, 0, 0, 0);
+	}
+	
 	const _nslist = dbdata.map(item => item.namespace);
 	const nslist = fetchNamespaces().filter(item => _nslist.includes(item));
 	const counts = {};
@@ -2455,8 +2498,6 @@ wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) =
 			`;
 		list += '</ul></div>';
 	} listc += list + '</div>';
-	
-	const navbtns = navbtn(0, 0, 0, 0);
 	
 	content += `
 		${navbtns}
@@ -2822,7 +2863,7 @@ wiki.all(/^\/edit_request\/(\d+)\/edit$/, async(req, res, next) => {
 
 			<div class="tab-content bordered">
 				<div class="tab-pane active" id="edit" role="tabpanel">
-					<textarea id="textInput" name="text" wrap="soft" class="form-control">${html.escape(item.content)}</textarea>
+					<textarea id="textInput" name="text" wrap="soft" class=form-control>${html.escape(item.content)}</textarea>
 				</div>
 				<div class="tab-pane" id="preview" role="tabpanel">
 					
@@ -2830,8 +2871,8 @@ wiki.all(/^\/edit_request\/(\d+)\/edit$/, async(req, res, next) => {
 			</div>
 			
 			<div class="form-group" style="margin-top: 1rem;">
-				<label class="control-label" for="summaryInput">요약</label>
-				<input type="text" class="form-control" id="logInput" name="log" value="${html.escape(item.log)}" />
+				<label class=control-label for="summaryInput">요약</label>
+				<input type="text" class=form-control id="logInput" name="log" value="${html.escape(item.log)}" />
 			</div>
 
 			<label><input checked type="checkbox" name="agree" id="agreeCheckbox" value="Y" />&nbsp;${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</label>
@@ -2897,7 +2938,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 
 			<div class="tab-content bordered">
 				<div class="tab-pane active" id="edit" role="tabpanel">
-					<textarea id="textInput" name="text" wrap="soft" class="form-control">${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
+					<textarea id="textInput" name="text" wrap="soft" class=form-control>${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
 				</div>
 				<div class="tab-pane" id="preview" role="tabpanel">
 					
@@ -2905,8 +2946,8 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 			</div>
 			
 			<div class="form-group" style="margin-top: 1rem;">
-				<label class="control-label" for="summaryInput">요약</label>
-				<input type="text" class="form-control" id="logInput" name="log" value="">
+				<label class=control-label for="summaryInput">요약</label>
+				<input type="text" class=form-control id="logInput" name="log" value="">
 			</div>
 
 			<label><input ${req.method == 'POST' ? 'checked ' : ''}type="checkbox" name="agree" id="agreeCheckbox" value="Y">&nbsp;${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</strong></label>
@@ -3133,7 +3174,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 						content += `
 							<div class="form-inline">
 								<div class="form-group">
-									<label class="control-label">Condition :</label> 
+									<label class=control-label>Condition :</label> 
 									<div>
 										<select class="seed-acl-add-condition-type form-control" id="permTypeWTC">
 											<option value="perm">권한</option>
@@ -3149,7 +3190,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 									</div>
 								</div>
 								<div class="form-group">
-									<label class="control-label">Action :</label> 
+									<label class=control-label>Action :</label> 
 									<div>
 										<select class="seed-acl-add-action form-control">
 											<option value="allow">허용</option>
@@ -3159,7 +3200,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 									</div>
 								</div>
 								<div class="form-group">
-									<label class="control-label">Duration :</label> 
+									<label class=control-label>Duration :</label> 
 									<div>
 										<select class="form-control seed-acl-add-expire">
 											<option value="0" selected="">영구</option>
@@ -3610,21 +3651,14 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss$/, async function discussi
 
 wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	var title = req.params[0];
-	
 	const doc = processTitle(title);
 	title = totitle(doc.title, doc.namespace);
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-	if(aclmsg) {
-		return res.send(await showError(req, aclmsg, 1));
-	}
+	if(aclmsg) return res.status(403).send(await showError(req, aclmsg, 1));
 	
-	var total = (await curs.execute("select rev from history \
-		where title = ? and namespace = ?",
-		[doc.title, doc.namespace])).length;
-	
+	var total = (await curs.execute("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))[0]['count(rev)'];
 	var data;
-	
 	const from = req.query['from'];
 	const until = req.query['until'];
 	if(from) {
@@ -3871,13 +3905,13 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 				<form method="post" class="new-thread-form" id="topicForm">
 					<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">
 					<div class="form-group">
-						<label class="control-label" for="topicInput" style="margin-bottom: 0.2rem;">주제 :</label>
-						<input type="text" class="form-control" id="topicInput" name="topic">
+						<label class=control-label for="topicInput" style="margin-bottom: 0.2rem;">주제 :</label>
+						<input type="text" class=form-control id="topicInput" name="topic">
 					</div>
 
 					<div class="form-group">
-					<label class="control-label" for="contentInput" style="margin-bottom: 0.2rem;">내용 :</label>
-						<textarea name="text" class="form-control" id="contentInput" rows="5"></textarea>
+					<label class=control-label for="contentInput" style="margin-bottom: 0.2rem;">내용 :</label>
+						<textarea name="text" class=form-control id="contentInput" rows="5"></textarea>
 					</div>
 					
 					${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론 주제를 생성합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
@@ -4534,17 +4568,17 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		<form method="post">
 			<div>
 				<label>유저 이름 : </label><br />
-				<input class="form-control" id="usernameInput" name="username" style="width: 250px;" type="text" />
+				<input class=form-control id="usernameInput" name="username" style="width: 250px;" type="text" />
 			</div>
 			
 			<div>
 				<label>메모 : </label><br />
-				<input class="form-control" id="noteInput" name="note" style="width: 400px;" type="text" />
+				<input class=form-control id="noteInput" name="note" style="width: 400px;" type="text" />
 			</div>
 			
 			<div>
 				<label>기간 : </label><br /> 
-				<select class="form-control" name="expire" id="expire" style="width: 100%">
+				<select class=form-control name="expire" id="expire" style="width: 100%">
 					<option value="">선택</option>
 					<option value="-1">해제</option>
 					<option value="0">영구</option>
@@ -4846,11 +4880,12 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	const { from, until } = req.query;
 	
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
-	var fdata = await curs.execute("select cidr, al, expiration, note, date from ipacl order by cidr asc");
+	var ld   = await curs.execute("select cidr from ipacl order by cidr desc limit 1");
+	var fd   = await curs.execute("select cidr from ipacl order by cidr asc limit 1");
 	var data = await curs.execute("select cidr, al, expiration, note, date from ipacl " + (from ? "where cidr > ?" : (until ? "where cidr < ?" : "")) + " order by cidr " + (until ? 'desc' : 'asc') + " limit 50", (from || until ? [from || until] : []));
 	if(until) data = data.reverse();
 	try {
-		var navbtns = navbtnss(fdata[0].cidr, fdata[fdata.length-1].cidr, data[0].cidr, data[data.length-1].cidr, '/admin/ipacl');
+		var navbtns = navbtnss(fd[0].cidr, ld[0].cidr, data[0].cidr, data[data.length-1].cidr, '/admin/ipacl');
 	} catch(e) {
 		var navbtns = navbtn(0, 0, 0, 0);
 	}
@@ -5113,20 +5148,20 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 						<option value=ip>아이피</option>
 						<option value=username>사용자 이름</option>
 					</select>
-    				<input type="text" class="form-control" name="username" />
+    				<input type="text" class=form-control name="username" />
     			</div>
     		</div>
 
     		<div class="form-group">
-    			<label class="control-label">메모 :</label>
+    			<label class=control-label>메모 :</label>
     			<div>
-    				<input type="text" class="form-control" id="noteInput" name="note" />
+    				<input type="text" class=form-control id="noteInput" name="note" />
     			</div>
     		</div>
 
     		<div class="form-group">
-    			<label class="control-label">기간 :</label>
-    			<select class="form-control" name="expire">
+    			<label class=control-label>기간 :</label>
+    			<select class=form-control name="expire">
     				<option value="0" selected="">영구</option>
     				<option value="300">5분</option>
     				<option value="600">10분</option>
@@ -5161,7 +5196,7 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 			
 			<form class="form-inline pull-right" id="searchForm" method=get>
 				<div class="input-group">
-					<input type="text" class="form-control" id="searchQuery" name="from" placeholder="ID" />
+					<input type="text" class=form-control id="searchQuery" name="from" placeholder="ID" />
 					<span class="input-group-btn">
 						<button type=submit class="btn btn-primary">Go</button>
 					</span>
@@ -5301,9 +5336,9 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 				
 				<div class="row">
 					<div class="col-xs-12 col-md-7 form-group">
-						<label class="control-label" for="fakeFileInput">파일 선택</label>
+						<label class=control-label for="fakeFileInput">파일 선택</label>
 						<div class="input-group">
-							<input type="text" class="form-control" id="fakeFileInput" readonly="" />
+							<input type="text" class=form-control id="fakeFileInput" readonly="" />
 							<span class="input-group-btn">
 								<button class="btn btn-secondary" type="button" id="fakeFileButton">Select</button>
 							</span>
@@ -5313,8 +5348,8 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 				
 				<div class="row">
 					<div class="col-xs-12 col-md-7 form-group">
-						<label class="control-label" for="fakeFileInput">파일 이름</label>
-						<input type="text" class="form-control" name="document" id=documentInput value="${html.escape(req.method == 'POST' ? req.body['document'] : '')}" />
+						<label class=control-label for="fakeFileInput">파일 이름</label>
+						<input type="text" class=form-control name="document" id=documentInput value="${html.escape(req.method == 'POST' ? req.body['document'] : '')}" />
 					</div>
 				</div>
 
@@ -5322,7 +5357,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 			${req.method == 'GET' ? `
 				<div class=row>
 					<div class="col-xs-12 col-md-5 form-group">
-						<label class="control-label" for="licenseSelect">라이선스</label><br />
+						<label class=control-label for="licenseSelect">라이선스</label><br />
 						<select id=licenseSelect class=form-control>${ liceopts }</select>
 					</div>
 				</div>
@@ -5331,7 +5366,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 				
 				<div class=row>
 					<div class="col-xs-12 col-md-5 form-group">
-						<label class="control-label" for="categorySelect">분류</label><br />
+						<label class=control-label for="categorySelect">분류</label><br />
 						<select id=categorySelect class=form-control>
 							<option value>선택</option>
 							${cateopts}
@@ -5340,8 +5375,8 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 				</div>
 			` : ''}
 				<div class="form-group">
-					<label class="control-label">요약</label>
-					<input type="text" id="logInput" class="form-control" name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
+					<label class=control-label>요약</label>
+					<input type="text" id="logInput" class=form-control name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
 				</div>
 				
 				<p>${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</p>
@@ -5417,7 +5452,7 @@ wiki.get(/^\/BlockHistory$/, async(req, res) => {
 			pa = [query, query];
 		}
 	}
-	var total = (await curs.execute("select logid from block_history " + (qq || ''), pa)).length;
+	var total = (await curs.execute("select count(logid) from block_history"))[0]['count(logid)'];
 	
 	const from = req.query['from'];
 	const until = req.query['until'];
@@ -6081,8 +6116,8 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 		<fieldset class="recent-option">
 			<form class="form-inline" method=get>
 				<div class="form-group">
-					<label class="control-label">이름공간 :</label>
-					<select class="form-control" id="namespace" name=namespace>
+					<label class=control-label>이름공간 :</label>
+					<select class=form-control id=namespace name=namespace>
 					
 	`;
 	
@@ -6126,12 +6161,51 @@ wiki.get(/^\/NeededPages$/, async(req, res) => {
 	var ns = req.query['namespace'];
 	if(!ns || !nslist.includes(ns)) ns = '문서';
 	
+	if(!neededPages[ns]) neededPages[ns] = [];
+	var ss;
+	var st, ed;
+	var total = neededPages[ns].length;
+	if(!req.query['from'] && req.query['until']) {
+		ss = Number(req.query['until']);
+		st = ss - 100, ed = ss;
+		if(ed > total) ed = total;
+		if(st < 1) st = 1;
+		/*
+		for(idx=ss; cnt<=100; idx--, cnt++) {
+			var i = neededPages[ns][idx];
+			if(!i) continue;
+			ret.push(i);
+		}
+		ret = ret.reverse();
+		
+		var tmp = ss;
+		ss = idx;
+		idx = tmp;
+		*/
+		
+	} else {
+		ss = Number(req.query['from'] || '1');
+		st = ss, ed = ss + 100;
+		if(ed > total) ed = total;
+		if(st < 1) st = 1;
+		/*
+		for(idx=ss; cnt<=100; idx++, cnt++) {
+			var i = neededPages[ns][idx];
+			if(!i) continue;
+			ret.push(i);
+		}
+		*/
+	}
+	
+	const navbtns = navbtnr(total, st, ed, '/NeededPages');
+	const ret = neededPages[ns].slice(st - 1, ed);
+	
 	var content = `
-		<fieldset class="recent-option">
-			<form class="form-inline" method=get>
-				<div class="form-group">
-					<label class="control-label">이름공간 :</label>
-					<select class="form-control" id="namespace" name=namespace>
+		<fieldset class=recent-option>
+			<form class=form-inline method=get>
+				<div class=form-group>
+					<label class=control-label>이름공간 :</label>
+					<select class=form-control id=namespace name=namespace>
 					
 	`;
 	
@@ -6154,14 +6228,16 @@ wiki.get(/^\/NeededPages$/, async(req, res) => {
 		<p>역 링크는 존재하나 아직 작성이 되지 않은 문서 목록입니다.</p>
 		<p>이 페이지는 하루에 한번 업데이트 됩니다.</p>
 		
+		${navbtns}
+		
 		<ul class=wiki-list>
 	`;
 	
-	let data = await curs.execute("select link from backlink where exist = '0' and linkns = ? limit 100", [ns]);
-	for(let i of data) {
-		content += '<li><a href="/w/' + encodeURIComponent(totitle(i.link, ns)) + '">' + html.escape(totitle(i.link, ns) + '') + '</a>  <a href="/xref/' + encodeURIComponent(totitle(i.link, ns)) + '">[역링크]</a></li>';
+	for(let item of ret) {
+		content += '<li><a href="/w/' + encodeURIComponent(totitle(item, ns)) + '">' + html.escape(totitle(item, ns) + '') + '</a>  <a href="/' + (minor >= 14 ? 'backlink' : 'xref') + '/' + encodeURIComponent(totitle(item, ns)) + '">[역링크]</a></li>';
 	}
-	content += '</ul>';
+	
+	content += '</ul>' + navbtns;
 	
 	res.send(await render(req, '작성이 필요한 문서', content, {}));
 });
@@ -6175,8 +6251,8 @@ wiki.get(/^\/UncategorizedPages$/, async(req, res) => {
 		<fieldset class="recent-option">
 			<form class="form-inline" method=get>
 				<div class="form-group">
-					<label class="control-label">이름공간 :</label>
-					<select class="form-control" id="namespace" name=namespace>
+					<label class=control-label>이름공간 :</label>
+					<select class=form-control id=namespace name=namespace>
 					
 	`;
 	
@@ -6589,6 +6665,20 @@ wiki.use(function(req, res, next) {
 	wikiconfig.update_code = updatecode;
 	
 	if(hostconfig.debug) print('경고! 위키가 디버그 모드에서 실행 중입니다. 알려지지 않은 취약점에 노출될 수 있습니다.\n');
+	
+	// 작성이 필요한 문서
+	async function cacheNeededPages() {
+		neededPages = {};
+		for(var ns of fetchNamespaces()) {
+			neededPages[ns] = [];
+			var data = await curs.execute("select distinct link from backlink where exist = '0' and linkns = ?", [ns]);
+			for(let i of data) {
+				neededPages[ns].push(i.link);
+			}
+		}
+	}
+	setInterval(cacheNeededPages, 86400000);
+	cacheNeededPages();
 	
 	// 서버실행
 	const { host, port } = hostconfig;
