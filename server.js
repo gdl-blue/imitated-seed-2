@@ -4833,7 +4833,7 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 			
 			if(getperm(prm, username, 1) && (typeof(prmval.find(item => item == prm)) == 'undefined')) {
 				logstring += '-' + prm + ' ';
-				if(permlist[username]) permlist[username].splice(find(permlist[username], item => item == prm), 1);
+				if(permlist[username]) permlist[username].splice(permlist[username].findIndex(item => item == prm), 1);
 				curs.execute("delete from perms where perm = ? and username = ?", [prm, username]);
 			}
 			else if(!getperm(prm, username, 1) && (typeof(prmval.find(item => item == prm)) != 'undefined')) {
