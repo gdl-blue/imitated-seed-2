@@ -2036,7 +2036,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
 	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('wiki.front_page', 'FrontPage'));
 	const doc = processTitle(title);
-	const { rev } = req.query;
+	var { rev } = req.query;
 	
 	if(rev) {
 		var rawContent = await curs.execute("select content, time from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
