@@ -68,7 +68,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '9';
+const updatecode = '10';
 
 // 사용자 권한
 var perms = [
@@ -304,7 +304,7 @@ try {
 		'email_filters': ['address'],
 		'stars': ['title', 'namespace', 'username', 'lastedit'],
 		'perms': ['perm', 'username'],
-		'threads': ['title', 'namespace', 'topic', 'status', 'time', 'tnum', 'deleted'],
+		'threads': ['title', 'namespace', 'topic', 'status', 'time', 'tnum', 'deleted', 'num'],
 		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin', 'type'],
 		'useragents': ['username', 'string'],
 		'login_history': ['username', 'ip', 'time'],
@@ -4080,6 +4080,13 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	res.redirect('/thread/' + tnum);
 });
 
+wiki.get(/^\/topic\/(\d+)$/, async(req, res, next) => {
+	const num = req.params[0];
+	var data = await curs.execute("select tnum from threads where num = ?", [num]);
+	if(data.length) return res.redirect('/thread/' + data[0].tnum);
+	next();
+});
+
 wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function viewThread(req, res) {
 	const tnum = req.params[0];
 	
@@ -4576,17 +4583,17 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 	var content = `
 		<form method=post id=moveForm>
 			<div>
-				<label>변경할 문서 제목 : </label>
+				<label>변경할 문서 제목 : </label><br />
 				<input name=title type=text style="width: 250px;" id=titleInput />
 			</div>
 			
 			<div>
-				<label>요약 : </label>
+				<label>요약 : </label><br />
 				<input style="width: 600px;" name=log type=text id=logInput />
 			</div>
 			
 			<div>
-				<label>문서를 서로 맞바꾸기 : </label>
+				<label>문서를 서로 맞바꾸기 : </label><br />
 				<input type=checkbox name=mode value=swap />
 			</div>
 			
@@ -6757,6 +6764,22 @@ wiki.use(function(req, res, next) {
 			curs.execute("update block_history set executer = '탈퇴한 사용자', ismember = 'ip' where executer = '탈퇴한 사용자' and ismember = 'author'");
 			curs.execute("update edit_requests set processor = '탈퇴한 사용자', ismember = 'ip' where processor = '탈퇴한 사용자' and ismember = 'author'");
 			curs.execute("update edit_requests set username = '탈퇴한 사용자', ismember = 'ip' where username = '탈퇴한 사용자' and ismember = 'author'");
+		} case 9: {
+			// 구버전 더시드 토론
+			try {
+				await curs.execute("alter table threads\nADD num text;");
+				let dd = await curs.execute("select tnum from threads");
+				for(var idx=0; idx<dd.length; idx++) {
+					let item = dd[idx];
+					let dt = await curs.execute("select time from res where id = '1' and tnum = ?", [item.tnum]);
+					dd[idx].tt = Number(dt[0].time);
+				}
+				dd = dd.sort((l, r) => l.tt - r.tt);
+				for(var idx=0; idx<dd.length; idx++) {
+					let item = dd[idx];
+					await curs.execute("update threads set num = ? where tnum = ?", [String(idx + 1), item.tnum]);
+				}
+			} catch(e) {}
 		}
 	}
 	await curs.execute("update config set value = ? where key = 'update_code'", [updatecode]);
