@@ -1197,6 +1197,15 @@ async function requireAsync(p) {
 
 // 스킨 템플릿 렌더링
 async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewname = '') {
+	/*
+	error: {
+	  _05316cf5: '사용자 이름의 값은 필수입니다.',
+	  _65daf3c3: 'username',
+	  _eff12ad8: 'validator_required',
+	  _3a16613a: null
+	},
+	*/
+	
 	const skinInfo = {
 		title: title + subtitle,
 		viewName: viewname,
@@ -1239,12 +1248,14 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 			varlist['req_ip'] = ip_check(req, 1);
 			
 			if(islogin(req)) {
-				const udd = await curs.execute("select tnum from threads where namespace = '사용자' and title = ? and status = 'normal'", [req.session.username]);
-				if(udd.length) varlist.user_document_discuss = true;
+				var user_document_discuss = null;
+				const udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal'", [req.session.username]);
+				if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
 				
 				varlist['member'] = {
 					username: req.session.username,
-				}
+				};
+				varlist['user_document_discuss'] = user_document_discuss;
 			}
 			
 			var output = r(varlist);
@@ -2031,6 +2042,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		var rawContent = await curs.execute("select content, time from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
 		var data = rawContent;
 	} else {
+		rev = null;
 		var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	}
 	if(rev && !rawContent.length) return res.send(await showError(req, 'revision_not_found'));
@@ -2108,8 +2120,10 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		}
 		
 		var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
-		lstedt = Number(data[0].time);
+		lstedt = Math.floor(Number(data[0].time) / 1000);
 	}
+	
+	const dpg = await curs.execute("select tnum, time from threads where namespace = ? and title = ? and status = 'normal'", [doc.namespace, doc.title]);
 	
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
 		star_count: minor >= 9 ? 0 : undefined,
@@ -2117,7 +2131,8 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		date: lstedt,
 		document: doc,
 		rev,
-		user: doc.namespace == '사용자' ? true : undefined,
+		user: doc.namespace == '사용자' ? true : false,
+		discuss_progress: dpg.length ? true : false,
 	}, _, error, viewname));
 });
 
