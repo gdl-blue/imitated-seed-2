@@ -2120,7 +2120,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		}
 		
 		var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
-		lstedt = Math.floor(Number(data[0].time) / 1000);
+		lstedt = Number(data[0].time);
 	}
 	
 	const dpg = await curs.execute("select tnum, time from threads where namespace = ? and title = ? and status = 'normal'", [doc.namespace, doc.title]);
