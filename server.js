@@ -2911,7 +2911,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 	var data = await curs.execute("select title from documents \
 					where title = ? and namespace = ?",
 					[doc.title, doc.namespace]);
-	if(!data.length) res.send(await showError(req, 'document_not_found'));
+	if(!data.length) return res.send(await showError(req, 'document_not_found'));
 	
 	const aclmsg = await getacl(req, doc.title, doc.namespace, 'edit_request', 1);
 	if(aclmsg) return res.send(await showError(req, aclmsg, 1));
