@@ -4670,12 +4670,12 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		<form method="post">
 			<div>
 				<label>유저 이름 : </label>
-				<input class=form-control id="usernameInput" name="username" style="width: 250px;" type="text" />
+				<input class=form-control id="usernameInput" name="username" style="width: 250px;" value="${req.method == 'POST' ? html.escape(req.body['username'] || '') : ''}" type="text" />
 			</div>
 			
 			<div>
 				<label>메모 : </label>
-				<input class=form-control id="noteInput" name="note" style="width: 400px;" type="text" />
+				<input class=form-control id="noteInput" name="note" style="width: 400px;" value="${req.method == 'POST' ? html.escape(req.body['note'] || '') : ''}" type="text" />
 			</div>
 			
 			<div>
@@ -4709,6 +4709,7 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 	if(req.method == 'POST') {
 		var { expire, note, username } = req.body;
 		if(!username) return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('validator_required', '사용자 이름'), 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
+		if((hostconfig.owners || []).includes(username)) return res.send(await render(req, '사용자 차단', alertBalloon(fetchErrorString('invalid_permission'), 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
 		if(!data.length) return res.send(await render(req, '사용자 차단', alertBalloon('사용자 이름이 올바르지 않습니다.', 'danger', true, 'fade in') + content, {}, '', true, 'suspend_account'));
 		username = data[0].username;
