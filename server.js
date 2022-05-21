@@ -1236,6 +1236,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 			varlist['perms'] = perms;
 			varlist['url'] = req.path;
 			varlist['error'] = error;
+			varlist['req_ip'] = ip_check(req, 1);
 			
 			if(islogin(req)) {
 				const udd = await curs.execute("select tnum from threads where namespace = '사용자' and title = ? and status = 'normal'", [req.session.username]);
