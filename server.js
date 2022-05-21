@@ -156,8 +156,8 @@ function toDate(t) {
 
 // 시간 <time> 반환
 function generateTime(time, fmt) {
-	const d = split(time, ' ')[0];
-	const t = split(time, ' ')[1];
+	const d = time.split(' ')[0];
+	const t = time.split(' ')[1];
 	
 	return `<time datetime="${d}T${t}.000Z" data-format="${fmt}">${time}</time>`;
 }
