@@ -1875,7 +1875,9 @@ function edittype(type, ...flags) {
 wiki.get(/^\/License$/, async(req, res) => {
 	return res.send(await render(req, '라이선스', `
 		<p>모방 타겟 the seed 버전: v${major}.${minor}.${revision}</p>
-	` + await readFile('./skins/' + getSkin(req) + '/license.html'), {}, _, _, 'license'));
+		
+		<div class=wiki-content>
+	` + await readFile('./skins/' + getSkin(req) + '/license.html') + '</div>', {}, _, _, 'license'));
 });
 
 function redirectToFrontPage(req, res) {
