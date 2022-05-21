@@ -2157,9 +2157,8 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 });
 
 if(minor >= 9) wiki.get(/^\/member\/star\/(.*)$/, async (req, res) => {
-	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
-	
 	const title = req.params[0];
+	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
 	const doc = processTitle(title);
 	
 	var dbdata = await curs.execute("select title, namespace from stars where username = ? and title = ? and namespace = ?", [ip_check(req), doc.title, doc.namespace]);
@@ -2174,9 +2173,8 @@ if(minor >= 9) wiki.get(/^\/member\/star\/(.*)$/, async (req, res) => {
 });
 
 if(minor >= 9) wiki.get(/^\/member\/unstar\/(.*)$/, async (req, res) => {
-	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
-	
 	const title = req.params[0];
+	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
 	const doc = processTitle(title);
 	
 	var dbdata = await curs.execute("select title, namespace from stars where username = ? and title = ? and namespace = ?", [ip_check(req), doc.title, doc.namespace]);
