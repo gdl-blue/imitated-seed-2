@@ -3684,7 +3684,7 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 						[doc.title, doc.namespace]);
 	}
 	
-	if(!data.length) res.send(await showError(req, 'document_not_found'));
+	if(!data.length) return res.send(await showError(req, 'document_not_found'));
 	
 	const navbtns = navbtn(total, data[data.length-1].rev, data[0].rev, '/history/' + encodeURIComponent(title));
 	
