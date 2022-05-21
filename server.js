@@ -851,6 +851,13 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		
 		const external = dest.startsWith('http://') || dest.startsWith('https://') || dest.startsWith('ftp://');
 		
+		const dd = dest.split('#');
+		if(!external) {
+			if(!dd[0] && dd[1]) dd[0] = title;
+			if(dest == disp) disp = dd[0];
+			dest = dd[0];
+		}
+		
 		var ddata = await curs.execute("select content from documents where title = ? and namespace = ?", [processTitle(dest).title, processTitle(dest).namespace]);
 		const notexist = !ddata.length ? ' not-exist' : '';
 		
@@ -870,7 +877,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
 		const sl = dest == title ? ' self-link' : '';
-		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + '">' + disp + '</a>');
+		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + disp + '</a>');
 		
 		// 역링크
 		if(xref && !external) {
@@ -2112,12 +2119,13 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		}
 	} else {
 		if(rawContent[0].content.startsWith('#redirect ')) {
-			const ntitle = rawContent[0].content.split('\n')[0].replace('#redirect ', '');
+			const nd = rawContent[0].content.split('\n')[0].replace('#redirect ', '').split('#');
+			const ntitle = nd[0];
 			
 			if(req.query['noredirect'] != '1' && !req.query['from']) {
-				return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title);
+				return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title + (nd[1] ? ('#' + nd[1]) : ''));
 			} else {
-				content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + '">' + html.escape(ntitle) + '</a>';
+				content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + (nd[1] ? ('#' + nd[1]) : '') + '">' + html.escape(ntitle) + '</a>';
 			}
 		} else content = await markdown(rawContent[0].content, 0, doc + '');
 		
