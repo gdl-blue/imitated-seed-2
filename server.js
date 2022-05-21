@@ -1387,6 +1387,7 @@ function fetchErrorString(code, ...params) {
 		feature_not_implemented: '사용하려는 기능이 구현되지 않았습니다.',
 		validator_required: params[0] + '의 값은 필수입니다.',
 		user_not_found: '사용자 이름이 올바르지 않습니다.',
+		invalid_cidr: 'IP 주소가 올바르지 않습니다.',
 	};
 	
 	if(typeof(codes[code]) == 'undefined') return code;
