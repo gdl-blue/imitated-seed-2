@@ -220,6 +220,9 @@ swig.setFilter('encode_doc', function encodeDocURL(input) {
 swig.setFilter('avatar_url', function(input) {
 	return 'https://www.gravatar.com/avatar/' + md5(getUserSetting(input.username, 'email', '')) + '?d=retro';
 });
+swig.setFilter('md5', function(input, l) {
+	return md5(input).slice(0, (l || 33));
+});
 swig.setFilter('url_encode', function(input) {
 	return encodeURIComponent(input);
 });
@@ -1159,7 +1162,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 	return new Promise((resolve, reject) => {
         swig.compileFile(templatefn, {}, async(e, r) => {
             if(e) {
-				print(`[오류!] ${e}`);
+				print(`[오류!] ${e.stack}`);
 				return resolve(`
 					<title>` + title + ` (스킨 렌더링 오류!)</title>
 					<meta charset=utf-8>` + content);
@@ -3350,7 +3353,7 @@ wiki.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 		var title = totitle(row.title, row.namespace) + '';
 		
 		content += `
-				<tr${(row.log.length > 0 || row.advance.length > 0 ? ' class=no-line' : '')}>
+				<tr${(row.log.length > 0 || row.advance != 'normal' ? ' class=no-line' : '')}>
 					<td>
 						<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a> 
 						<a href="/history/${encodeURIComponent(title)}">[역사]</a> 
@@ -3452,7 +3455,7 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function documen
 		var title = totitle(row.title, row.namespace) + '';
 		
 		content += `
-				<tr${(row.log.length > 0 || row.advance.length > 0 ? ' class=no-line' : '')}>
+				<tr${(row.log.length > 0 || row.advance != 'normal' ? ' class=no-line' : '')}>
 					<td>
 						<a href="/w/${encodeURIComponent(title)}">${html.escape(title)}</a> 
 						<a href="/history/${encodeURIComponent(title)}">[역사]</a> 
