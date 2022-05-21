@@ -143,6 +143,11 @@ function getTime() { return Math.floor(new Date().getTime()); };
 
 // 시간 포맷
 function toDate(t) {
+	var cur = getTime();
+	// 초 단위 시간 구분
+	if(Math.abs(cur - Math.floor(Number(t)) * 1000) < Math.abs(cur - Math.floor(Number(t)))) {
+		t = Number(t) * 1000;
+	}
 	var date = new Date(Number(t));
 	
 	var hour = date.getUTCHours(); hour = (hour < 10 ? "0" : "") + hour;
@@ -2053,7 +2058,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	var httpstat = 200;
 	var viewname = 'wiki';
 	var error = false;
-	var lstedt = undefined;
+	var lastedit = undefined;
 	
 	const aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
 	if(aclmsg) {
@@ -2122,12 +2127,12 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		}
 		
 		var data = await curs.execute("select time from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
-		lstedt = Number(data[0].time);
+		lastedit = Number(data[0].time);
 	}
 	
-	const dpg = await curs.execute("select tnum, time from threads where namespace = ? and title = ? and status = 'normal'", [doc.namespace, doc.title]);
-	var star_count = 0, starred = false;
+	const dpg = await curs.execute("select tnum, time from threads where namespace = ? and title = ? and status = 'normal' and cast(time as integer) >= ?", [doc.namespace, doc.title, getTime() - 86400000]);
 	
+	var star_count = 0, starred = false;
 	if(rawContent.length) {
 		var dbdata = await curs.execute("select title, namespace from stars where username = ? and title = ? and namespace = ?", [ip_check(req), doc.title, doc.namespace]);
 		if(dbdata.length) starred = true;
@@ -2138,7 +2143,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
 		star_count: minor >= 9 && rawContent.length ? star_count : undefined,
 		starred: minor >= 9 && rawContent.length ? starred : undefined,
-		date: lstedt,
+		date: Math.floor(lastedit / 1000),
 		document: doc,
 		rev,
 		user: doc.namespace == '사용자' ? true : false,
