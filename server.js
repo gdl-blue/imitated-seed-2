@@ -2561,7 +2561,7 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 			</div>
 		
 			<div class=form-group>
-				<label>요약</label><br>
+				<label>요약</label>
 				<input type=text class=form-control name=log />
 			</div>
 			
@@ -3255,7 +3255,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 		var content = `
 			<form method=post>
 				<div class=form-group>
-					<label>읽기 : </label><br />
+					<label>읽기 : </label>
 					<select name=read class=form-control>
 						<option value=everyone>모두</option>
 						<option value=member>로그인한 사용자</option>
@@ -3264,7 +3264,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				</div>
 				
 				<div class=form-group>
-					<label>편집 : </label><br />
+					<label>편집 : </label>
 					<select name=edit class=form-control>
 						<option value=everyone>모두</option>
 						<option value=member>로그인한 사용자</option>
@@ -3273,7 +3273,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				</div>
 				
 				<div class=form-group>
-					<label>삭제 : </label><br />
+					<label>삭제 : </label>
 					<select name=delete class=form-control>
 						<option value=everyone>모두</option>
 						<option value=member>로그인한 사용자</option>
@@ -3282,7 +3282,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				</div>
 				
 				<div class=form-group>
-					<label>토론 : </label><br />
+					<label>토론 : </label>
 					<select name=discuss class=form-control>
 						<option value=everyone>모두</option>
 						<option value=member>로그인한 사용자</option>
@@ -3291,7 +3291,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				</div>
 				
 				<div class=form-group>
-					<label>이동 : </label><br />
+					<label>이동 : </label>
 					<select name=move class=form-control>
 						<option value=everyone>모두</option>
 						<option value=member>로그인한 사용자</option>
@@ -3300,7 +3300,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				</div>
 				
 				<div class=form-group>
-					<label>요약 : </label><br />
+					<label>요약 : </label>
 					<input name=log type=text id=logInput style="width: 100%;" />
 				</div>
 				
@@ -4487,17 +4487,17 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 	var content = `
 		<form method=post id=moveForm>
 			<div>
-				<label>변경할 문서 제목 : </label><br />
+				<label>변경할 문서 제목 : </label>
 				<input name=title type=text style="width: 250px;" id=titleInput />
 			</div>
 			
 			<div>
-				<label>요약 : </label><br />
+				<label>요약 : </label>
 				<input style="width: 600px;" name=log type=text id=logInput />
 			</div>
 			
 			<div>
-				<label>문서를 서로 맞바꾸기 : </label><br />
+				<label>문서를 서로 맞바꾸기 : </label>
 				<input type=checkbox name=mode value=swap />
 			</div>
 			
@@ -4574,17 +4574,17 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 	var content = `
 		<form method="post">
 			<div>
-				<label>유저 이름 : </label><br />
+				<label>유저 이름 : </label>
 				<input class=form-control id="usernameInput" name="username" style="width: 250px;" type="text" />
 			</div>
 			
 			<div>
-				<label>메모 : </label><br />
+				<label>메모 : </label>
 				<input class=form-control id="noteInput" name="note" style="width: 400px;" type="text" />
 			</div>
 			
 			<div>
-				<label>기간 : </label><br /> 
+				<label>기간 : </label> 
 				<select class=form-control name="expire" id="expire" style="width: 100%">
 					<option value="">선택</option>
 					<option value="-1">해제</option>
@@ -4679,7 +4679,7 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	var content = `
 		<form method=get>
 			<div>
-				<label>유저 이름: </label><br />
+				<label>유저 이름: </label>
 				<input type=text class=form-control style="width: 250px;" name=username value="${html.escape(username ? username : '')}" />
 			</div>
 			
@@ -4781,7 +4781,7 @@ wiki.all(/^\/admin\/login_history$/, async(req, res, next) => {
 	var content = `
 		<form method=post>
 			<div>
-				<label>유저 이름: </label><br />
+				<label>유저 이름: </label>
 				<input type=text class=form-control style="width: 250px;" name=username />
 			</div>
 			
@@ -4914,7 +4914,7 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
     		</div>
 
     		<div class=form-group>
-    			<label class=control-label>차단 기간 :</label><br />
+    			<label class=control-label>차단 기간 :</label>
     			<select class=form-control name=expire>
     				<option value=0 selected>영구</option>
     				<option value=300>5분</option>
@@ -5065,7 +5065,7 @@ if(minor >= 18) wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 	var content = `
 		<form method=post>
 			<div class=form-group>
-				<label>그룹 이름: </label><br />
+				<label>그룹 이름: </label>
 				<input type=text name=group class=form-control />
 			</div>
 			
@@ -5364,7 +5364,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 			${req.method == 'GET' ? `
 				<div class=row>
 					<div class="col-xs-12 col-md-5 form-group">
-						<label class=control-label for="licenseSelect">라이선스</label><br />
+						<label class=control-label for="licenseSelect">라이선스</label>
 						<select id=licenseSelect class=form-control>${ liceopts }</select>
 					</div>
 				</div>
@@ -5373,7 +5373,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 				
 				<div class=row>
 					<div class="col-xs-12 col-md-5 form-group">
-						<label class=control-label for="categorySelect">분류</label><br />
+						<label class=control-label for="categorySelect">분류</label>
 						<select id=categorySelect class=form-control>
 							<option value>선택</option>
 							${cateopts}
@@ -5579,13 +5579,13 @@ if(hostconfig.allow_account_deletion) wiki.all(/^\/member\/delete_account$/, asy
 			<p>계정을 삭제하면 문서 역사에서 당신의 사용자 이름이 익명화됩니다. 문서 배포 라이선스가 퍼블릭 도메인이 아닌 경우 가급적 탈퇴는 자제해주세요.</p>
 			
 			<div class=form-group>
-				<label>사용자 이름을 확인해주세요 (${html.escape(username)}):</label><br />
+				<label>사용자 이름을 확인해주세요 (${html.escape(username)}):</label>
 				<input type=text name=username class=form-control placeholder="${html.escape(username)}" value="${html.escape(req.body['username'] || '')}" />
 				${!error && req.method == 'POST' && req.body['username'] != username ? (error = true, `<p class=error-desc>자신의 사용자 이름을 입력해주세요.</p>`) : ''}
 			</div>
 			
 			<div class=form-group>
-				<label>비밀번호 확인:</label><br />
+				<label>비밀번호 확인:</label>
 				<input type=password name=password class=form-control />
 				${!error && req.method == 'POST' && sha3(req.body['password'] + '') != password ? (error = true, `<p class=error-desc>비밀번호를 확인해주세요.</p>`) : ''}
 			</div>
@@ -5660,19 +5660,19 @@ if(hostconfig.allow_account_rename) wiki.all(/^\/member\/change_username$/, asyn
 			<p>이름을 바꾸면 다른 사람이 당신의 기존 이름으로 가입할 수 있습니다.</p>
 			
 			<div class=form-group>
-				<label>현재 이름 확인 (${html.escape(username)}):</label><br />
+				<label>현재 이름 확인 (${html.escape(username)}):</label>
 				<input type=text name=username class=form-control placeholder="${html.escape(username)}" value="${html.escape(req.body['username'] || '')}" />
 				${!error && req.method == 'POST' && req.body['username'] != username ? (error = true, `<p class=error-desc>자신의 사용자 이름을 입력해주세요.</p>`) : ''}
 			</div>
 			
 			<div class=form-group>
-				<label>비밀번호 확인:</label><br />
+				<label>비밀번호 확인:</label>
 				<input type=password name=password class=form-control />
 				${!error && req.method == 'POST' && sha3(req.body['password'] + '') != password ? (error = true, `<p class=error-desc>비밀번호를 확인해주세요.</p>`) : ''}
 			</div>
 			
 			<div class=form-group>
-				<label>새로운 사용자 이름:</label><br />
+				<label>새로운 사용자 이름:</label>
 				<input type=text name=new_username class=form-control value="${html.escape(req.body['new_username'] || '')}" />
 				${!error && req.method == 'POST' && duplicate ? (error = true, `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>`) : ''}
 				${!error && req.method == 'POST' && invalidformat ? (error = true, `<p class=error-desc>사용자 이름을 형식에 맞게 입력해주세요.</p>`) : ''}
@@ -5755,29 +5755,29 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 	var content = `
 		<form method=post>
 			<div class=form-group>
-				<label>사용자 이름</label><br />
+				<label>사용자 이름</label>
 				<input type=text name=username readonly class=form-control value="${html.escape(ip_check(req))}" />
 			</div>
 			
 			<div class=form-group>
-				<label>전자우편 주소</label><br />
+				<label>전자우편 주소</label>
 				<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email', ''))}" />
 				${emailfilter}
 			</div>
 			
 			<div class=form-group>
-				<label>암호</label><br />
+				<label>암호</label>
 				<input type=password name=password class=form-control />
 			</div>
 			
 			<div class=form-group>
-				<label>암호 확인</label><br />
+				<label>암호 확인</label>
 				<input type=password name=password_check class=form-control />
 				${req.method == 'POST' && req.body['password'] && req.body['password'] != req.body['password_check'] ? (error = true, `<p class=error-desc>패스워드 확인이 올바르지 않습니다.</p>`) : ''}
 			</div>
 			
 			<div class=form-group>
-				<label>스킨</label><br />
+				<label>스킨</label>
 				<select name=skin class=form-control>
 					<option value=default ${myskin == 'default' ? 'selected' : ''}>기본스킨 (${defskin})</option>
 					${skopt}
@@ -5877,7 +5877,7 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 	var content = `
 		<form class=login-form method=post>
 			<div class=form-group>
-				<label>Username</label><br>
+				<label>Username</label>
 				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
 				${!id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
 				${id.length && invalidusername ? (error = true, `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>`) : ''}
@@ -5885,7 +5885,7 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 			</div>
 
 			<div class=form-group>
-				<label>Password</label><br>
+				<label>Password</label>
 				<input class=form-control name="password" type="password" />
 				${id.length && !invalidusername && !blocked && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
 				${id.length && !invalidusername && !blocked && pw.length && invalidpw ? (error = true, `<p class=error-desc>암호가 올바르지 않습니다.</p>`) : ''}
@@ -5983,7 +5983,7 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 		
 		<form method=post class=signup-form>
 			<div class=form-group>
-				<label>전자우편 주소</label><br>
+				<label>전자우편 주소</label>
 				${hostconfig.disable_email ? `
 					<input type=hidden name=email value="" />
 					비활성화됨
@@ -6079,7 +6079,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 	content += `
 		<form class=signup-form method=post>
 			<div class=form-group>
-				<label>사용자 ID</label><br>
+				<label>사용자 ID</label>
 				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
 				${duplicate ? (error = true, `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>`) : ''}
 				${!duplicate && !id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
@@ -6088,13 +6088,13 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 			</div>
 
 			<div class=form-group>
-				<label>암호</label><br>
+				<label>암호</label>
 				<input class=form-control name="password" type="password" />
 				${!duplicate && id.length && !invalidusername && !invalidformat && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
 			</div>
 
 			<div class=form-group>
-				<label>암호 확인</label><br>
+				<label>암호 확인</label>
 				<input class=form-control name="password_check" type="password" />
 				${!duplicate && id.length && !invalidusername && !invalidformat && pw.length && pw != pw2 ? (error = true, `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>`) : ''}
 			</div>
@@ -6399,64 +6399,64 @@ wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 	var content = `
 		<form method=post>
 			<div class=form-group>
-				<label class=control-label>위키 이름 : </label><br />
+				<label class=control-label>위키 이름 : </label>
 				<input class=form-control type=text name=wiki.site_name value="${html.escape(config.getString('wiki.site_name', '더 시드'))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>대문 : </label><br />
+				<label class=control-label>대문 : </label>
 				<input class=form-control type=text name=wiki.front_page value="${html.escape(config.getString('wiki.front_page', 'FrontPage'))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>기본 스킨 : </label><br />
+				<label class=control-label>기본 스킨 : </label>
 				<select class=form-control name=wiki.default_skin>
 					${skopt}
 				</select>
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>이메일 허용 목록 사용 : </label><br />
+				<label class=control-label>이메일 허용 목록 사용 : </label>
 				<input type=checkbox name=wiki.email_filter_enabled value=true${config.getString('wiki.email_filter_enabled', 'false') == 'true' ? ' checked' : ''} />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>이메일 허용 목록 : </label><br />
+				<label class=control-label>이메일 허용 목록 : </label>
 				<input class=form-control type=text name=filters value="${html.escape(filters.join(';'))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>공지 : </label><br />
+				<label class=control-label>공지 : </label>
 				<input class=form-control type=text name=wiki.sitenotice value="${html.escape(config.getString('wiki.sitenotice', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>편집 안내 : </label><br />
+				<label class=control-label>편집 안내 : </label>
 				<input class=form-control type=text name=wiki.editagree_text value="${html.escape(config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>사이트 주소 : </label><br />
+				<label class=control-label>사이트 주소 : </label>
 				<input class=form-control type=text name=wiki.canonical_url value="${html.escape(config.getString('wiki.canonical_url', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>라이선스 주소 : </label><br />
+				<label class=control-label>라이선스 주소 : </label>
 				<input class=form-control type=text name=wiki.copyright_url value="${html.escape(config.getString('wiki.copyright_url', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>저작권 안내 문구 : </label><br />
+				<label class=control-label>저작권 안내 문구 : </label>
 				<input class=form-control type=text name=wiki.copyright_text value="${html.escape(config.getString('wiki.copyright_text', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>하단 문구 : </label><br />
+				<label class=control-label>하단 문구 : </label>
 				<input class=form-control type=text name=wiki.footer_text value="${html.escape(config.getString('wiki.footer_text', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>로고 주소 : </label><br />
+				<label class=control-label>로고 주소 : </label>
 				<input class=form-control type=text name=wiki.logo_url value="${html.escape(config.getString('wiki.logo_url', ''))}" />
 			</div>
 			
