@@ -2679,8 +2679,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			</form>
 		`;
 		httpstat = 403;
-	}
-	content += `
+	} else content += `
 			<div class="form-group" style="margin-top: 1rem;">
 				<label class=control-label for="summaryInput">요약</label>
 				<input type="text" class=form-control id="logInput" name="log" value="${req.method == 'POST' ? html.escape(req.body['log']) : ''}" />
