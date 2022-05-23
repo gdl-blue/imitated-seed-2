@@ -1848,7 +1848,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
 								ret = 1;
 								if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
-								else msg = 'IP가 차단되었습니다. <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+								else msg = 'IP가 차단되었습니다.' + (minor < 6 ? ' <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.' : '') + '<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
 								break;
 							}
 						}
@@ -2674,7 +2674,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	if(aclmsg) {
 		error = err('alert', { code: 'permission_edit', msg: aclmsg });
 		content = `
-			${alertBalloon(error, 'danger', true, 'fade in edit-alert')}
+			${error}
 		` + content.replace('&<$TEXTAREA>', textarea).replace('<textarea', '<textarea readonly=readonly') + `
 			</form>
 		`;
