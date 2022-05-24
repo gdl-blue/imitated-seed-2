@@ -66,6 +66,7 @@ wiki.use(session({
     saveUninitialized: true,
 }));
 wiki.use(cookieParser());
+wiki.set('trust proxy', true);
 
 // 업데이트 수준
 const updatecode = '11';
@@ -188,16 +189,11 @@ function islogin(req) {
 }
 
 // 아이디 확인
-function ip_check(req, forceIP = 0) {
-	if(!forceIP && req.session.username) {
+function ip_check(req, forceIP) {
+	if(!forceIP && req.session.username)
 		return req.session.username;
-	} else {
-		if(req.headers['x-forwarded-for']) {
-			return req.headers['x-forwarded-for'].split(',')[0];
-		} else {
-			return req.connection.remoteAddress;
-		}
-	}
+	else
+		return (req.ip || '10.0.0.9').split(',')[0];
 }
 
 // 사용자설정 가져오기
@@ -1689,6 +1685,7 @@ function fetchErrorString(code, ...params) {
 		edit_conflict: '편집 도중에 다른 사용자가 먼저 편집을 했습니다.',
 		invalid_type_number: params[0] + '의 값은 숫자이어야 합니다.',
 		not_revertable: '이 리비전으로 되돌릴 수 없습니다.',
+		disallowed_email: '이메일 허용 목록에 있는 이메일이 아닙니다.',
 	};
 	
 	return codes[code] || code;
@@ -2734,8 +2731,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			if(data.length) oc = data[0].content;
 			error = err('alert', { code: 'edit_conflict' });
 			content = error + diff(oc, text, 'r' + baserev, '사용자 입력') + '<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>' + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class=form-control>${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`);
-			break;
-		}
+			break; }
 		const ismember = islogin(req) ? 'author' : 'ip';
 		var advance = 'normal';
 		
@@ -2744,18 +2740,14 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			if(['파일', '사용자'].includes(doc.namespace)) {
 				error = err('alert', { code: 'invalid_namespace' });
 				content = error + content;
-				break;
-			}
+				break; }
 			advance = 'create';
 			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, text]);
 		} else {
 			await curs.execute("update documents set content = ? where title = ? and namespace = ?", [text, doc.title, doc.namespace]);
 			curs.execute("update stars set lastedit = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 		}
-		
-		res.cookie('agree', '1', {
-			expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360),
-		});
+		res.cookie('agree', '1', { expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360) });
 		
 		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
@@ -2999,16 +2991,12 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 	
 	var content = `
 		<form method=post>
-			<div class=form-group>
-				<textarea class=form-control rows=25 readonly>${revdata.content.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
-			</div>
+			<textarea class=form-control rows=25 readonly>${revdata.content.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
 		
-			<div class=form-group>
-				<label>요약</label>
-				<input type=text class=form-control name=log />
-			</div>
+			<label>요약</label><br />
+			<input type=text class=form-control name=log />
 			
-			<div class=btns>
+			<div class="btns pull-right">
 				<button type=submit class="btn btn-primary">되돌리기</button>
 			</div>
 		</form>
@@ -6862,66 +6850,71 @@ wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 	
 	// 실제 더시드 UI가 밝혀지길...
 	var content = `
-		<form method=post>
+		<form method=post class=settings-section>
 			<div class=form-group>
-				<label class=control-label>위키 이름 : </label>
+				<label class=control-label>위키 이름</label>
 				<input class=form-control type=text name=wiki.site_name value="${html.escape(config.getString('wiki.site_name', '더 시드'))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>대문 : </label>
+				<label class=control-label>대문</label>
 				<input class=form-control type=text name=wiki.front_page value="${html.escape(config.getString('wiki.front_page', 'FrontPage'))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>기본 스킨 : </label>
+				<label class=control-label>기본 스킨</label>
 				<select class=form-control name=wiki.default_skin>
 					${skopt}
 				</select>
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>이메일 허용 목록 사용 : </label>
-				<input type=checkbox name=wiki.email_filter_enabled value=true${config.getString('wiki.email_filter_enabled', 'false') == 'true' ? ' checked' : ''} />
+				<label class=control-label>이메일 허용 목록 활성화</label>
+				<div class=checkbox>
+					<label>
+						<input type=checkbox name=wiki.email_filter_enabled value=true${config.getString('wiki.email_filter_enabled', 'false') == 'true' ? ' checked' : ''} />
+						사용
+					</label>
+				</div>
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>이메일 허용 목록 : </label>
+				<label class=control-label>이메일 허용 목록</label>
 				<input class=form-control type=text name=filters value="${html.escape(filters.join(';'))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>공지 : </label>
+				<label class=control-label>공지</label>
 				<input class=form-control type=text name=wiki.sitenotice value="${html.escape(config.getString('wiki.sitenotice', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>편집 안내 : </label>
+				<label class=control-label>편집 안내</label>
 				<input class=form-control type=text name=wiki.editagree_text value="${html.escape(config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>사이트 주소 : </label>
+				<label class=control-label>사이트 주소</label>
 				<input class=form-control type=text name=wiki.canonical_url value="${html.escape(config.getString('wiki.canonical_url', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>라이선스 주소 : </label>
+				<label class=control-label>라이선스 주소</label>
 				<input class=form-control type=text name=wiki.copyright_url value="${html.escape(config.getString('wiki.copyright_url', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>저작권 안내 문구 : </label>
+				<label class=control-label>저작권 안내 문구</label>
 				<input class=form-control type=text name=wiki.copyright_text value="${html.escape(config.getString('wiki.copyright_text', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>하단 문구 : </label>
+				<label class=control-label>하단 문구</label>
 				<input class=form-control type=text name=wiki.footer_text value="${html.escape(config.getString('wiki.footer_text', ''))}" />
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>로고 주소 : </label>
+				<label class=control-label>로고 주소</label>
 				<input class=form-control type=text name=wiki.logo_url value="${html.escape(config.getString('wiki.logo_url', ''))}" />
 			</div>
 			
