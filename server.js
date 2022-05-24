@@ -77,6 +77,7 @@ var perms = [
 	'disable_two_factor_login', 'login_history', 'update_thread_document', 'update_thread_topic', 
 	'aclgroup', 'api_access', 
 ];
+var disable_autoperms = ['disable_two_factor_login'];
 
 // 로그출력
 function print(x) { console.log(x); }
@@ -6509,6 +6510,7 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 				var data = await curs.execute("select username from users");
 				if(!data.length) {
 					for(var perm of perms) {
+						if(disable_autoperms.includes(perm)) continue;
 						curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
 						permlist[id].push(perm);
 					}
