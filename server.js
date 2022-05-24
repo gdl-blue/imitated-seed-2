@@ -1680,12 +1680,14 @@ function fetchErrorString(code, ...params) {
 		invalid_signup_key: '인증 요청이 만료되었거나 올바르지 않습니다.',
 		document_not_found: '문서를 찾을 수 없습니다.',
 		revision_not_found: '해당 리비전을 찾을 수 없습니다.',
+		revision_not_exist: '해당 리비전이 존재하지 않습니다.',
 		validator_required: params[0] + '의 값은 필수입니다.',
 		invalid_username: '사용자 이름이 올바르지 않습니다.',
 		invalid_cidr: 'IP 주소가 올바르지 않습니다.',
 		text_unchanged: '문서 내용이 같습니다.',
 		edit_conflict: '편집 도중에 다른 사용자가 먼저 편집을 했습니다.',
 		invalid_type_number: params[0] + '의 값은 숫자이어야 합니다.',
+		not_revertable: '이 리비전으로 되돌릴 수 없습니다.',
 	};
 	
 	return codes[code] || code;
@@ -2615,9 +2617,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		return res.status(403).send(await showError(req, err('error', { code: 'permission_read', msg: aclmsg })));
 	}
 	
-	if(req.method == 'POST' && isNaN(Number(req.body['baserev']))) return res.send(await showError(req, 'invalid_value'));
-	
-	if(['특수기능', '투표', '토론'].includes(doc.namespace) || ((minor < 6 || (minor == 7 && revision < 3)) && doc.title.includes('://'))) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
+	if(!doc.title || ['특수기능', '투표', '토론'].includes(doc.namespace) || ((minor < 6 || (minor == 7 && revision < 3)) && doc.title.includes('://'))) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
 	
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	if(!rawContent[0]) rawContent = '';
@@ -2625,24 +2625,20 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	
 	var error = null;
 	var content = '';
-	
-	var baserev;
+	var section = Number(req.query['section']) || null;
+	var baserev = 0;
 	var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
-	try {
-		baserev = data[0].rev;
-	} catch(e) {
-		baserev = 0;
-	}
-	
+	if(data.length) baserev = data[0].rev;
+	var token = rndval('abcdef1234567890', 64);
 	var textarea = `<textarea id="textInput" name="text" wrap="soft" class=form-control>${(req.method == 'POST' ? req.body['text'] : rawContent).replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`;
 	
 	// 틀:나무위키 -> helptext
 	
 	content = `
 		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${html.escape(doc + '')}" data-recaptcha="0">
-			<input type="hidden" name="token" value="">
+			<input type="hidden" name="token" value="${token}">
 			<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${html.escape(ip_check(req))}">
-			<input type="hidden" name="baserev" value="${req.method == 'POST' ? (req.body['baserev'] || baserev) : baserev}">
+			<input type="hidden" name="baserev" value="${baserev}">
 
 			<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
 				<li class="nav-item">
@@ -2673,9 +2669,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
 	if(aclmsg) {
 		error = err('alert', { code: 'permission_edit', msg: aclmsg });
-		content = `
-			${error}
-		` + content.replace('&<$TEXTAREA>', textarea).replace('<textarea', '<textarea readonly=readonly') + `
+		content = error + content.replace('&<$TEXTAREA>', textarea).replace('<textarea', '<textarea readonly=readonly') + `
 			</form>
 		`;
 		httpstat = 403;
@@ -2718,13 +2712,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 -->
 		</form>
 	`;
-	if(aclmsg && req.method == 'POST') {
-		return res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', content.replace('&<$TEXTAREA>', textarea), {
-			document: doc,
-		}, '', error, 'edit'));
-	}
-	
-	if(req.method == 'POST') {
+	if(!aclmsg && req.method == 'POST') do {
 		var original = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		var ex = 1;
 		if(!original[0]) ex = 0, original = '';
@@ -2732,40 +2720,35 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		var text = req.body['text'];
 		if(text.startsWith('#넘겨주기 ')) text = text.replace('#넘겨주기 ', '#redirect ');
 		if(text.startsWith('#redirect ')) text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')[0] + '\n';
-		if(original == text && ex) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', (error = err('alert', { code: 'text_unchanged' })) + content.replace('&<$TEXTAREA>', textarea), {
-			document: doc,
-		}, '', error, 'edit'));
-		if(!req.body['agree']) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', (error = err('alert', { code: 'validator_required', tag: 'agree' })) + content.replace('&<$TEXTAREA>', textarea), {
-			document: doc,
-		}, '', error, 'edit'));
+		if(original == text && ex) { content = (error = err('alert', { code: 'text_unchanged' })) + content; break; }
+		if(!req.body['agree']) { content = (error = err('alert', { code: 'validator_required', tag: 'agree' })) + content; break; }
 		const rawChanges = text.length - original.length;
 		const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
 		const log = req.body['log'];
 		const agree = req.body['agree'];
 		const baserev = req.body['baserev'];
+		if(isNaN(Number(baserev))) { content = (error = err('alert', { code: 'invalid_type_number', tag: 'baserev' })) + content; break; }
 		var data = await curs.execute("select rev from history where rev = ? and title = ? and namespace = ?", [baserev, doc.title, doc.namespace]);
-		if(!data.length && ex) return res.status(400).send(await showError(req, 'revision_not_found'));
+		if(!data.length && ex) { content = (error = err('alert', { code: 'revision_not_exist' })) + content; break; }
 		var data = await curs.execute("select rev from history where cast(rev as integer) > ? and title = ? and namespace = ?", [Number(baserev), doc.title, doc.namespace]);
 		if(data.length) {
 			var data = await curs.execute("select content from history where rev = ? and title = ? and namespace = ?", [baserev, doc.title, doc.namespace]);
 			var oc = '';
-			if(data.length) oc = data[0].content;	
-			return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', (error = err('alert', { code: 'edit_conflict' })) + `
-				${diff(oc, text, 'r' + baserev, '사용자 입력')}
-				<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>
-			` + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class=form-control>${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`), {
-				document: doc,
-			}, _, error, 'edit'));
+			if(data.length) oc = data[0].content;
+			error = err('alert', { code: 'edit_conflict' });
+			content = error + diff(oc, text, 'r' + baserev, '사용자 입력') + '<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>' + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class=form-control>${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`);
+			break;
 		}
 		const ismember = islogin(req) ? 'author' : 'ip';
 		var advance = 'normal';
 		
 		var data = await curs.execute("select title from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		if(!data.length) {
-			if(['파일', '사용자'].includes(doc.namespace)) return res.status(400).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', (error = err('alert', { code: 'invalid_namespace' })) + content.replace('&<$TEXTAREA>', textarea), {
-				document: doc,
-			}, '', error, 'edit'));
-			
+			if(['파일', '사용자'].includes(doc.namespace)) {
+				error = err('alert', { code: 'invalid_namespace' });
+				content = error + content;
+				break;
+			}
 			advance = 'create';
 			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, text]);
 		} else {
@@ -2785,18 +2768,19 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		markdown(text, 0, doc + '', 'backlinkinit');
 		
 		return res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
-	}
+	} while(0);
 	
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', content.replace('&<$TEXTAREA>', textarea), {
 		document: doc,
 		body: {
 			baserev: String(baserev),
 			text: rawContent,
-			section: null,
+			section,
 		},
 		helptext: '',
 		captcha: false,
 		readonly: !!aclmsg,
+		token,
 	}, '', error, 'edit'));
 });
 
@@ -3013,7 +2997,7 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 	
 	// 더 시드에서 실제로는 되돌려짐.
 	if(req.method == 'GET' && ['move', 'delete', 'acl', 'revert'].includes(revdata.advance)) {
-		return res.send(await showError(req, '이 리비전으로 되돌릴 수 없습니다.', 1));
+		return res.send(await showError(req, 'not_revertable'));
 	}
 	
 	var content = `
@@ -3035,9 +3019,8 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 	
 	if(req.method == 'POST') {
 		if(recentRev.content == revdata.content) {
-			return res.send(await showError(req, '문서 내용이 같습니다.', 1));
+			return res.send(await showError(req, 'text_unchanged'));
 		}
-		
 		await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		await curs.execute("insert into documents (content, title, namespace) values (?, ?, ?)", [revdata.content, doc.title, doc.namespace]);
 		const rawChanges = revdata.content.length - recentRev.content.length;
@@ -3050,10 +3033,10 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 	}
 	
 	res.send(await render(req, doc + ' (r' + rev + '로 되돌리기)', content, {
-		rev: rev,
+		rev,
 		text: revdata.content,
 		document: doc,
-	}, _, _, 'revert'))
+	}, _, null, 'revert'))
 });
 
 wiki.get(/^\/diff\/(.*)/, async (req, res) => {
@@ -3062,34 +3045,22 @@ wiki.get(/^\/diff\/(.*)/, async (req, res) => {
 	const rev    = req.query ['rev'];
 	const oldrev = req.query ['oldrev'];
 	
-	if(!rev || !oldrev || Number(rev) <= Number(oldrev)) {
-		return res.send(await showError(req, 'revision_not_found'));
-	}
-	
+	if(!rev || !oldrev || Number(rev) <= Number(oldrev)) return res.send(await showError(req, 'revision_not_found'));
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-	if(aclmsg) {
-		return res.status(403).send(await showError(req, { code: 'permission_read', msg: aclmsg }));
-	}
-	
+	if(aclmsg) return res.status(403).send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 	var dbdata = await curs.execute("select content from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
-	if(!dbdata.length) {
-		return res.send(await showError(req, 'revision_not_found'));
-	}
+	if(!dbdata.length) return res.send(await showError(req, 'revision_not_found'));
 	const revdata = dbdata[0];
 	var dbdata = await curs.execute("select content from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, oldrev]);
-	if(!dbdata.length) {
-		return res.send(await showError(req, 'revision_not_found'));
-	}
+	if(!dbdata.length) return res.send(await showError(req, 'revision_not_found'));
 	const oldrevdata = dbdata[0];
-	
 	const diffoutput = diff(oldrevdata.content, revdata.content, 'r' + oldrev, 'r' + rev);
-	
 	var content = diffoutput;
 	
 	res.send(await render(req, doc + ' (비교)', content, {
-		rev: rev,
-		oldrev: oldrev,
-		diffoutput: diffoutput,
+		rev,
+		oldrev,
+		diffoutput,
 		document: doc,
 	}, _, _, 'diff'))
 });
@@ -3395,7 +3366,7 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	if(!rawContent[0]) rawContent = '';
 	else rawContent = rawContent[0].content;
-	
+	var error = null;
 	var content = `
 		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
 			<input type="hidden" name="token" value="">
@@ -3435,11 +3406,11 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 		</form>
 	`;
 	
-	if(req.method == 'POST') {
+	if(req.method == 'POST') do {
 		if(rawContent == req.body['text']) {
-			return res.send(await render(req, doc + ' (편집 요청)', alertBalloon('문서 내용이 같습니다.', 'danger', true, 'fade in edit-alert') + content, {
-				document: doc,
-			}, '', true, 'new_edit_request'));
+			error = err('alert', { code: 'text_unchanged' });
+			content = error + content;
+			break;
 		}
 		
 		var data = await curs.execute("select id from edit_requests order by cast(id as integer) desc limit 1");
@@ -3449,11 +3420,11 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 														[doc.title, doc.namespace, id, req.body['text'] || '', baserev, ip_check(req), islogin(req) ? 'author' : 'ip', req.body['log'] || '', getTime(), getTime()]);
 		
 		return res.redirect('/edit_request/' + id);
-	}
+	} while(0);
 	
 	res.send(await render(req, doc + ' (편집 요청)', content, {
 		document: doc,
-	}, '', _, 'new_edit_request'));
+	}, '', error, 'new_edit_request'));
 });
 
 wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
@@ -3971,7 +3942,6 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function documen
 			`;
 		}
 	}
-	
 	content += `
 			</tbody>
 		</table>
@@ -4049,7 +4019,6 @@ wiki.get(/^\/RecentDiscuss$/, async function recentDicsuss(req, res) {
 			</tr>
 		`;
 	}
-	
 	content += `
 			</tbody>
 		</table>
@@ -4066,9 +4035,6 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss$/, async function discussi
 				where cast(time as integer) >= ? and ismember = ? and lower(username) = ? order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username.toLowerCase()
 				]);
-	
-//			<li><a href="/contribution/${ismember}/${username}/document">[문서]</a></li>
-//			<li><a href="/contribution/${ismember}/${username}/discuss">[토론]</a></li>
 	
 	var content = `
 		<p>최근 30일동안의 기여 목록 입니다.</p>
@@ -4116,7 +4082,6 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/discuss$/, async function discussi
 				</tr>
 		`;
 	}
-	
 	content += `
 			</tbody>
 		</table>
@@ -4152,11 +4117,9 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 30",
 						[doc.title, doc.namespace]);
 	}
-	
 	if(!data.length) return res.send(await showError(req, 'document_not_found'));
 	
 	const navbtns = navbtn(total, data[data.length-1].rev, data[0].rev, '/history/' + encodeURIComponent(title));
-	
 	var content = `
 		<p>
 			<button id="diffbtn" class="btn btn-secondary">선택 리비젼 비교</button>
@@ -4220,7 +4183,7 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	
 	res.send(await render(req, totitle(doc.title, doc.namespace) + '의 역사', content, {
 		document: doc,
-	}, '', error = false, viewname = 'history'));
+	}, '', null, 'history'));
 });
 
 wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
@@ -4231,9 +4194,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	if(!state) state = '';
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-	if(aclmsg) {
-		return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
-	}
+	if(aclmsg) return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 	
 	var content = '';
 	
@@ -4460,7 +4421,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 		captcha,
 		thread_list,
 		editRequests,
-	}, '', false, viewname));
+	}, '', null, viewname));
 });
 
 wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
@@ -4477,28 +4438,22 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 		return res.send(await showError(req, { code: 'permission_create_thread', msg: aclmsg }));
 	}
 	
-	if(!req.body['topic']) {
-		return res.send(await showError(req, fetchErrorString('validator_required', 'topic')));
-	}
-	
-	if(!req.body['text']) {
-		return res.send(await showError(req, fetchErrorString('validator_required', 'text')));
-	}
+	if(!req.body['topic']) return res.send(await showError(req, { code: 'validator_required', tag: 'topic' }));
+	if(!req.body['text']) return res.send(await showError(req, { code: 'validator_required', tag: 'text' }));
 	
 	var tnum;
-	
 	do {
 		tnum = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 22);
 		var dd = await curs.execute("select tnum from threads where tnum = ?", [tnum]);
 		if(!dd.length) break;
 	} while(1);
+	const newid = newID();
 	
-	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum) values (?, ?, ?, ?, ?, ?)",
-					[doc.title, doc.namespace, req.body['topic'], 'normal', getTime(), tnum]);
-	
-	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) values \
-					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0']);
+	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum, slug) values (?, ?, ?, ?, ?, ?, ?)",
+					[doc.title, doc.namespace, req.body['topic'], 'normal', getTime(), tnum, newid]);
+	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, slug) values \
+					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0', newid]);
 					
 	res.redirect('/thread/' + tnum);
 });
@@ -4529,17 +4484,12 @@ wiki.get(minor >= 16 ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-9]{1
 	if(data.length && data[0].deleted == '1') rescount = 0;
 	if(!rescount) return res.send(await showError(req, "thread_not_found"));
 	
-	var data = await curs.execute("select title, namespace, topic, status from threads where tnum = ?", [tnum]);
-	const title = data[0]['title'];
-	const namespace = data[0]['namespace'];
-	const topic = data[0]['topic'];
-	const status = data[0]['status'];
+	var data = await curs.execute("select title, namespace, topic, status, slug from threads where tnum = ?", [tnum]);
+	const { title, topic, status, namespace } = data[0];
 	const doc = totitle(title, namespace);
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
-	if(aclmsg) {
-		return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
-	}
+	if(aclmsg) return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 	
 	var content = `
 		<h2 class=wiki-heading style="cursor: pointer;">
@@ -4643,7 +4593,7 @@ wiki.get(minor >= 16 ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-9]{1
 	
 	res.send(await render(req, totitle(title, namespace) + ' (토론) - ' + topic, content, {
 		document: doc,
-	}, '', error = false, viewname = 'thread'));
+	}, '', null, 'thread'));
 });
 
 wiki.post(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function postThreadComment(req, res) {
@@ -4658,11 +4608,8 @@ wiki.post(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function postThreadComment(r
 	if(data.length && data[0].deleted == '1') rescount = 0;
 	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
-	var data = await curs.execute("select title, namespace, topic, status from threads where tnum = ?", [tnum]);
-	const title = data[0]['title'];
-	const topic = data[0]['topic'];
-	const status = data[0]['status'];
-	const namespace = data[0]['namespace'];
+	var data = await curs.execute("select title, namespace, topic, status, slug from threads where tnum = ?", [tnum]);
+	const { title, topic, status, namespace } = data[0];
 	const doc = totitle(title, namespace);
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
@@ -4671,17 +4618,9 @@ wiki.post(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function postThreadComment(r
 	}
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'write_thread_comment', 1);
-	if(aclmsg) {
-		return res.status(403).json({ status: aclmsg });
-	}
-	
-	if(['close', 'pause'].includes(status)) {
-		return res.status(403).json({});
-	}
-  
-	if(!req.body['text']) {
-		return res.status(400).json({});
-	}
+	if(aclmsg) return res.status(403).json({ status: aclmsg });
+	if(['close', 'pause'].includes(status)) return res.status(403).json({});
+	if(!req.body['text']) return res.status(400).json({ status: err('error', { code: 'validator_required', tag: 'text' }) + '' });
 	
 	var data = await curs.execute("select id from res where tnum = ? order by cast(id as integer) desc limit 1", [tnum]);
 	const lid = Number(data[0]['id']);
@@ -4707,16 +4646,13 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 	var rescount = data.length;
 	var data = await curs.execute("select deleted from threads where tnum = ?", [tnum]);
 	if(data.length && data[0].deleted == '1') rescount = 0;
-	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
 	var data = await curs.execute("select username from res where tnum = ? and (id = '1')", [tnum]);
 	const fstusr = data[0]['username'];
 	
-	var data = await curs.execute("select title, namespace, topic, status from threads where tnum = ?", [tnum]);
-	const title = data[0]['title'];
-	const namespace = data[0]['namespace'];
-	const topic = data[0]['topic'];
-	const status = data[0]['status'];
+	var data = await curs.execute("select title, namespace, topic, status, slug from threads where tnum = ?", [tnum]);
+	const { title, topic, status, namespace } = data[0];
 	const doc = totitle(title, namespace);
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
@@ -4789,12 +4725,9 @@ wiki.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/show$/, async function 
 	var rescount = data.length;
 	var data = await curs.execute("select deleted from threads where tnum = ?", [tnum]);
 	if(data.length && data[0].deleted == '1') rescount = 0;
-	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
-	if(!getperm('hide_thread_comment', ip_check(req))) {
-		return res.send(await showError(req, 'permission'));
-	}
-	
+	if(!getperm('hide_thread_comment', ip_check(req))) return res.send(await showError(req, 'permission'));
 	await curs.execute("update res set hidden = '0', hider = '' where tnum = ? and id = ?", [tnum, tid]);
 	
 	res.redirect('/thread/' + tnum);
@@ -4811,12 +4744,9 @@ wiki.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/hide$/, async function 
 	var rescount = data.length;
 	var data = await curs.execute("select deleted from threads where tnum = ?", [tnum]);
 	if(data.length && data[0].deleted == '1') rescount = 0;
-	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
-	if(!getperm('hide_thread_comment', ip_check(req))) {
-		return res.send(await showError(req, 'permission'));
-	}
-	
+	if(!getperm('hide_thread_comment', ip_check(req))) return res.send(await showError(req, 'permission'));
 	await curs.execute("update res set hidden = '1', hider = ? where tnum = ? and id = ?", [ip_check(req), tnum, tid]);
 	
 	res.redirect('/thread/' + tnum);
@@ -4832,15 +4762,12 @@ wiki.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/status$/, async function upda
 	var rescount = data.length;
 	var data = await curs.execute("select deleted from threads where tnum = ?", [tnum]);
 	if(data.length && data[0].deleted == '1') rescount = 0;
-	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
 	var newstatus = req.body['status'];
-	if(!['close', 'pause', 'normal'].includes(newstatus)) newstatus = 'normal';
+	if(!['close', 'pause', 'normal'].includes(newstatus)) res.status(400).send('');
 	
-	if(!getperm('update_thread_status', ip_check(req))) {
-		return res.send(await showError(req, 'permission'));
-	}
-	
+	if(!getperm('update_thread_status', ip_check(req))) return res.send(await showError(req, 'permission'));
 	await curs.execute("update threads set time = ?, status = ? where tnum = ?", [getTime(), newstatus, tnum]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'status')", [
@@ -4860,18 +4787,15 @@ wiki.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/document$/, async function up
 	var rescount = data.length;
 	var data = await curs.execute("select deleted from threads where tnum = ?", [tnum]);
 	if(data.length && data[0].deleted == '1') rescount = 0;
-	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
-	if(!getperm('update_thread_document', ip_check(req))) {
-		return res.send(await showError(req, 'permission'));
-	}
-	
+	if(!getperm('update_thread_document', ip_check(req))) return res.send(await showError(req, 'permission'));
 	var newdoc = req.body['document'];
-	if(!newdoc.length) return res.send('');
+	if(!newdoc.length) return res.status(400).send('');
 	var dd = processTitle(newdoc);
 	
 	var aclmsg = await getacl(req, dd.title, dd.namespace, 'create_thread', 1);
-	if(aclmsg) return res.send({
+	if(aclmsg) return res.json({
 		status: aclmsg,
 	});
 	
@@ -4894,16 +4818,11 @@ wiki.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/topic$/, async function updat
 	var rescount = data.length;
 	var data = await curs.execute("select deleted from threads where tnum = ?", [tnum]);
 	if(data.length && data[0].deleted == '1') rescount = 0;
-	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 
-	if(!getperm('update_thread_topic', ip_check(req))) {
-		return res.send(await showError(req, 'permission'));
-	}
-
+	if(!getperm('update_thread_topic', ip_check(req))) return res.send(await showError(req, 'permission'));
 	var newtopic = req.body['topic'];
-	if(!newtopic.length) {
-		return res.send('');
-	}
+	if(!newtopic.length) return res.status(400).send('');
 		
 	await curs.execute("update threads set time = ?, topic = ? where tnum = ?", [getTime(), newtopic, tnum]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
@@ -4922,14 +4841,11 @@ wiki.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/delete/, async function delete
 	
 	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
 	const rescount = data.length;
-	if(!rescount) { res.send(await showError(req, "thread_not_found")); return; }
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
 	var data = await curs.execute("select title, namespace from threads where tnum = ?", [tnum]);
 	const title = totitle(data[0].title, data[0].namespace) + '';
-	
-	if(!getperm('delete_thread', ip_check(req))) {
-		return res.send(await showError(req, 'permission'));
-	}
+	if(!getperm('delete_thread', ip_check(req))) return res.send(await showError(req, 'permission'));
 	
 	await curs.execute("update threads set deleted = '1' where tnum = ?", [tnum]);
 	res.redirect('/discuss/' + encodeURIComponent(title));
@@ -4958,19 +4874,13 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	const doc = processTitle(title);
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
-	if(aclmsg) {
-		return res.send(await showError(req, { code: 'permission_edit', msg: aclmsg }));
-	}
+	if(aclmsg) return res.send(await showError(req, { code: 'permission_edit', msg: aclmsg }));
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'delete', 1);
-	if(aclmsg) {
-		return res.send(await showError(req, { code: 'permission_delete', msg: aclmsg }));
-	}
+	if(aclmsg) return res.send(await showError(req, { code: 'permission_delete', msg: aclmsg }));
 	
 	const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-	if(!o_o.length) {
-		return res.send(await showError(req, 'document_not_found'));
-	}
+	if(!o_o.length) return res.send(await showError(req, 'document_not_found'));
 	
 	var content = `
 		<form id=deleteForm method=post>
@@ -4995,7 +4905,6 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	`;
 	
 	var error = null;
-	
 	if(req.method == 'POST') {
 		if(doc.namespace == '사용자') {
 			content = (error = err('alert', 'disable_user_document')) + content;
@@ -5180,6 +5089,7 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		if(isNaN(Number(expire))) { content = (error = err('alert', { code: 'invalid_type_number', tag: 'expire' })) + content; break; }
 		if(Number(expire) > 29030400) { content = (error = err('alert', { msg: 'expire의 값은 29030400 이하이어야 합니다.' })) + content; break; }
 		if(expire == '-1') {
+			if(!(await userblocked(username))) { content = (error = err('alert', { code: 'already_unsuspend_account' })) + content; break; }
 			curs.execute("delete from suspend_account where username = ?", [username]);
 			var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
 			if(data.length) logid = Number(data[0].logid) + 1;
@@ -5200,7 +5110,6 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
 		
 		curs.execute("insert into suspend_account (username, date, expiration, note) values (?, ?, ?, ?)", [username, String(getTime()), expiration, note]);
-		
 		var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
 		if(data.length) logid = Number(data[0].logid) + 1;
 		insert('block_history', {
