@@ -1697,7 +1697,7 @@ function fetchValidator(code) {
 	const codes = {
 		username: '사용자 이름',
 		note: '메모',
-		ip: 'IP 주소'
+		ip: 'IP 주소',
 	};
 	
 	return codes[code] || code;
@@ -2457,25 +2457,21 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 				<h3>이 문서의 역사</h3>
 				<ul class=wiki-list>
 			`;
-			
-			for(var row of data) {
-				content += `
-					<li>
-						${generateTime(toDate(row.time), timeFormat)} <strong>r${row.rev}</strong> ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''} (<span style="color: ${
-							(
-								Number(row.changes) > 0
-								? 'green'
-								: (
-									Number(row.changes) < 0
-									? 'red'
-									: 'gray'
-								)
+			for(var row of data) content += `
+				<li>
+					${generateTime(toDate(row.time), timeFormat)} <strong>r${row.rev}</strong> ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''} (<span style="color: ${
+						(
+							Number(row.changes) > 0
+							? 'green'
+							: (
+								Number(row.changes) < 0
+								? 'red'
+								: 'gray'
 							)
-							
-						};">${row.changes}</span>) ${ip_pas(row.username, row.ismember)} (<span style="color: gray;">${row.log}</span>)</li>
-				`;
-			}
-			
+						)
+						
+					};">${row.changes}</span>) ${ip_pas(row.username, row.ismember)} (<span style="color: gray;">${row.log}</span>)</li>
+			`;
 			content += `
 				</ul>
 				<a href="/history/` + encodeURIComponent(doc + '') + `">[더보기]</a>
@@ -5138,7 +5134,7 @@ wiki.all(/^\/admin\/grant$/, async(req, res, next) => {
 	var content = `
 		<form method=get>
 			<div>
-				<label>유저 이름: </label>
+				<label>유저 이름 :</label>
 				<input type=text id=usernameInput class=form-control style="width: 250px;" name=username value="${html.escape(username ? username : '')}" />
 				<button type=submit class="btn btn-info pull-right" style="width: 100px;">확인</button>
 			</div>
@@ -5223,7 +5219,7 @@ wiki.all(/^\/admin\/login_history$/, async(req, res, next) => {
 	var content = `
 		<form method=post>
 			<div>
-				<label>유저 이름: </label>
+				<label>유저 이름 :</label>
 				<input type=text id=usernameInput class=form-control style="width: 250px;" name=username />
 			</div>
 			
