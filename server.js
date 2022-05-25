@@ -6830,7 +6830,7 @@ wiki.get(/^\/LongestPages$/, async function longestPages(req, res) {
 
 wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
-	if(!islogin(req)) return res.status(403).send(await showError(req,' permission'));
+	if(!islogin(req)) return res.status(403).send(await showError(req, 'permission'));
 	if(!((hostconfig.owners || []).includes(ip_check(req)))) {
 		return res.status(403).send(await showError(req, 'permission'));
 	}
@@ -6918,6 +6918,11 @@ wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 				<input class=form-control type=text name=wiki.logo_url value="${html.escape(config.getString('wiki.logo_url', ''))}" />
 			</div>
 			
+			<div class=form-group>
+				<label class=control-label>사용자정의 이름공간</label>
+				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
+			</div>
+			
 			<div class=btns>
 				<button type=submit style="width: 100px;" class="btn btn-primary">저장</button>
 			</div>
@@ -6932,26 +6937,27 @@ wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 			curs.execute("update acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 		}
 		
-		if(!req.body['wiki.email_filter_enabled']) req.body['wiki.email_filter_enabled'] = 'false';
-		
-		// 어차피 소유자 전용이니까 취약점 고려는 굳이...?
-		for(var item in req.body) {
-			if(item == 'filters') {
-				await curs.execute("delete from email_filters");
-				for(var f of req.body['filters'].split(';')) {
-					curs.execute("insert into email_filters (address) values (?)", [f]);
-				}
-			} else {
-				wikiconfig[item] = req.body[item];
-				await curs.execute("delete from config where key = ?", [item]);
-				await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);
+		if(!req.body['wiki.email_filter_enabled'])
+			req.body['wiki.email_filter_enabled'] = 'false';
+		if(req.body['custom_namespaces'])
+			hostconfig.custom_namespaces = req.body['custom_namespaces'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
+		if(req.body['filters']) {
+			await curs.execute("delete from email_filters");
+			for(var f of req.body['filters'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item)) {
+				curs.execute("insert into email_filters (address) values (?)", [f]);
 			}
 		}
+		for(var item of ['wiki.site_name', 'wiki.front_page', 'wiki.default_skin', 'filters', 'wiki.sitenotice', 'wiki.editagree_text', 'wiki.canonical_url', 'wiki.copyright_url', 'wiki.copyright_text', 'wiki.footer_text', 'wiki.logo_url']) {
+			wikiconfig[item] = req.body[item];
+			await curs.execute("delete from config where key = ?", [item]);
+			await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);
+		}
+		fs.writeFile('config.json', JSON.stringify(hostconfig), 'utf8', () => 1);
 		
 		return res.redirect('/admin/config');
 	}
 	
-	return res.send(await render(req, '설정', content));
+	return res.send(await render(req, '환경설정', content));
 });
 
 // 역링크 초기화 (디버그 전용)
