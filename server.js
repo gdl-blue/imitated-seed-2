@@ -6435,7 +6435,7 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 				<label>전자우편 주소</label>
 				${hostconfig.disable_email ? `
 					<input type=hidden name=email value="" />
-					비활성화됨
+					<div>비활성화됨</div>
 				` : `<input type=email name=email class=form-control />`}
 				${duplicate ? (error = true, `<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>`) : ''}
 				${userduplicate ? (error = true, `<p class=error-desc>이메일이 이미 존재합니다.</p>`) : ''}
