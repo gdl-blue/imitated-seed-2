@@ -1686,6 +1686,7 @@ function fetchErrorString(code, ...params) {
 		invalid_type_number: params[0] + '의 값은 숫자이어야 합니다.',
 		not_revertable: '이 리비전으로 되돌릴 수 없습니다.',
 		disallowed_email: '이메일 허용 목록에 있는 이메일이 아닙니다.',
+		file_not_uploaded: '파일이 업로드되지 않았습니다.',
 	};
 	
 	return codes[code] || code;
@@ -2214,6 +2215,20 @@ function edittype(type, ...flags) {
 	return ret;
 }
 
+function expireopt(req) {
+	var disp = ['영구', '1분', '5분', '10분', '30분', '1시간', '2시간', '하루', '3일', '5일', '7일', '2주', '3주', '1개월', '6개월', '1년'];
+	var val  = [0, 60, 300, 600, 1800, 3600, 7200, 86400, 259200, 432000, 604800, 1209600, 1814400, 2592000, 15552000, 29030400];
+	if(req.path == '/admin/suspend_account') {
+		disp = ['선택', '해제'].concat(disp);
+		val  = ['', -1].concat(val);
+	}
+	var ret = '';
+	for(var i=0; i<disp.length; i++) {
+		ret += `<option value="${val[i]}"${req && req.method == 'POST' && String(req.body['expire']) === String(val[i]) ? ' selected' : ''}>${disp[i]}</option>`;
+	}
+	return ret;
+}
+
 wiki.get(/^\/License$/, async(req, res) => {
 	return res.send(await render(req, '라이선스', `
 		<p>모방 타겟 the seed 버전: v${major}.${minor}.${revision}</p>
@@ -2711,15 +2726,15 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		var ex = 1;
 		if(!original[0]) ex = 0, original = '';
 		else original = original[0]['content'];
-		var text = req.body['text'];
+		var text = req.body['text'] || '';
 		if(text.startsWith('#넘겨주기 ')) text = text.replace('#넘겨주기 ', '#redirect ');
 		if(text.startsWith('#redirect ')) text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')[0] + '\n';
 		if(original == text && ex) { content = (error = err('alert', { code: 'text_unchanged' })) + content; break; }
-		if(!req.body['agree']) { content = (error = err('alert', { code: 'validator_required', tag: 'agree' })) + content; break; }
 		const rawChanges = text.length - original.length;
 		const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
-		const log = req.body['log'];
+		const log = req.body['log'] || '';
 		const agree = req.body['agree'];
+		if(!agree) { content = (error = err('alert', { code: 'validator_required', tag: 'agree' })) + content; break; }
 		const baserev = req.body['baserev'];
 		if(isNaN(Number(baserev))) { content = (error = err('alert', { code: 'invalid_type_number', tag: 'baserev' })) + content; break; }
 		var data = await curs.execute("select rev from history where rev = ? and title = ? and namespace = ?", [baserev, doc.title, doc.namespace]);
@@ -3011,7 +3026,7 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 		const rawChanges = revdata.content.length - recentRev.content.length;
 		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-			doc.title, doc.namespace, revdata.content, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), (rawChanges > 0 ? '+' : '') + rawChanges, req.body['log'], '0', '-1', islogin(req) ? 'author' : 'ip', 'revert', rev
+			doc.title, doc.namespace, revdata.content, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), (rawChanges > 0 ? '+' : '') + rawChanges, req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'revert', rev
 		]);
 		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		return res.redirect('/w/' + encodeURIComponent(doc + ''));
@@ -3275,6 +3290,8 @@ wiki.all(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)\/edit$/ : /^\/edit_request\
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit_request', 1);
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_edit_request', msg: aclmsg }));
 	
+	var error = null;
+	
 	var content = `
 		<form method="post" id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
 			<input type="hidden" name="token" value="">
@@ -3313,14 +3330,16 @@ wiki.all(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)\/edit$/ : /^\/edit_request\
 		</form>
 	`;
 	
-	if(req.method == 'POST') {
+	if(req.method == 'POST') do {
+		const agree = req.body['agree'];
+		if(!agree) { content = (error = err('alert', { code: 'validator_required', tag: 'agree' })) + content; break; }
 		await curs.execute("update edit_requests set lastupdate = ?, content = ?, log = ? where id = ?", [getTime(), req.body['text'] || '', req.body['log'] || '', id]);
 		return res.redirect('/edit_request/' + id);
-	}
+	} while(0);
 	
 	res.send(await render(req, doc + ' (편집 요청)', content, {
 		document: doc,
-	}, '', _, 'new_edit_request'));
+	}, '', error, 'new_edit_request'));
 });
 
 wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
@@ -3397,6 +3416,9 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 			content = error + content;
 			break;
 		}
+		
+		const agree = req.body['agree'];
+		if(!agree) { content = (error = err('alert', { code: 'validator_required', tag: 'agree' })) + content; break; }
 		
 		var data = await curs.execute("select id from edit_requests order by cast(id as integer) desc limit 1");
 		var id = 1;
@@ -3477,6 +3499,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				case 'insert': {
 					if(!['allow', 'deny'].concat(isNS || minor < 18 ? [] : ['gotons']).includes(action)) return res.status(400).send('');
 					if(Number(expire) === NaN) return res.status(400).send('');
+					if(!condition) return res.status(400).send('');
 					const cond = condition.split(':');
 					if(cond.length != 2) return res.status(400).send('');
 					if(!['perm', 'ip', 'member'].concat((minor >= 6 || (minor == 5 && revision >= 9)) ? ['geoip'] : []).concat(minor >= 18 ? ['aclgroup'] : []).includes(cond[0])) return res.status(400).send('');
@@ -3485,7 +3508,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					if(data.length) return res.status(400).json({
 						status: fetchErrorString('acl_already_exists'),
 					});
-					if(cond[0] == 'aclgroup' && minor >= 18) {
+					if(cond[0] == 'aclgroup') {
 						var data = await curs.execute("select name from aclgroup_groups where name = ?", [cond[1]]);
 						if(!data.length) return res.status(400).json({
 							status: fetchErrorString('invalid_aclgroup'),
@@ -3504,7 +3527,12 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					if(cond[0] == 'member') {
 						var data = await curs.execute("select username from users where username = ?", [cond[1]]);
 						if(!data.length) return res.status(400).json({
-							status: '사용자 이름이 올바르지 않습니다.',
+							status: fetchErrorString('invalid_username'),
+						});
+					}
+					if(cond[0] == 'perm') {
+						if(!cond[1]) return res.status(400).json({
+							status: fetchErrorString('invalid_value'),
 						});
 					}
 					
@@ -3527,6 +3555,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					
 					return res.send(await tbody(type, isNS, edit));
 				} case 'delete': {
+					if(!id) return res.status(400).send('');
 					var data = await curs.execute("select action, conditiontype, condition from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
 					if(!data.length) return res.status(400).send('');
 					await curs.execute("delete from acl where id = ? and type = ? and title = ? and namespace = ? and ns = ?", [id, type, isNS ? '' : doc.title, doc.namespace, isNS ? '1' : '0']);
@@ -3538,6 +3567,8 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					
 					return res.send(await tbody(type, isNS, edit));
 				} case 'move': {
+					if(!id || !after_id) return res.status(400).send('');
+					
 					if(id > after_id) {  // 위로 올림
 						for(var i=id; i>=after_id+2; i--) {
 							const rndv = rndval('0123456789abcdefghijklmnopqrstuvwxyz') + ip_check(req) + getTime();
@@ -3557,6 +3588,8 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					return res.send(await tbody(type, isNS, edit));
 				}
 			}
+			
+			return res.status(400).send('');
 		} else {
 			var content = ``;
 			for(var isns of [false, true]) {
@@ -3635,23 +3668,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 									<label class=control-label>Duration :</label> 
 									<div>
 										<select class="form-control seed-acl-add-expire">
-											<option value="0" selected="">영구</option>
-											<option value="300">5분</option>
-											<option value="600">10분</option>
-											<option value="1800">30분</option>
-											<option value="3600">1시간</option>
-											<option value="7200">2시간</option>
-											<option value="86400">하루</option>
-											<option value="259200">3일</option>
-											<option value="432000">5일</option>
-											<option value="604800">7일</option>
-											<option value="1209600">2주</option>
-											<option value="1814400">3주</option>
-											<option value="2419200">4주</option>
-											<option value="4838400">2개월</option>
-											<option value="7257600">3개월</option>
-											<option value="14515200">6개월</option>
-											<option value="29030400">1년</option>
+											${expireopt(req)}
 										</select>
 									</div>
 								</div>
@@ -4385,7 +4402,7 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 					<div id="recaptcha"><div><noscript>Aktiviere JavaScript, um eine reCAPTCHA-Aufgabe zu erhalten.&lt;br&gt;</noscript><div class="if-js-enabled">Führe ein Upgrade auf einen <a href="http://web.archive.org/web/20171027095753/https://support.google.com/recaptcha/?hl=en#6223828">unterstützten Browser</a> aus, um eine reCAPTCHA-Aufgabe zu erhalten.</div><br>Wenn du meinst, dass diese Seite fälschlicherweise angezeigt wird, überprüfe bitte deine Internetverbindung und lade die Seite neu.<br><br><a href="http://web.archive.org/web/20171027095753/https://support.google.com/recaptcha#6262736" target="_blank">Warum gerade ich?</a></div></div>
 					<script>
 						recaptchaInit('recaptcha', {
-							'sitekey': '6LcUuigTAAAAALyrWQPfwtFdFWFdeUoToQyVnD8Y',
+							'sitekey': '',
 							'size': 'invisible',
 							'bind': 'createBtn',
 							'badge': 'inline',
@@ -4959,7 +4976,7 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 	if(req.method == 'POST') {
 		if(doc.namespace == '사용자') {
 			content = (error = err('alert', 'disable_user_document')) + content;
-		} else {
+		} else do {
 			var doccontent = '';
 			const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 			if(o_o.length) {
@@ -4970,16 +4987,15 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 			const recentRev = _recentRev[0];
 			
 			if(!req.body['title']) {
-				return res.send(await render(req, doc + ' (이동)', alertBalloon(fetchErrorString('validator_required', 'title'), 'danger', true, 'fade in') + content, {
-					document: doc,
-				}, '', _, 'move'));
+				content = (error = err('alert', { code: 'validator_required', tag: 'title' })) + content;
+				break;
 			}
 			
 			const newdoc = processTitle(req.body['title']);
 			
 			var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'read', 1);
 			if(aclmsg) {
-				return res.send(await showError(req, { code: 'permission_red', msg: aclmsg }));
+				return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 			}
 			
 			var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'edit', 2);
@@ -5008,7 +5024,7 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 			]);
 			curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 			return res.redirect('/w/' + encodeURIComponent(newdoc + ''));
-		}
+		} while(0);
 	}
 	
 	res.send(await render(req, doc + ' (이동)', content, {
@@ -5021,42 +5037,25 @@ if(minor < 18) wiki.all(/^\/admin\/suspend_account$/, async(req, res) => {
 	if(!hasperm(req, 'suspend_account')) return res.status(403).send(await showError(req, 'permission'));
 	
 	var content = `
-		<form method="post">
+		<form method=post>
 			<div>
 				<label>유저 이름 : </label>
-				<input class=form-control id="usernameInput" name="username" style="width: 250px;" value="${req.method == 'POST' ? html.escape(req.body['username'] || '') : ''}" type="text" />
+				<input class=form-control id=usernameInput name=username style="width: 250px;" value="${req.method == 'POST' ? html.escape(req.body['username'] || '') : ''}" type=text />
 			</div>
 			
 			<div>
 				<label>메모 : </label>
-				<input class=form-control id="noteInput" name="note" style="width: 400px;" value="${req.method == 'POST' ? html.escape(req.body['note'] || '') : ''}" type="text" />
+				<input class=form-control id=noteInput name=note style="width: 400px;" value="${req.method == 'POST' ? html.escape(req.body['note'] || '') : ''}" type=text />
 			</div>
 			
 			<div>
 				<label>기간 : </label> 
-				<select class=form-control name="expire" id="expire" style="width: 100%">
-					<option value="">선택</option>
-					<option value="-1">해제</option>
-					<option value="0">영구</option>
-					<option value="60">1분</option>
-					<option value="300">5분</option>
-					<option value="600">10분</option>
-					<option value="1800">30분</option>
-					<option value="3600">1시간</option>
-					<option value="7200">2시간</option>
-					<option value="86400">하루</option>
-					<option value="259200">3일</option>
-					<option value="432000">5일</option>
-					<option value="604800">7일</option>
-					<option value="1209600">2주</option>
-					<option value="1814400">3주</option>
-					<option value="2592000">1개월</option>
-					<option value="15552000">6개월</option>
-					<option value="31104000">1년</option>
+				<select class=form-control name=expire id=expireSelect>
+					${expireopt(req)}
 				</select>
 			</div>
 			
-			<button class="btn btn-info pull-right" id="moveBtn" style="width: 100px;" type="submit">확인</button>
+			<button class="btn btn-info pull-right" id=moveBtn style="width: 100px;" type=submit>확인</button>
 		</form>
 	`;
 	
@@ -5288,7 +5287,7 @@ wiki.get(/^\/admin\/login_history\/(.+)$/, async(req, res) => {
 
 if(minor < 18) wiki.post(/^\/admin\/ipacl\/remove$/, async(req, res) => {
 	if(!hasperm(req, 'ipacl')) return res.status(403).send(await showError(req, 'permission'));
-	if(!req.body['ip']) return res.status(400).send(await showError(req, 'validator_required'));
+	if(!req.body['ip']) return res.status(400).send(await showError(req, { code: 'validator_required', tag: 'ip' }));
 	var dbdata = await curs.execute("select cidr from ipacl where cidr = ?", [req.body['ip']]);
 	if(!dbdata.length) return res.status(400).send(await showError(req, 'invalid_value'));
 	await curs.execute("delete from ipacl where cidr = ?", [req.body['ip']]);
@@ -5341,23 +5340,7 @@ if(minor < 18) wiki.all(/^\/admin\/ipacl$/, async(req, res, next) => {
     		<div class=form-group>
     			<label class=control-label>차단 기간 :</label>
     			<select class=form-control name=expire>
-    				<option value=0 selected>영구</option>
-    				<option value=300>5분</option>
-    				<option value=600>10분</option>
-    				<option value=1800>30분</option>
-    				<option value=3600>1시간</option>
-    				<option value=7200>2시간</option>
-    				<option value=86400>하루</option>
-    				<option value=259200>3일</option>
-    				<option value=432000>5일</option>
-    				<option value=604800>7일</option>
-    				<option value=1209600>2주</option>
-    				<option value=1814400>3주</option>
-    				<option value=2419200>4주</option>
-    				<option value=4838400>2개월</option>
-    				<option value=7257600>3개월</option>
-    				<option value=14515200>6개월</option>
-    				<option value=29030400>1년</option>
+    				${expireopt(req)}
     			</select>
     		</div>
 
@@ -5501,20 +5484,25 @@ if(minor >= 18) wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 		</form>
 	`;
 	
-	var error = false;
+	var error = null;
 	
-	if(req.method == 'POST') {
+	if(req.method == 'POST') do {
 		const { group } = req.body;
-		if(!group) error = true, content = alertBalloon('그룹 이름의 값은 필수입니다.', 'danger', true, 'fade in') + content;
-		else {
+		if(!group) {
+			content = (error = err('alert', { code: 'validator_required', tag: 'group' })) + content;
+			break;
+		} else {
 			var data = await curs.execute("select name from aclgroup_groups where name = ?", [group]);
-			if(data.length) content = alertBalloon(fetchErrorString('aclgroup_already_exists'), 'danger', true, 'fade in') + content;
+			if(data.length) {
+				content = (error = err('alert', { code: 'aclgroup_already_exists' })) + content;
+				break;
+			}
 			else {
 				await curs.execute("insert into aclgroup_groups (name) values (?)", [group]);
 				return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 			}
 		}
-	}
+	} while(0);
 	
 	res.send(await render(req, 'ACL그룹 생성', content, {}, '', error, _));
 });
@@ -5522,14 +5510,14 @@ if(minor >= 18) wiki.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 if(minor >= 18) wiki.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
 	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'permission'));
 	const { group } = req.body;
-	if(!group) return res.redirect('/aclgroup');
+	if(!group) return res.redirect('/aclgroup');  // 귀찮음
 	await curs.execute("delete from aclgroup_groups where name = ?", [group]);
 	res.redirect('/aclgroup');
 });
 
 if(minor >= 18) wiki.post(/^\/aclgroup\/remove$/, async(req, res) => {
 	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'permission'));
-	if(!req.body['id']) return res.status(400).send(await showError(req, 'validator_required'));
+	if(!req.body['id']) return res.status(400).send(await showError(req, { code: 'validator_required', tag: 'id' }));
 	var dbdata = await curs.execute("select username, aclgroup from aclgroup where id = ?", [req.body['id']]);
 	if(!dbdata.length) return res.status(400).send(await showError(req, 'invalid_value'));
 	await curs.execute("delete from aclgroup where id = ?", [req.body['id']]);
@@ -5617,23 +5605,7 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
     		<div class="form-group">
     			<label class=control-label>기간 :</label>
     			<select class=form-control name="expire">
-    				<option value="0" selected="">영구</option>
-    				<option value="300">5분</option>
-    				<option value="600">10분</option>
-    				<option value="1800">30분</option>
-    				<option value="3600">1시간</option>
-    				<option value="7200">2시간</option>
-    				<option value="86400">하루</option>
-    				<option value="259200">3일</option>
-    				<option value="432000">5일</option>
-    				<option value="604800">7일</option>
-    				<option value="1209600">2주</option>
-    				<option value="1814400">3주</option>
-    				<option value="2419200">4주</option>
-    				<option value="4838400">2개월</option>
-    				<option value="7257600">3개월</option>
-    				<option value="14515200">6개월</option>
-    				<option value="29030400">1년</option>
+    				${expireopt(req)}
     			</select>
     		</div>
 
@@ -5722,13 +5694,13 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 		`;
 	}
 	
-	var error = false;
+	var error = null;
 	
 	if(req.method == 'POST') {
 		if(!hasperm(req, 'aclgroup')) return res.status(403).send(await showError(req, 'permission'));
 
 		var { mode, username, expire, note } = req.body;
-		if(!['ip', 'username'].includes(mode) || !username || !expire || note === undefined) error = true, content = alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content;
+		if(!['ip', 'username'].includes(mode) || !username || !expire || note == undefined) error = true, content = alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content;
 		else {
 			if(mode == 'ip' && !username.includes('/')) username += '/32';
 			
@@ -5847,18 +5819,23 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 		<script>uploadInit();</script>
 	`;
 	
-	var error = false;
+	var error = null;
 	
-	if(req.method == 'POST') {
+	if(req.method == 'POST') do {
 		var file = req.files[0];
-		if(!file) return res.send(await render(req, '파일 올리기', alertBalloon('파일이 업로드되지 않았습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		if(!file) { content = (error = err('alert', { code: 'file_not_uploaded' })) + content; break; }
 		var title = req.body['document'];
-		if(!title) return res.send(await render(req, '파일 올리기', alertBalloon(fetchErrorString('validator_required', 'document'), 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		if(!title) { content = (error = err('alert', { code: 'validator_required', tag: 'document' })) + content; break; }
 		var doc = processTitle(title);
-		if(doc.namespace != '파일') return res.send(await render(req, '파일 올리기', alertBalloon('업로드는 파일 이름 공간에서만 가능합니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
-		if(path.extname(doc.title).toLowerCase() != path.extname(file.originalname).toLowerCase()) return res.send(await render(req, '파일 올리기', alertBalloon('문서 이름과 확장자가 맞지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		if(doc.namespace != '파일') { content = (error = err('alert', { msg: '업로드는 파일 이름 공간에서만 가능합니다.' })) + content; break; }
+		if(path.extname(doc.title).toLowerCase() != path.extname(file.originalname).toLowerCase()) {
+			content = (error = err('alert', { msg: '문서 이름과 확장자가 맞지 않습니다.' })) + content;
+			break;
+		}
 		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
-		if(aclmsg) return res.send(await render(req, '파일 올리기', alertBalloon(aclmsg, 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+		if(aclmsg) { content = (error = err('alert', { code: 'permission_edit', msg: aclmsg })) + content; break; }
+		
+		if(error) break;
 		
 		var request = http.request({
 			method: 'POST', 
@@ -5873,12 +5850,16 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 			res.on('data', chunk += data);
 			res.on('end', async () => {
 				data = JSON.parse(data);
-				if(data.status != 'success') return res.send(await render(req, '파일 올리기', alertBalloon('파일이 업로드되지 않았습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+				if(data.status != 'success') {
+					error = err('alert', { code: 'file_not_uploaded' });
+					return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+				}
 				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, '']);  // sha224 해시화 필요
 				return res.redirect('/w/' + totitle(doc.title, doc.namespace));
 			});
 		}).on('error', async e => {
-			return res.send(await render(req, '파일 올리기', alertBalloon('파일 서버가 사용가능하지 않습니다.', 'danger', true, 'fade in') + content, {}, _, true, 'upload'));
+			error = err('alert', { msg: '파일 서버가 사용가능하지 않습니다.' });
+			return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 		});
 		request.write(JSON.stringify({
 			filename: file.originalname,
@@ -5889,7 +5870,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 		request.end();
 		
 		return;
-	}
+	} while(0);
 	
 	res.send(await render(req, '파일 올리기', content, {}, _, error, 'upload'));
 });
