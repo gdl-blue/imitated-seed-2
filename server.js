@@ -449,6 +449,7 @@ function newID() {
 
         if(pa == pb) pb = 'Soft';
         if(pa == pc) pc = 'Free';
+        if(pb == pc) pc = 'Cold';
         return pa + pb + pc + pd;
     } else {
         pa = random.choice(a);
@@ -576,19 +577,15 @@ try {
 	for(var table in tables) {
 		var sql = '';
 		sql = `CREATE TABLE ${table} ( `;
-		
 		for(var col of tables[table]) {
 			sql += `${col} TEXT DEFAULT '', `;
 		}
-		
 		sql = sql.replace(/[,]\s$/, '');		
 		sql += `)`;
-		
 		await curs.execute(sql);
 	}
 	
 	fs.writeFileSync('config.json', JSON.stringify(hostconfig), 'utf8');
-	
 	print('\n준비 완료되었습니다. 엔진을 다시 시작하십시오.');
 	process.exit(0);
 })(); } if(_ready) {
@@ -1410,7 +1407,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 // 위키 설정
 const config = {
 	getString(str, def = '') {
-		if(typeof(wikiconfig[str]) == 'undefined') {
+		if(wikiconfig[str] === undefined) {
 			curs.execute("insert into config (key, value) values (?, ?)", [str, def]);
 			wikiconfig[str] = def;
 			return def;
@@ -6915,7 +6912,9 @@ wiki.all(/^\/admin\/config$/, async(req, res, next) => {
 			curs.execute("update documents set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 			curs.execute("update history set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 			curs.execute("update threads set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+			curs.execute("update edit_requests set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 			curs.execute("update acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+			curs.execute("update classic_acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
 		}
 		
 		if(!req.body['wiki.email_filter_enabled'])
