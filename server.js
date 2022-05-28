@@ -1674,7 +1674,6 @@ function fetchErrorString(code, ...params) {
 		invalid_signup_key: '인증 요청이 만료되었거나 올바르지 않습니다.',
 		document_not_found: '문서를 찾을 수 없습니다.',
 		revision_not_found: '해당 리비전을 찾을 수 없습니다.',
-		revision_not_exist: '해당 리비전이 존재하지 않습니다.',
 		validator_required: params[0] + '의 값은 필수입니다.',
 		invalid_username: '사용자 이름이 올바르지 않습니다.',
 		invalid_cidr: 'IP 주소가 올바르지 않습니다.',
@@ -2735,7 +2734,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		const baserev = req.body['baserev'];
 		if(isNaN(Number(baserev))) { content = (error = err('alert', { code: 'invalid_type_number', tag: 'baserev' })) + content; break; }
 		var data = await curs.execute("select rev from history where rev = ? and title = ? and namespace = ?", [baserev, doc.title, doc.namespace]);
-		if(!data.length && ex) { content = (error = err('alert', { code: 'revision_not_exist' })) + content; break; }
+		if(!data.length && ex) { content = (error = err('alert', { code: 'revision_not_found' })) + content; break; }
 		var data = await curs.execute("select rev from history where cast(rev as integer) > ? and title = ? and namespace = ?", [Number(baserev), doc.title, doc.namespace]);
 		if(data.length) {
 			var data = await curs.execute("select content from history where rev = ? and title = ? and namespace = ?", [baserev, doc.title, doc.namespace]);
@@ -3039,12 +3038,12 @@ wiki.all(/^\/revert\/(.*)/, async (req, res, next) => {
 wiki.get(/^\/diff\/(.*)/, async (req, res) => {
 	const title  = req.params[0];
 	const doc    = processTitle(title);
-	const rev    = req.query ['rev'];
-	const oldrev = req.query ['oldrev'];
+	const rev    = req.query['rev'];
+	const oldrev = req.query['oldrev'];
 	
-	if(!rev || !oldrev || Number(rev) <= Number(oldrev)) return res.send(await showError(req, 'revision_not_found'));
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
 	if(aclmsg) return res.status(403).send(await showError(req, { code: 'permission_read', msg: aclmsg }));
+	if(!rev || !oldrev || Number(rev) <= Number(oldrev)) return res.send(await showError(req, 'revision_not_found'));
 	var dbdata = await curs.execute("select content from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
 	if(!dbdata.length) return res.send(await showError(req, 'revision_not_found'));
 	const revdata = dbdata[0];
@@ -3059,7 +3058,31 @@ wiki.get(/^\/diff\/(.*)/, async (req, res) => {
 		oldrev,
 		diffoutput,
 		document: doc,
-	}, _, _, 'diff'))
+	}, _, null, 'diff'));
+});
+
+wiki.get(/^\/blame\/(.*)/, async (req, res) => {
+	const title = req.params[0];
+	const doc   = processTitle(title);
+	const rev   = req.query['rev'];
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) return res.status(403).send(await showError(req, { code: 'permission_read', msg: aclmsg }));
+	if(!rev) {
+		var d = await curs.execute("select rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+		if(d.length) rev = d[0].rev;
+		else return res.send(await showError(req, 'revision_not_found'));
+	}
+	var dbdata = await curs.execute("select content from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
+	if(!dbdata.length) return res.send(await showError(req, 'revision_not_found'));
+	const revdata = dbdata[0];
+	
+	var content = `미구현`;
+	
+	res.send(await render(req, doc + ' (Blame)', content, {
+		rev,
+		document: doc,
+	}, _, null, 'blame'));
 });
 
 wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
