@@ -1676,23 +1676,25 @@ function fetchErrorString(code, ...params) {
 		revision_not_found: '해당 리비전을 찾을 수 없습니다.',
 		validator_required: params[0] + '의 값은 필수입니다.',
 		invalid_username: '사용자 이름이 올바르지 않습니다.',
-		invalid_cidr: 'IP 주소가 올바르지 않습니다.',
 		text_unchanged: '문서 내용이 같습니다.',
 		edit_conflict: '편집 도중에 다른 사용자가 먼저 편집을 했습니다.',
 		invalid_type_number: params[0] + '의 값은 숫자이어야 합니다.',
 		not_revertable: '이 리비전으로 되돌릴 수 없습니다.',
 		disallowed_email: '이메일 허용 목록에 있는 이메일이 아닙니다.',
 		file_not_uploaded: '파일이 업로드되지 않았습니다.',
+		username_already_exists: '사용자 이름이 이미 존재합니다.',
+		username_format: '사용자 이름을 형식에 맞게 입력해주세요.',
 	};
 	
 	return codes[code] || code;
 }
 
-function fetchValidator(code) {
+function fetchValue(code) {
 	const codes = {
 		username: '사용자 이름',
-		note: '메모',
 		ip: 'IP 주소',
+		password: '암호',
+		password_check: '암호 확인',
 	};
 	
 	return codes[code] || code;
@@ -1725,7 +1727,7 @@ function fetchNamespaces() {
 
 function err(type, obj) {
 	if(typeof obj == 'string') obj = { code: obj };
-	if(!obj.msg) obj.msg = fetchErrorString(obj.code, fetchValidator(obj.tag));
+	if(!obj.msg) obj.msg = fetchErrorString(obj.code, fetchValue(obj.tag));
 	if(!obj.tag) obj.tag = null;
 	if(type == 'alert') {
 		obj.toString = function() {
@@ -2749,9 +2751,10 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		var data = await curs.execute("select title from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		if(!data.length) {
 			if(['파일', '사용자'].includes(doc.namespace)) {
-				error = err('alert', { code: 'invalid_namespace' });
-				content = error + content;
-				break; }
+				if((minor >= 11 && !doc.title.includes('/')) || minor < 11) {
+					error = err('alert', { code: 'invalid_namespace' });
+					content = error + content;
+					break; } }
 			advance = 'create';
 			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, text]);
 		} else {
@@ -4917,25 +4920,30 @@ wiki.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	`;
 	
 	var error = null;
-	if(req.method == 'POST') {
-		if(doc.namespace == '사용자') {
-			content = (error = err('alert', 'disable_user_document')) + content;
-		} else if(!req.body['agree']) {
+	if(req.method == 'POST') do {
+		if(doc.namespace == '사용자')
+			if((minor >= 11 && !doc.title.includes('/')) || minor < 11) {
+				content = (error = err('alert', 'disable_user_document')) + content;
+				break;
+			}
+		
+		if(!req.body['agree']) {
 			content = (error = err('alert', 'validator_required', 'agree')) + content;
-		} else {
-			const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
-			const recentRev = _recentRev[0];
-			
-			await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-			const rawChanges = 0 - recentRev.content.length;
-			curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
-							values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-				doc.title, doc.namespace, '', String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '' + (rawChanges), req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'delete'
-			]);
-			curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
-			return res.redirect('/w/' + encodeURIComponent(doc + ''));
+			break;
 		}
-	}
+		
+		const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+		const recentRev = _recentRev[0];
+		
+		await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		const rawChanges = 0 - recentRev.content.length;
+		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+			doc.title, doc.namespace, '', String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '' + (rawChanges), req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'delete'
+		]);
+		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		return res.redirect('/w/' + encodeURIComponent(doc + ''));
+	} while(0);
 	
 	res.send(await render(req, doc + ' (삭제)', content, {
 		document: doc,
@@ -4983,59 +4991,61 @@ wiki.all(/^\/move\/(.*)/, async(req, res, next) => {
 	
 	var error = null;
 	
-	if(req.method == 'POST') {
-		if(doc.namespace == '사용자') {
-			content = (error = err('alert', 'disable_user_document')) + content;
-		} else do {
-			var doccontent = '';
-			const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-			if(o_o.length) {
-				doccontent = o_o[0].content;
-			}
-			
-			const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
-			const recentRev = _recentRev[0];
-			
-			if(!req.body['title']) {
-				content = (error = err('alert', { code: 'validator_required', tag: 'title' })) + content;
+	if(req.method == 'POST') do {
+		if(doc.namespace == '사용자')
+			if((minor >= 11 && !doc.title.includes('/')) || minor < 11) {
+				content = (error = err('alert', 'disable_user_document')) + content;
 				break;
 			}
-			
-			const newdoc = processTitle(req.body['title']);
-			
-			var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'read', 1);
-			if(aclmsg) {
-				return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
+		
+		var doccontent = '';
+		const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		if(o_o.length) {
+			doccontent = o_o[0].content;
+		}
+		
+		const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
+		const recentRev = _recentRev[0];
+		
+		if(!req.body['title']) {
+			content = (error = err('alert', { code: 'validator_required', tag: 'title' })) + content;
+			break;
+		}
+		
+		const newdoc = processTitle(req.body['title']);
+		
+		var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'read', 1);
+		if(aclmsg) {
+			return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
+		}
+		
+		var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'edit', 2);
+		if(aclmsg) {
+			return res.send(await showError(req, { code: 'permission_edit', msg: aclmsg }));
+		}
+		
+		if(req.body['mode'] == 'swap') {
+			return res.send(await showError(req, 'feature_not_implemented'));
+		} else {
+			const d_d = await curs.execute("select rev from history where title = ? and namespace = ?", [newdoc.title, newdoc.namespace]);
+			if(d_d.length) {
+				return res.send(await showError(req, '문서가 이미 존재합니다.', 1));
 			}
 			
-			var aclmsg = await getacl(req, newdoc.title, newdoc.namespace, 'edit', 2);
-			if(aclmsg) {
-				return res.send(await showError(req, { code: 'permission_edit', msg: aclmsg }));
-			}
-			
-			if(req.body['mode'] == 'swap') {
-				return res.send(await showError(req, 'feature_not_implemented'));
-			} else {
-				const d_d = await curs.execute("select rev from history where title = ? and namespace = ?", [newdoc.title, newdoc.namespace]);
-				if(d_d.length) {
-					return res.send(await showError(req, '문서가 이미 존재합니다.', 1));
-				}
-				
-				await curs.execute("update documents set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
-				await curs.execute("update acl set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
-				curs.execute("update threads set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
-				curs.execute("update edit_requests set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
-				curs.execute("update history set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
-			}
-			
-			curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
-							values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-				newdoc.title, newdoc.namespace, doccontent, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '0', req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'move', doc.title + '\n' + newdoc.title
-			]);
-			curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
-			return res.redirect('/w/' + encodeURIComponent(newdoc + ''));
-		} while(0);
-	}
+			await curs.execute("update documents set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+			await curs.execute("update acl set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+			curs.execute("update threads set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+			curs.execute("update edit_requests set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+			curs.execute("update history set title = ?, namespace = ? where title = ? and namespace = ?", [newdoc.title, newdoc.namespace, doc.title, doc.namespace]);
+		}
+		
+		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance, flags) \
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+			newdoc.title, newdoc.namespace, doccontent, String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '0', req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'move', doc.title + '\n' + newdoc.title
+		]);
+		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		return res.redirect('/w/' + encodeURIComponent(newdoc + ''));
+	} while(0);
 	
 	res.send(await render(req, doc + ' (이동)', content, {
 		document: doc,
@@ -6177,7 +6187,7 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 		skopt += opt;
 	}
 	
-	var error = false;
+	var error = null;
 	
 	var emailfilter = '';
 	if(config.getString('wiki.email_filter_enabled', 'false') == 'true') {
@@ -6222,7 +6232,7 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 					<option value=default ${myskin == 'default' ? 'selected' : ''}>기본스킨 (${defskin})</option>
 					${skopt}
 				</select>
-				${req.method == 'POST' && !skinList.concat(['default']).includes(req.body['skin']) ? (error = true, `<p class=error-desc>${fetchErrorString('invalid_skin')}</p>`) : ''}
+				${req.method == 'POST' && !skinList.concat(['default']).includes(req.body['skin']) ? (error = err('p', 'invalid_skin')) : ''}
 			</div>
 			
 			<div class=form-group>
@@ -6276,59 +6286,39 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 	
 	var id = '1', pw = '1';
 	
-	if(req.method == 'POST') {
+	var error = null;
+	
+	if(req.method == 'POST') do {
 		id = req.body['username'] || '';
 		pw = req.body['password'] || '';
-		
+		if(!id) break;
 		var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
 		var invalidusername = !id || !data.length;
+		if(invalidusername) break;
 		var usr = data;
-		
+		if(!pw) break;
 		var data = await curs.execute("select username, password from users where lower(username) = ? and password = ? COLLATE NOCASE", [id.toLowerCase(), sha3(pw)]);
 		var invalidpw = !invalidusername && (!data.length || !pw);
-		
+		if(invalidpw) break;
 		var blocked = (major > 4 || (major == 4 && minor >= 1)) ? 0 : await userblocked(id);
-		
-		if(!invalidusername && !invalidpw && !blocked) {
-			id = usr[0].username;
-			if(req.body['autologin']) {
-				const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/', 128);
-				res.cookie('honoka', key, {
-					expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360),
-					httpOnly: true,
-				});
-				await curs.execute("insert into autologin_tokens (username, token) values (?, ?)", [id, key]);
-			}
-			
-			if(!hostconfig.disable_login_history) {
-				curs.execute("insert into login_history (username, ip, time) values (?, ?, ?)", [id, ip_check(req, 1), getTime()]);
-				conn.run("delete from useragents where username = ?", [id], () => {
-					curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
-				});
-			}
-			
-			req.session.username = id;
-			return res.redirect(desturl);
-		}
-	}
-	
-	var error = false;
+		if(blocked) break;
+	} while(0);
 	
 	var content = `
 		<form class=login-form method=post>
 			<div class=form-group>
 				<label>Username</label>
 				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
-				${!id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
-				${id.length && invalidusername ? (error = true, `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>`) : ''}
-				${id.length && !invalidusername && blocked ? (error = true, `<p class=error-desc>차단된 계정입니다.<br />차단 만료일 : ${(blocked.expiration == '0' ? '무기한' : new Date(Number(blocked.expiration)))}<br />차단 사유 : ${blocked.note}</p>`) : ``}
+				${req.method == 'POST' && !error && !id.length ? (error = err('p', { code: 'validator_required', tag: 'username' })) : ''}
+				${req.method == 'POST' && !error && invalidusername ? (error = err('p', 'invalid_username')) : ''}
+				${req.method == 'POST' && !error && blocked ? (error = err('p', { msg: `차단된 계정입니다.<br />차단 만료일 : ${(blocked.expiration == '0' ? '무기한' : new Date(Number(blocked.expiration)))}<br />차단 사유 : ${blocked.note}` })) : ``}
 			</div>
 
 			<div class=form-group>
 				<label>Password</label>
 				<input class=form-control name="password" type="password" />
-				${id.length && !invalidusername && !blocked && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
-				${id.length && !invalidusername && !blocked && pw.length && invalidpw ? (error = true, `<p class=error-desc>암호가 올바르지 않습니다.</p>`) : ''}
+				${req.method == 'POST' && !error && !pw.length ? (error = err('p', { code: 'validator_required', tag: 'password' })) : ''}
+				${req.method == 'POST' && !error && invalidpw ? (error = err('p', { msg: '암호가 올바르지 않습니다.' })) : ''}
 			</div>
 			
 			<div class="checkbox" style="display: inline-block;">
@@ -6343,6 +6333,28 @@ wiki.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 			<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
 		</form>
 	`;
+	
+	if(req.method == 'POST' && !error) {
+		id = usr[0].username;
+		if(req.body['autologin']) {
+			const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/', 128);
+			res.cookie('honoka', key, {
+				expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360),
+				httpOnly: true,
+			});
+			await curs.execute("insert into autologin_tokens (username, token) values (?, ?)", [id, key]);
+		}
+		
+		if(!hostconfig.disable_login_history) {
+			curs.execute("insert into login_history (username, ip, time) values (?, ?, ?)", [id, ip_check(req, 1), getTime()]);
+			conn.run("delete from useragents where username = ?", [id], () => {
+				curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+			});
+		}
+		
+		req.session.username = id;
+		return res.redirect(desturl);
+	}
 	
 	res.send(await render(req, '로그인', content, {}, _, error, 'login'));
 });
@@ -6368,58 +6380,38 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 	}
 	
 	var bal = '';
-	var error = false;
+	var error = null;
 	
 	if(hostconfig.disable_email) req.body['email'] = '';
 	
-	if(req.method == 'POST') {
+	if(req.method == 'POST') do {
 		var blockmsg = await ipblocked(ip_check(req, 1));
-		if(blockmsg) {
-			error = true;
-			bal = alertBalloon(blockmsg, 'danger', true, 'fade in');
-		} else if(!hostconfig.disable_email && (!req.body['email'] || req.body['email'].match(/[@]/g).length != 1)) {
+		if(blockmsg) break;
+		if(!hostconfig.disable_email && (!req.body['email'] || req.body['email'].match(/[@]/g).length != 1)) {
 			var invalidemail = 1;
-		} else {
-			var data = await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
-			if(!hostconfig.disable_email && data.length) var duplicate = 1;
-			else {
-				var data = await curs.execute("select value from user_settings where key = 'email' and value = ?", [req.body['email']]);
-				if(!hostconfig.disable_email && data.length) var userduplicate = 1;
-				else {
-					if(emailfilter) {
-						var data = await curs.execute("select address from email_filters where address = ?", [req.body['email'].split('@')[1]]);
-						if(!hostconfig.disable_email && !data.length) error = true, bal = alertBalloon('이메일 허용 목록에 있는 이메일이 아닙니다.', 'danger', true, 'fade in');
-					}
-					if(!error) {
-						await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
-						const key = rndval('abcdef1234567890', 64);
-						curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
-						
-						if(hostconfig.disable_email) return res.redirect('/member/signup/' + key);
-						
-						return res.send(await render(req, '계정 만들기', `
-							<p>
-								이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
-							</p>
-
-							<ul class=wiki-list>
-								<li>간혹 메일이 도착하지 않는 경우가 있습니다. 이 경우, 스팸함을 확인해주시기 바랍니다.</li>
-								<li>인증 메일은 24시간동안 유효합니다.</li>
-							</ul>
-							
-							${hostconfig.debug ? 
-								`<p style="font-weight: bold; color: red;">
-									[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
-								</p>` : ''}
-						`, {}));
-					}
-				}
+			break;
+		}
+		var data = await curs.execute("select email from account_creation where email = ?", [req.body['email']]);
+		if(!hostconfig.disable_email && data.length) {
+			var duplicate = 1;
+			break;
+		}
+		var data = await curs.execute("select value from user_settings where key = 'email' and value = ?", [req.body['email']]);
+		if(!hostconfig.disable_email && data.length) {
+			var userduplicate = 1;
+			break;
+		}
+		if(emailfilter) {
+			var data = await curs.execute("select address from email_filters where address = ?", [req.body['email'].split('@')[1]]);
+			if(!hostconfig.disable_email && !data.length) {
+				var filteredemail = 1;
+				break;
 			}
 		}
-	}
+	} while(0);
 	
 	var content = `
-		${bal}
+		${req.method == 'POST' && !error && filteredemail ? (error = err('alert', { msg: '이메일 허용 목록에 있는 이메일이 아닙니다.' })) : ''}
 		
 		<form method=post class=signup-form>
 			<div class=form-group>
@@ -6428,9 +6420,9 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 					<input type=hidden name=email value="" />
 					<div>비활성화됨</div>
 				` : `<input type=email name=email class=form-control />`}
-				${duplicate ? (error = true, `<p class=error-desc>해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.</p>`) : ''}
-				${userduplicate ? (error = true, `<p class=error-desc>이메일이 이미 존재합니다.</p>`) : ''}
-				${invalidemail ? (error = true, `<p class=error-desc>이메일의 값을 형식에 맞게 입력해주세요..</p>`) : ''}
+				${req.method == 'POST' && !error && duplicate ? (error = err('p', { msg: '해당 이메일로 이미 계정 생성 인증 메일을 보냈습니다.' })) : ''}
+				${req.method == 'POST' && !error && userduplicate ? (error = err('p', { msg: '이메일이 이미 존재합니다.' })) : ''}
+				${req.method == 'POST' && !error && invalidemail ? (error = err('p', { msg: '이메일의 값을 형식에 맞게 입력해주세요.' })) : ''}
 				${emailfilter}
 			</div>
 			
@@ -6444,6 +6436,30 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 			</div>
 		</form>
 	`;
+	
+	if(req.method == 'POST' && !error) {
+		await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
+		const key = rndval('abcdef1234567890', 64);
+		curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
+		
+		if(hostconfig.disable_email) return res.redirect('/member/signup/' + key);
+		
+		return res.send(await render(req, '계정 만들기', `
+			<p>
+				이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
+			</p>
+
+			<ul class=wiki-list>
+				<li>간혹 메일이 도착하지 않는 경우가 있습니다. 이 경우, 스팸함을 확인해주시기 바랍니다.</li>
+				<li>인증 메일은 24시간동안 유효합니다.</li>
+			</ul>
+			
+			${hostconfig.debug ? 
+				`<p style="font-weight: bold; color: red;">
+					[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
+				</p>` : ''}
+		`, {}));
+	}
 	
 	res.send(await render(req, '계정 만들기', content, {}, _, error, 'signup'));
 });
@@ -6467,77 +6483,52 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 	var id = '1', pw = '1', pw2 = '1';
 	
 	var content = '';
-	var error = false;
+	var error = null;
 	
-	if(req.method == 'POST') {
+	if(req.method == 'POST') do {
 		id = req.body['username'] || '';
 		pw = req.body['password'] || '';
 		pw2 = req.body['password_check'] || '';
 		
 		if(!hostconfig.no_username_format && (id.length < 3 || id.length > 32 || id.match(/(?:[^A-Za-z0-9_])/))) {
 			var invalidformat = 1;
-		} else if((hostconfig.reserved_usernames || []).concat(['namubot']).includes(id)) {
-			var invalidusername = 1;
-		} else {
-			var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
-			if(data.length) {
-				var duplicate = 1;
-			}
-			if(id.length && !duplicate && pw.length && pw == pw2) {
-				permlist[id] = [];
-				
-				var data = await curs.execute("select username from users");
-				if(!data.length) {
-					for(var perm of perms) {
-						if(disable_autoperms.includes(perm)) continue;
-						curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
-						permlist[id].push(perm);
-					}
-				}
-				
-				req.session.username = id;
-				
-				await curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
-				await curs.execute("insert into user_settings (username, key, value) values (?, 'email', ?)", [id, credata[0].email]);
-				await curs.execute("insert into documents (title, namespace, content) values (?, '사용자', '')", [id]);
-				await curs.execute("insert into history (title, namespace, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
-								values (?, '사용자', '', '1', ?, ?, '0', '', '0', '', 'create', 'author')", [
-									id, getTime(), id
-								]);
-				if(!hostconfig.disable_login_history) {
-					await curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
-					await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
-				}
-				await curs.execute("delete from account_creation where key = ?", [key]);
-				
-				return res.send(await render(req, '계정 만들기', `
-					<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
-				`, {}));
-			}
+			break;
 		}
-	}
+		
+		if((hostconfig.reserved_usernames || []).concat(['namubot']).includes(id)) {
+			var invalidusername = 1;
+			break;
+		}
+		
+		var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
+		if(data.length) {
+			var duplicate = 1;
+			break;
+		}
+	} while(0);
 	
 	content += `
 		<form class=signup-form method=post>
 			<div class=form-group>
 				<label>사용자 ID</label>
 				<input class=form-control name="username" type="text" value="${html.escape(req.method == 'POST' ? req.body['username'] : '')}" />
-				${duplicate ? (error = true, `<p class=error-desc>사용자 이름이 이미 존재합니다.</p>`) : ''}
-				${!duplicate && !id.length ? (error = true, `<p class=error-desc>사용자 이름의 값은 필수입니다.</p>`) : ''}
-				${!duplicate && id.length && invalidusername ? (error = true, `<p class=error-desc>사용자 이름이 올바르지 않습니다.</p>`) : ''}
-				${!duplicate && id.length && !invalidusername && invalidformat ? (error = true, `<p class=error-desc>사용자 이름을 형식에 맞게 입력해주세요.</p>`) : ''}
+				${req.method == 'POST' && !error && !id.length ? (error = err('p', { code: 'validator_required', tag: 'username' })) : ''}
+				${req.method == 'POST' && !error && duplicate ? (error = err('p', 'username_already_exists')) : ''}
+				${req.method == 'POST' && !error && invalidusername ? (error = err('p', 'invalid_username')) : ''}
+				${req.method == 'POST' && !error && invalidformat ? (error = err('p', 'username_format')) : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호</label>
 				<input class=form-control name="password" type="password" />
-				${!duplicate && id.length && !invalidusername && !invalidformat && !pw.length ? (error = true, `<p class=error-desc>암호의 값은 필수입니다.</p>`) : ''}
+				${req.method == 'POST' && !error && !pw.length ? (error = err('p', { code: 'validator_required', tag: 'password' })) : ''}
 			</div>
 
 			<div class=form-group>
 				<label>암호 확인</label>
 				<input class=form-control name="password_check" type="password" />
-				${!duplicate && id.length && !invalidusername && !invalidformat && pw.length && pw != pw2 ? (error = true, `<p class=error-desc>암호 확인이 올바르지 않습니다.</p>`) : ''}
+				${req.method == 'POST' && !error && !pw2.length ? (error = err('p', { code: 'validator_required', tag: 'password_check' })) : ''}
+				${req.method == 'POST' && !error && pw2 != pw ? (error = err('p', { msg: '암호 확인이 올바르지 않습니다.' })) : ''}
 			</div>
 			
 			<p><strong>가입후 탈퇴는 불가능합니다.</strong></p>
@@ -6548,6 +6539,48 @@ wiki.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next)
 			</div>
 		</form>
 	`;
+	
+	if(req.method == 'POST' && !error) do {
+		var baserev = 0;
+		var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [id, '사용자']);
+		if(data.length) baserev = Number(data[0].rev);
+		
+		var data = await curs.execute("select title from documents where title = ? and namespace = ?", [id, '사용자']);
+		if(data.length) {
+			error = err('alert', 'edit_conflict');
+			content = error + content;
+			break; }
+		
+		permlist[id] = [];
+		
+		var data = await curs.execute("select username from users");
+		if(!data.length) {
+			for(var perm of perms) {
+				if(disable_autoperms.includes(perm)) continue;
+				curs.execute(`insert into perms (username, perm) values (?, ?)`, [id, perm]);
+				permlist[id].push(perm);
+			}
+		}
+		
+		req.session.username = id;
+		
+		await curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
+		await curs.execute("insert into user_settings (username, key, value) values (?, 'email', ?)", [id, credata[0].email]);
+		await curs.execute("insert into documents (title, namespace, content) values (?, '사용자', '')", [id]);
+		await curs.execute("insert into history (title, namespace, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
+						values (?, '사용자', '', ?, ?, ?, '0', '', '0', '', 'create', 'author')", [
+							id, String(baserev + 1), getTime(), id
+						]);
+		if(!hostconfig.disable_login_history) {
+			await curs.execute("insert into login_history (username, ip) values (?, ?)", [id, ip_check(req, 1)]);
+			await curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
+		}
+		await curs.execute("delete from account_creation where key = ?", [key]);
+		
+		return res.send(await render(req, '계정 만들기', `
+			<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
+		`, {}));
+	} while(0);
 	
 	res.send(await render(req, '계정 만들기', content, {}, _, error, 'signup'));
 });
