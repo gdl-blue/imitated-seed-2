@@ -1484,22 +1484,6 @@ async function requireAsync(p) {
 
 // 스킨 템플릿 렌더링
 async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewname = '') {
-	/*
-	error: {
-	  _05316cf5: '사용자 이름의 값은 필수입니다.', (msg)
-	  _65daf3c3: 'username', (tag)
-	  _eff12ad8: 'validator_required', (code)
-	  _3a16613a: null
-	},
-	
-	error: {
-	  code: 'permission_edit',
-	  msg: '편집 권한이 부족합니다. member:관리자 OR perm:developer(이)여야 합니다. 어쩌구 저쩌구',
-	  tag: null,
-	  statusCode: 403
-	},
-	*/
-	
 	const skinInfo = {
 		title: title + subtitle,
 		viewName: viewname,
@@ -1530,7 +1514,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				print(`[오류!] ${e.stack}`);
 				return resolve(`
 					<title>` + title + ` (스킨 렌더링 오류!)</title>
-					<meta charset=utf-8>` + content);
+					<meta charset=utf-8 />` + content);
 			}
 			
 			varlist['skinInfo'] = skinInfo;
@@ -1684,6 +1668,7 @@ function fetchErrorString(code, ...params) {
 		file_not_uploaded: '파일이 업로드되지 않았습니다.',
 		username_already_exists: '사용자 이름이 이미 존재합니다.',
 		username_format: '사용자 이름을 형식에 맞게 입력해주세요.',
+		invalid_title: '문서 이름이 올바르지 않습니다.',
 	};
 	
 	return codes[code] || code;
@@ -1749,7 +1734,7 @@ function err(type, obj) {
 
 // 오류화면 표시
 async function showError(req, code, ...params) {
-	return await render(req, minor >= 13 ? '오류' : '문제가 발생했습니다!', `${minor >= 13 ? '<div>' : '<h2>'}${typeof code == 'object' ? (code.msg || fetchErrorString(code.code, code.tag)) : fetchErrorString(code, ...params)}${minor >= 13 ? '</div>' : '</h2>'}`);
+	return await render(req, minor >= 13 ? '오류' : '문제가 발생했습니다!', `${minor >= 13 ? '<div>' : '<h2>'}${typeof code == 'object' ? (code.msg || fetchErrorString(code.code, code.tag)) : fetchErrorString(code, ...params)}${minor >= 13 ? '</div>' : '</h2>'}`, {}, _, _, 'error');
 }
 
 // 닉네임/아이피 파싱
@@ -2624,7 +2609,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		return res.status(403).send(await showError(req, err('error', { code: 'permission_read', msg: aclmsg })));
 	}
 	
-	if(!doc.title || ['특수기능', '투표', '토론'].includes(doc.namespace) || ((minor < 6 || (minor == 7 && revision < 3)) && doc.title.includes('://'))) return res.status(400).send(await showError(req, '문서 이름이 올바르지 않습니다.', 1));
+	if(!doc.title || ['특수기능', '투표', '토론'].includes(doc.namespace) || ((minor < 6 || (minor == 7 && revision < 3)) && doc.title.includes('://'))) return res.status(400).send(await showError(req, 'invalid_title'));
 	
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	if(!rawContent[0]) rawContent = '';
@@ -3879,20 +3864,24 @@ wiki.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function documen
 	const username = req.params[1];
 	var moredata = [];
 	
-	var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+	if(ismember == 'author' && username.toLowerCase() == 'namubot') {
+		var data = [];
+	} else {
+		var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 				where cast(time as integer) >= ? and ismember = ? " + (username.replace(/\s/g, '') ? "and lower(username) = ?" : "and (lower(username) like '%' || ?)") + " order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username.toLowerCase()
 				]);
 	
-	// 2018년 더시드 업데이트로 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
-	var tt = Number(getTime()) + 12345;
-	if(data.length) tt = Number(data[data.length - 1].time);
-	if(data.length < 100 && minor >= 8)
-		moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
-				where cast(time as integer) < ? and ismember = ? " + (username.replace(/\s/g, '') ? "and lower(username) = ?" : "and (lower(username) like '%' || ?)") + " order by cast(time as integer) desc limit ?", [
-					tt, ismember, username.toLowerCase(), 100 - data.length
-				]);
-	data = data.concat(moredata);
+		// 2018년 더시드 업데이트로 최근 30일을 넘어선 기록을 최대 100개까지 볼 수 있었음
+		var tt = Number(getTime()) + 12345;
+		if(data.length) tt = Number(data[data.length - 1].time);
+		if(data.length < 100 && minor >= 8)
+			moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+					where cast(time as integer) < ? and ismember = ? " + (username.replace(/\s/g, '') ? "and lower(username) = ?" : "and (lower(username) like '%' || ?)") + " order by cast(time as integer) desc limit ?", [
+						tt, ismember, username.toLowerCase(), 100 - data.length
+					]);
+		data = data.concat(moredata);
+	}
 	
 	var content = `
 		<p>최근 30일동안의 기여 목록 입니다.</p>
@@ -6604,13 +6593,11 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 					<select class=form-control id=namespace name=namespace>
 					
 	`;
-	
 	for(var nsp of nslist) {
 		content += `
 			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
 		`;
 	}
-	
 	content += `
 					</select>
 				</div>
@@ -6623,7 +6610,6 @@ wiki.get(/^\/RandomPage$/, async function randomPage(req, res) {
 		
 		<ul class=wiki-list>
 	`;
-	
 	var cnt = 0, li = '';
 	while(cnt < 20) {
 		let data = await curs.execute("select title from documents where namespace = ? order by random() limit 20", [ns]);
@@ -6654,31 +6640,12 @@ wiki.get(/^\/NeededPages$/, async(req, res) => {
 		st = ss - 100, ed = ss;
 		if(ed > total) ed = total;
 		if(st < 1) st = 1;
-		/*
-		for(idx=ss; cnt<=100; idx--, cnt++) {
-			var i = neededPages[ns][idx];
-			if(!i) continue;
-			ret.push(i);
-		}
-		ret = ret.reverse();
-		
-		var tmp = ss;
-		ss = idx;
-		idx = tmp;
-		*/
 		
 	} else {
 		ss = Number(req.query['from'] || '1');
 		st = ss, ed = ss + 100;
 		if(ed > total) ed = total;
 		if(st < 1) st = 1;
-		/*
-		for(idx=ss; cnt<=100; idx++, cnt++) {
-			var i = neededPages[ns][idx];
-			if(!i) continue;
-			ret.push(i);
-		}
-		*/
 	}
 	
 	const navbtns = navbtnr(total, st, ed, '/NeededPages');
@@ -6692,13 +6659,11 @@ wiki.get(/^\/NeededPages$/, async(req, res) => {
 					<select class=form-control id=namespace name=namespace>
 					
 	`;
-	
 	for(var nsp of nslist) {
 		content += `
 			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
 		`;
 	}
-	
 	content += `
 					</select>
 				</div>
@@ -6716,11 +6681,9 @@ wiki.get(/^\/NeededPages$/, async(req, res) => {
 		
 		<ul class=wiki-list>
 	`;
-	
 	for(let item of ret) {
 		content += '<li><a href="/w/' + encodeURIComponent(totitle(item, ns)) + '">' + html.escape(totitle(item, ns) + '') + '</a>  <a href="/' + (minor >= 14 ? 'backlink' : 'xref') + '/' + encodeURIComponent(totitle(item, ns)) + '">[역링크]</a></li>';
 	}
-	
 	content += '</ul>' + navbtns;
 	
 	res.send(await render(req, '작성이 필요한 문서', content, {}));
