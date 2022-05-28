@@ -3529,7 +3529,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					}
 					if(cond[0] == 'perm') {
 						if(!cond[1]) return res.status(400).json({
-							status: fetchErrorString('invalid_value'),
+							status: fetchErrorString('invalid_acl_condition'),
 						});
 					}
 					
