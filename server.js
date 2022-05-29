@@ -540,6 +540,54 @@ try {
 		search_port: '25005',
 		owners: [input('소유자 닉네임: ')],
 	};
+	/*
+	const frfl = [
+		'js/theseed.js', 'js/jquery-2.1.4.min.js', 'js/jquery-1.11.3.min.js', 
+		'js/intersection-observer.js', 'js/dateformatter.js',
+		
+		'css/wiki.css', 'css/diffview.css', 'css/katex.min.css',
+	];
+	const skidx = {
+		buma: 'https://github.com/LiteHell/theseed-skin-buma/archive/d77eef50a77007da391c5082b4b94818db372417.zip',
+		liberty: 'https://github.com/namu-theseed/theseed-skin-liberty/archive/153cf78f70206643ec42e856aff8280dc21eb2c0.zip',
+		vector: 'https://github.com/LiteHell/theseed-skin-vector/archive/51fd9afdd8000dafafd2600313e8e03df1f7fdcb.zip',
+		namuvector: 'https://github.com/LiteHell/theseed-skin-namuvector/archive/690288e719bfe7e4abced3dc715104dd80e8f1ff.zip',
+		marble: 'https://github.com/foxtrot-99/theseed-skin-marble/archive/refs/heads/master.zip',
+	};
+	function download(path) {
+		return new Promise((resolve, reject) => {
+			https.get({
+				host: 'theseed.io',
+				path: '/' + path,
+			}, res => {
+				const d = [];
+				res.on('data', chunk => d.push(chunk));
+				res.on('end', () => {
+					var ret = Buffer.from('');
+					ret = Buffer.concat([ret, Buffer.concat(d)]);
+					fs.writeFileS
+				});
+			});
+		});
+	}
+	if((hostconfig.uninitialized !== undefined && hostconfig.download_files) || hostconfig.uninitialized === undefined) {
+		var chk = null;
+		for(var f of frfl) {
+			if(!fs.existsSync(f)) {
+				chk = f;
+				break;
+			}
+		}
+		if(chk) {
+			if(hostconfig.uninitialized !== undefined || (hostconfig.uninitialized === undefined && input(f + ' 파일이 없습니다. 이것은 위키 실행을 위해 필요합니다. theseed.io에서 자동으로 다운로드하시겠습니까? [Y/N]: ').toLowerCase() == 'Y')) {
+				var dodn = 1;
+			}
+		}
+		if(dodn) {
+			
+		}
+	}
+	*/
 	hostconfig.uninitialized = false;
 	
 	// 만들 테이블
@@ -2085,7 +2133,11 @@ wiki.all('*', async function(req, res, next) {
 		}
 	}
 	
-	if(req.session.username) return next();
+	if(req.session.username) {
+		const d = await curs.execute("select username from users where username = ?", [req.session.username]);
+		if(!d.length) delete req.session.username;
+		return next();
+	}
 	var autologin;
 	if(autologin = req.cookies['honoka']) {
 		const d = await curs.execute("select username, token from autologin_tokens where token = ?", [autologin]);
@@ -2613,7 +2665,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	if(!rawContent[0]) rawContent = '';
-	else rawContent = rawContent[0].content;
+	else rawContent = rawContent[0].content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 	
 	var error = null;
 	var content = '';
@@ -2710,8 +2762,9 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		if(!original[0]) ex = 0, original = '';
 		else original = original[0]['content'];
 		var text = req.body['text'] || '';
+		text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 		if(text.startsWith('#넘겨주기 ')) text = text.replace('#넘겨주기 ', '#redirect ');
-		if(text.startsWith('#redirect ')) text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')[0] + '\n';
+		if(text.startsWith('#redirect ')) text = text.split('\n')[0] + '\n';
 		if(original == text && ex) { content = (error = err('alert', { code: 'text_unchanged' })) + content; break; }
 		const rawChanges = text.length - original.length;
 		const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
@@ -2726,10 +2779,51 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		if(data.length) {
 			var data = await curs.execute("select content from history where rev = ? and title = ? and namespace = ?", [baserev, doc.title, doc.namespace]);
 			var oc = '';
-			if(data.length) oc = data[0].content;
-			error = err('alert', { code: 'edit_conflict' });
-			content = error + diff(oc, text, 'r' + baserev, '사용자 입력') + '<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>' + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class=form-control>${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`);
-			break; }
+			if(data.length) oc = data[0].content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+			
+			// 자동 병합
+			var ERROR = 1;  // 0;
+			/*
+			const _tl = text.split('\n'), _nl = rawContent.split('\n'), _ol = oc.split('\n');
+			const tl = [], nl = [], ol = [];
+			// 1 - 내용이 같은 줄 찾기
+			while(1) {
+				const l1 = _tl[0], l2 = _nl[0], l3 = _ol[0];
+				
+				if(l1 == l2 && l2 == l3) {  // 원본, 내수정, 남의수정 모두 같으면 통과
+					tl.push(l1);
+					nl.push(l2);
+					ol.push(l3);
+				} else {
+					var chk = 0;
+					for(var j=0; j<_nl.length; j++) {
+						if(l1 == _nl[j]) {
+							tl.push(l1);
+							nl.push(l1);
+							chk = 1;
+							break;
+						} else {
+							tl.push(null);
+							nl.push(_nl[j]);
+						}
+					}
+					if(!chk) {  // 중간에 줄이 추가된 게 아님.
+						
+					}
+				}
+				_tl.splice(0, 1);
+				_nl.splice(0, 1);
+				_ol.splice(0, 1);
+			}*/
+			
+			if(ERROR) {
+				error = err('alert', { code: 'edit_conflict' });
+				content = error + diff(oc, text, 'r' + baserev, '사용자 입력') + '<span style="color: red; font-weight: bold; padding-bottom: 5px; padding-top: 5px;">자동 병합에 실패했습니다! 수동으로 수정된 내역을 아래 텍스트 박스에 다시 입력해주세요.</span>' + content.replace('&<$TEXTAREA>', `<textarea id="textInput" name="text" wrap="soft" class=form-control>${rawContent.replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>`);
+				break;
+			} else if(!log) {
+				log = `자동 병합됨 (r${baserev})`;
+			}
+		}
 		const ismember = islogin(req) ? 'author' : 'ip';
 		var advance = 'normal';
 		
@@ -6150,6 +6244,7 @@ if(hostconfig.allow_account_rename) wiki.all(/^\/member\/change_username$/, asyn
 		await curs.execute("update block_history set target = ? where target = ?", [newusername, username]);
 		await curs.execute("update edit_requests set processor = ? where processor = ? and ismember = 'author'", [newusername, username]);
 		await curs.execute("update edit_requests set username = ? where username = ? and ismember = 'author'", [newusername, username]);
+		await curs.execute("update autologin_tokens set username = ? where username = ?", [newusername, username]);
 		req.session.username = newusername;
 		permlist[newusername] = permlist[username];
 		delete permlist[username];
