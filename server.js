@@ -69,7 +69,7 @@ wiki.use(cookieParser());
 wiki.set('trust proxy', true);
 
 // 업데이트 수준
-const updatecode = '11';
+const updatecode = '12';
 
 // 사용자 권한
 var perms = [
@@ -7241,6 +7241,15 @@ wiki.use(function(req, res, next) {
 				var dd = await curs.execute("select id from edit_requests");
 				for(let item of dd) {
 					await curs.execute("update edit_requests set slug = ? where id = ?", [newID(), item.id]);
+				}
+			} catch(e) {}
+		} case 11: {
+			// 까먹음
+			try {
+				await curs.execute("alter table res\nADD slug text;");
+				var dd = await curs.execute("select tnum from threads");
+				for(let item of dd) {
+					await curs.execute("update res set slug = ? where tnum = ?", [newID(), item.tnum]);
 				}
 			} catch(e) {}
 		}
