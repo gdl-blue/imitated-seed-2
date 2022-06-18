@@ -893,9 +893,9 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		return ret;
 	}
 	
-	const footnotes = new Stack();
-	const blocks    = new Stack();
-	const fndisp    = {};
+	var footnotes = new Stack();
+	var blocks    = new Stack();
+	var fndisp    = {};
 	
 	var fnnum  = 1;
 	var fnhtml = '';
@@ -951,25 +951,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 				data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
 			}
 		} else {  // 리터럴
-			if(block.includes('}}}')) {  // 한 줄
-				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-				const size = h.match(/^([+]|[-])([1-5])\s/);
-				if(color) {  // 글자 색
-					const htmlcolor = color[1].match(/^([A-Fa-f0-9]{6})$/);
-					var col = color[1];
-					if(htmlcolor) {
-						col = '#' + htmlcolor[1];
-					}
-					data = data.replace('}}}', '</font>');
-					data = data.replace('{{{' + color[0], '<font color=' + col + '>');
-				} else if(size) {  // 글자 크기
-					data = data.replace('}}}', '</span>');
-					data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
-				} else {
-					blocks.push('</code></nowikiblock>');
-					data = data.replace('{{{', '<nowikiblock><code>');
-				}
-			} else {  // 블록
+			if(!block.includes('}}}')) {  // 블록
 				blocks.push('</pre></nowikiblock>');
 				var od = data;
 				data = data.replace('{{{\n', '<nowikiblock><pre>');
@@ -1010,7 +992,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	}
 	
 	// 리터럴 (제대로 된 방법은 아니겠지만 이게 젤 쉬었어...)
-	const nwblocks = {};
+	var nwblocks = {};
 	for(var item of document.querySelectorAll('nowikiblock')) {
 		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
 		nwblocks[key] = item.innerHTML;
@@ -1152,8 +1134,6 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			dest = dd[0];
 		}
 		
-		disp = html.escape(disp);
-		
 		var ddata = await curs.execute("select content from documents where title = ? and namespace = ?", [processTitle(dest).title, processTitle(dest).namespace]);
 		const notexist = !ddata.length ? ' not-exist' : '';
 		
@@ -1183,6 +1163,48 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 				curs.execute("insert into backlink (title, namespace, link, linkns, type, exist) values (?, ?, ?, ?, 'link', ?)", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace, notexist ? '0' : '1']);
 			}
 		}
+	}
+	
+	blocks = new Stack;
+	// 삼중중괄호 서식
+	for(let block of (data.match(/([}][}][}]|[{][{][{](((?!}}}).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
+		if(block == '}}}') {
+			if(!blocks.size()) continue;
+			var od = data;
+			data = data.replace('}}}', blocks.top() + '');
+			if(od == data) data = data.replace('\n}}}', blocks.top() + '\r');
+			blocks.pop();
+			continue;
+		}
+		
+		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
+		if(h.match(/^[#][!]folding\s/)) {
+		} else if(h.match(/^[#][!]wiki\s/)) {
+		} else if(h.match(/^[#][!]html/) && !discussion) {
+		} else if(block.includes('}}}')) {  // 한 줄
+			const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+			const size = h.match(/^([+]|[-])([1-5])\s/);
+			if(color) {  // 글자 색
+				const htmlcolor = color[1].match(/^([A-Fa-f0-9]{3,6})$/);
+				var col = color[1];
+				if(htmlcolor) {
+					col = '#' + htmlcolor[1];
+				}
+				data = data.replace('}}}', '</font>');
+				data = data.replace('{{{' + color[0], '<font color=' + col + '>');
+			} else if(size) {  // 글자 크기
+				data = data.replace('}}}', '</span>');
+				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
+			} else {
+				blocks.push('</code></nowikiblock>');
+				data = data.replace('{{{', '<nowikiblock><code>');
+			}
+		}
+	}
+	for(var item of document.querySelectorAll('nowikiblock')) {
+		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
+		nwblocks[key] = item.innerHTML;
+		item.outerHTML = key;
 	}
 	
 	// 토론 앵커
