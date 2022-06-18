@@ -1152,6 +1152,8 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			dest = dd[0];
 		}
 		
+		disp = html.escape(disp);
+		
 		var ddata = await curs.execute("select content from documents where title = ? and namespace = ?", [processTitle(dest).title, processTitle(dest).namespace]);
 		const notexist = !ddata.length ? ' not-exist' : '';
 		
