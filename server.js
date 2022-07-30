@@ -5673,10 +5673,10 @@ if(minor >= 18) wiki.post(/^\/aclgroup\/remove$/, async(req, res) => {
 		id: req.body['id'],
 		target: dbdata[0].username,
 		note: req.body['note'] || '',
-		aclgroup: dbdata.aclgroup,
+		aclgroup: dbdata[0].aclgroup,
 		logid,
 	});
-	return res.redirect('/aclgroup?group=' + encodeURIComponent(dbdata.aclgroup));
+	return res.redirect('/aclgroup?group=' + encodeURIComponent(dbdata[0].aclgroup));
 });
 
 if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
@@ -5729,18 +5729,18 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 		<form method=post class="settings-section">
     		<div class="form-group">
     			<div>
-					<select style="width: 120px; display: inline-block;" class=form-control name=mode>
+					<select style="width: 130px; display: inline-block;" class=form-control name=mode>
 						<option value=ip>아이피</option>
-						<option value=username>사용자 이름</option>
+						<option value=username${req.method == 'POST' && req.body['mode'] == 'username' ? ' selected' : ''}>사용자 이름</option>
 					</select>
-    				<input style="width: auto; display: inline-block;" type="text" class=form-control name="username" />
+    				<input value="${req.method == 'POST' ? (req.body['username'] || '') : ''}" style="width: auto; display: inline-block;" type="text" class=form-control name="username" />
     			</div>
     		</div>
 
     		<div class="form-group">
     			<label class=control-label>메모 :</label>
     			<div>
-    				<input type="text" class=form-control id="noteInput" name="note" />
+    				<input value="${req.method == 'POST' ? (req.body['note'] || '') : ''}" type="text" class=form-control id="noteInput" name="note" />
     			</div>
     		</div>
 
@@ -5838,44 +5838,47 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 	
 	var error = null;
 	
-	if(req.method == 'POST') {
+	if(req.method == 'POST') do {
 		if(!hasperm(req, 'aclgroup')) return res.status(403).send(await showError(req, 'permission'));
 
 		var { mode, username, expire, note } = req.body;
-		if(!['ip', 'username'].includes(mode) || !username || !expire || note == undefined) error = true, content = alertBalloon(fetchErrorString('invalid_value'), 'danger', true, 'fade in') + content;
-		else {
-			if(mode == 'ip' && !username.includes('/')) username += '/32';
-			
-			if(mode == 'ip' && !username.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/)) error = true, content = alertBalloon(fetchErrorString('invalid_cidr'), 'danger', true, 'fade in') + content;
-			else {
-				const date = getTime();
-				const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
-				var data = await curs.execute("select username from aclgroup where aclgroup = ? and type = ? and username = ? limit 1", [group, mode, username]);
-				if(data.length) error = true, content = alertBalloon(fetchErrorString('aclgroup_already_exists'), 'danger', true, 'fade in') + content;
-				var data = await curs.execute("select id from aclgroup order by cast(id as integer) desc limit 1");
-				var id = 1;
-				if(data.length) id = Number(data[0].id) + 1;
-				await curs.execute("insert into aclgroup (id, type, username, expiration, note, date, aclgroup) values (?, ?, ?, ?, ?, ?, ?)", [String(id), mode, username, expiration, note, date, group]);
-				
-				var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
-				if(data.length) logid = Number(data[0].logid) + 1;
-				insert('block_history', {
-					date: getTime(),
-					type: 'aclgroup_add',
-					aclgroup: group,
-					id: String(id),
-					duration: expire,
-					note,
-					ismember: islogin(req) ? 'author' : 'ip',
-					executer: ip_check(req),
-					target: username,
-					logid,
-				});
-				
-				return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
-			}
-		}
-	}
+		if(!['ip', 'username'].includes(mode) || !username || !expire || note == undefined) 
+			{ content = (error = err('alert', { code: 'invalid_value' })) + content; break; }
+		
+		if(mode == 'ip' && !username.includes('/')) username += '/32';
+		
+		if(mode == 'ip' && !username.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/))
+			{ content = (error = err('alert', { code: 'invalid_cidr' })) + content; break; }
+		
+		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
+		if(!data.length) { content = (error = err('alert', { code: 'invalid_username' })) + content; break; }
+	
+		const date = getTime();
+		const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
+		var data = await curs.execute("select username from aclgroup where aclgroup = ? and type = ? and username = ? limit 1", [group, mode, username]);
+		if(data.length) { content = (error = err('alert', { code: 'aclgroup_already_exists' })) + content; break; }
+		var data = await curs.execute("select id from aclgroup order by cast(id as integer) desc limit 1");
+		var id = 1;
+		if(data.length) id = Number(data[0].id) + 1;
+		await curs.execute("insert into aclgroup (id, type, username, expiration, note, date, aclgroup) values (?, ?, ?, ?, ?, ?, ?)", [String(id), mode, username, expiration, note, date, group]);
+		
+		var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
+		if(data.length) logid = Number(data[0].logid) + 1;
+		insert('block_history', {
+			date: getTime(),
+			type: 'aclgroup_add',
+			aclgroup: group,
+			id: String(id),
+			duration: expire,
+			note,
+			ismember: islogin(req) ? 'author' : 'ip',
+			executer: ip_check(req),
+			target: username,
+			logid,
+		});
+		
+		return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
+	} while(0);
 	
 	res.send(await render(req, 'ACLGroup', content, {
 	}, '', error, 'aclgroup'));
