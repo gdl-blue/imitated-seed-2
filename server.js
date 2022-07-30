@@ -1346,7 +1346,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		if(blockdata) {
 			data = `
 				<div style="border-width: 5px 1px 1px; border-style: solid; border-color: red gray gray; padding: 10px; margin-bottom: 10px;" onmouseover="this.style.borderTopColor=\'blue\';" onmouseout="this.style.borderTopColor=\'red\';">
-					<span style="font-size:14pt">이 사용자는 차단된 사용자입니다.</span><br /><br />
+					<span style="font-size: 14pt;">이 사용자는 차단된 사용자입니다.${minor >= 18 ? ` (#${blockdata.id})` : ''}</span><br /><br />
 					이 사용자는 ${generateTime(toDate(blockdata.date), timeFormat)}에 ${blockdata.expiration == '0' ? '영구적으로' : (generateTime(toDate(blockdata.expiration), timeFormat) + '까지')} 차단되었습니다.<br />
 					차단 사유: ${html.escape(blockdata.note)}
 				</div>
@@ -1835,16 +1835,30 @@ async function ipblocked(ip) {
 
 // 계정 차단 여부
 async function userblocked(username) {
-	await curs.execute("delete from suspend_account where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
-	var data = await curs.execute("select expiration, note, date from suspend_account where username = ?", [username]);
-	if(data.length) {
-		return {
-			username,
-			expiration: data[0].expiration,
-			note: data[0].note,
-			date: data[0].date,
-		};
-	} else return false;
+	if(minor >= 18) {
+		await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+		var data = await curs.execute("select id, type, username, note, expiration, date from aclgroup where aclgroup = ? and username = ?", ['차단된 사용자', username]);
+		if(data.length) {
+			return {
+				username,
+				expiration: data[0].expiration,
+				note: data[0].note,
+				date: data[0].date,
+				id: data[0].id,
+			};
+		}
+	} else {
+		await curs.execute("delete from suspend_account where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+		var data = await curs.execute("select expiration, note, date from suspend_account where username = ?", [username]);
+		if(data.length) {
+			return {
+				username,
+				expiration: data[0].expiration,
+				note: data[0].note,
+				date: data[0].date,
+			};
+		} else return false;
+	}
 }
 
 // ACL 검사
@@ -1854,6 +1868,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 	var flag = 0;
 	
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+	await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
 	var data = await curs.execute("select name from aclgroup_groups");
 	var aclgroup = {};
@@ -5700,7 +5715,7 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 			</div>
 		</div>
 	
-		<ul class="nav nav-tabs" style="height: 38px;">
+		<ul class="nav nav-tabs" style="display: flex; height: 38px;">
 			${tabs}
 			${editable ? `
 				<span data-toggle="modal" data-target="#aclgroup-create-modal">
@@ -5714,11 +5729,11 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 		<form method=post class="settings-section">
     		<div class="form-group">
     			<div>
-					<select class=form-control name=mode>
+					<select style="width: 120px; display: inline-block;" class=form-control name=mode>
 						<option value=ip>아이피</option>
 						<option value=username>사용자 이름</option>
 					</select>
-    				<input type="text" class=form-control name="username" />
+    				<input style="width: auto; display: inline-block;" type="text" class=form-control name="username" />
     			</div>
     		</div>
 
@@ -5884,35 +5899,35 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 	var content = '';
 	
 	content = `
-		<form method=post id="uploadForm" enctype="multipart/form-data" accept-charset="utf8">
-			<input type=hidden name=baserev value="0" />
-			<input type="file" id="fileInput" name="file" hidden="" />
+		<form method=post id=uploadForm enctype=multipart/form-data accept-charset=utf8>
+			<input type=hidden name=baserev value=0 />
+			<input type="file" id="fileInput" name=file hidden />
 			<input type=hidden name=identifier value="${islogin(req) ? 'm' : 'i'}:${html.escape(ip_check(req))}" />
 			
-			<div class="row">
+			<div class=row>
 				<div class="col-xs-12 col-md-7 form-group">
-					<label class=control-label for="fakeFileInput">파일 선택</label>
-					<div class="input-group">
-						<input type="text" class=form-control id="fakeFileInput" readonly="" />
+					<label class=control-label for=fakeFileInput>파일 선택</label>
+					<div class=input-group>
+						<input type=text class=form-control id=fakeFileInput readonly />
 						<span class="input-group-btn">
-							<button class="btn btn-secondary" type="button" id="fakeFileButton">Select</button>
+							<button class="btn btn-secondary" type=button id=fakeFileButton>Select</button>
 						</span>
 					</div>
 				</div>
 			</div>
 			
-			<div class="row">
+			<div class=row>
 				<div class="col-xs-12 col-md-7 form-group">
-					<label class=control-label for="fakeFileInput">파일 이름</label>
-					<input type="text" class=form-control name="document" id=documentInput value="${html.escape(req.method == 'POST' ? req.body['document'] : '')}" />
+					<label class=control-label for=fakeFileInput>파일 이름</label>
+					<input type=text class=form-control name=document id=documentInput value="${html.escape(req.method == 'POST' ? req.body['document'] : '')}" />
 				</div>
 			</div>
 
-			<textarea name="text" type="text" rows="25" id="textInput" class=form-control>${(req.method == 'POST' ? req.body['text'] : '').replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
+			<textarea name=text type=text rows=25 id=textInput class=form-control>${(req.method == 'POST' ? req.body['text'] : '').replace(/<\/(textarea)>/gi, '&lt;/$1&gt;')}</textarea>
 		${req.method == 'GET' ? `
 			<div class=row>
 				<div class="col-xs-12 col-md-5 form-group">
-					<label class=control-label for="licenseSelect">라이선스</label>
+					<label class=control-label for=licenseSelect>라이선스</label>
 					<select id=licenseSelect class=form-control>${ liceopts }</select>
 				</div>
 			</div>
@@ -5921,7 +5936,7 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 			
 			<div class=row>
 				<div class="col-xs-12 col-md-5 form-group">
-					<label class=control-label for="categorySelect">분류</label>
+					<label class=control-label for=categorySelect>분류</label>
 					<select id=categorySelect class=form-control>
 						<option value>선택</option>
 						${cateopts}
@@ -5929,17 +5944,17 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 				</div>
 			</div>
 		` : ''}
-			<div class="form-group">
+			<div class=form-group>
 				<label class=control-label>요약</label>
-				<input type="text" id="logInput" class=form-control name="log" value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
+				<input type=text id=logInput class=form-control name=log value="${html.escape(req.method == 'POST' ? req.body['log'] : '')}" />
 			</div>
 			
 			<p>${config.getString('wiki.editagree_text', `문서 편집을 <strong>저장</strong>하면 당신은 기여한 내용을 <strong>CC-BY-NC-SA 2.0 KR</strong>으로 배포하고 기여한 문서에 대한 하이퍼링크나 URL을 이용하여 저작자 표시를 하는 것으로 충분하다는 데 동의하는 것입니다. 이 <strong>동의는 철회할 수 없습니다.</strong>`)}</p>
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
-			<div class="btns">
-				<button id="uploadBtn" type="submit" class="btn btn-primary">올리기</button>
+			<div class=btns>
+				<button id=uploadBtn type=submit class="btn btn-primary">올리기</button>
 			</div>
 		</form>
 		
@@ -5964,6 +5979,8 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 		
 		if(error) break;
 		
+		const response = res;
+		
 		var request = http.request({
 			method: 'POST', 
 			host: hostconfig.image_host,
@@ -5974,15 +5991,15 @@ wiki.all(/^\/Upload$/, async(req, res, next) => {
 			},
 		}, async res => {
 			var data = '';
-			res.on('data', chunk += data);
+			res.on('data', d => data += d);
 			res.on('end', async () => {
 				data = JSON.parse(data);
 				if(data.status != 'success') {
 					error = err('alert', { code: 'file_not_uploaded' });
-					return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+					return response.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 				}
 				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, '']);  // sha224 해시화 필요
-				return res.redirect('/w/' + totitle(doc.title, doc.namespace));
+				return response.redirect('/w/' + totitle(doc.title, doc.namespace));
 			});
 		}).on('error', async e => {
 			error = err('alert', { msg: '파일 서버가 사용가능하지 않습니다.' });
@@ -6275,7 +6292,7 @@ if(hostconfig.allow_account_rename) wiki.all(/^\/member\/change_username$/, asyn
 		userset[newusername] = userset[username];
 		delete userset[username];
 		return res.send(await render(req, '사용자 이름 변경', `
-			<p><strong>${html.escape(newusername)}</strong>로 이름을 변경하였습니다.</p>
+			<p><strong>${html.escape(newusername)}</strong>(으)로 이름을 변경하였습니다.</p>
 		`, {}, _, false, 'delete_account'));
 	}
 	
