@@ -5682,12 +5682,33 @@ if(minor >= 18) wiki.post(/^\/aclgroup\/remove$/, async(req, res) => {
 if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
-	var data = await curs.execute("select name from aclgroup_groups", []);
+	var data = await curs.execute("select name from aclgroup_groups");
+	var data2 = await curs.execute("select name from aclgroup_groups where not name = '차단된 사용자'");
+	const groups = data.map(item => item.name);
 	const editable = hasperm(req, 'aclgroup');
 	
 	var tabs = ``;
-	const group = req.query['group'] || (data.length ? data[0].name : null);
+	var group = null;
+	if(groups.includes(req.query['group'])) {
+		if(req.query['group'] == '차단된 사용자' && !editable) {
+			if(data2.length)
+				group = data2[0].name;
+		} else {
+			group = req.query['group'];
+		}
+	} else {
+		if(editable) {
+			if(data.length) {
+				group = data[0].name;
+			}
+		} else {
+			if(data2.length) {
+				group = data2[0].name;
+			}
+		}
+	}
 	for(var g of data) {
+		if(g.name == '차단된 사용자' && !editable) continue;
 		const delbtn = `<form method=post onsubmit="return confirm('삭제하시겠습니까?');" action="/aclgroup/delete?group=${encodeURIComponent(g.name)}" style="display: inline-block; margin: 0; padding: 0;"><input type=hidden name=group value="${html.escape(g.name)}" /><button type=submit style="background: none; border: none; padding: 0; margin: 0;">×</button></form>`;
 		tabs += `
 			<li class="nav-item">
@@ -5814,7 +5835,7 @@ if(minor >= 18) wiki.all(/^\/aclgroup$/, async(req, res) => {
 						<form method=post onsubmit="return confirm('정말로?');" action="/aclgroup/remove">
 							<input type=hidden name=id value="${row.id}" />
 							<input type=hidden name=note value="" />
-							<input type=submit class="btn btn-sm btn-danger" value="삭제" />
+							<input type=submit class="btn btn-sm btn-danger" value="삭제" ${!editable ? 'disabled' : ''} />
 						</form>
 					</td>
 				</tr>
