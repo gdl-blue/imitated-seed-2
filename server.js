@@ -1292,7 +1292,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	
 	// 글상자
 	if(minor < 7 || (minor == 7 && revision <= 4))
-		data = data.replace(/{{[|](((?![|]}}).)+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
+		data = data.replace(/{{[|](((?![|]}})(.|\n))+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
 	
 	// 매크로
 	data = data.replace(/\[br\]/gi, '&lt;br&gt;');
