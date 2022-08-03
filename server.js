@@ -75,7 +75,7 @@ var perms = [
 	'delete_thread', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
 	'update_thread_status', 'acl', 'nsacl', 'hide_thread_comment', 'grant', 'no_force_recaptcha', 
 	'disable_two_factor_login', 'login_history', 'update_thread_document', 'update_thread_topic', 
-	'aclgroup', 'api_access', 
+	'aclgroup', 'api_access', 'developer', 'owner',
 ];
 var disable_autoperms = ['disable_two_factor_login'];
 
