@@ -922,20 +922,32 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	}
 	
 	// 리터럴
+	blocks = new Stack();
+	var open = [];
+	var ops = 'RENTRIPLECBRACKET' + rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024) + 'RENTRIPLECBRACKET';
+	var cls = 'RENTRIPLECBRACKETCLOSE' + rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024) + 'RENTRIPLECBRACKETCLOSE';
 	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
 			data = data.replace('}}}', blocks.top() + '');
-			if(od == data) data = data.replace('\n}}}', blocks.top() + '\r');
 			blocks.pop();
 			continue;
 		}
 		
-		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
+		const h = block.match(/{{{(((?![}][}][}]).)*)/im)[1];
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
-		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
+			blocks.push(cls);
+			open.push(block);
+			data = data.replace(block, ops);
 		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
+			blocks.push(cls);
+			open.push(block);
+			data = data.replace(block, ops);
+		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
+			blocks.push(cls);
+			open.push(block);
+			data = data.replace(block, ops);
 		} else {  // 리터럴
 			if(!block.includes('}}}')) {  // 블록
 				blocks.push('</pre></nowikiblock>');
@@ -946,47 +958,25 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
 				const size = h.match(/^([+]|[-])([1-5])\s/);
 				if(color) {
+					blocks.push('}}}');
 				} else if(size) {
+					blocks.push('}}}');
 				} else {
-					blocks.push('</code></nowikiblock>');
 					data = data.replace('{{{', '<nowikiblock><code>');
+					data = data.replace('}}}', '</code></nowikiblock>');
 				}
 			}
+			
 		}
 	}
-	
-	// #!html 문법
-	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
-	const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
-	const whattr = {
-		'*': ['style'],
-		span: ['class'],
-		a: ['href', 'class'],
-		font: ['color', 'size', 'face'],
-	};
-	for(var item of document.querySelectorAll('rawhtml')) {
-		item.innerHTML = item.textContent.replace(/\n/g, '<br>');
-		for(var el of item.getElementsByTagName('*')) {
-			if(whtags.includes(el.tagName.toLowerCase())) {
-				for(var attr of el.attributes) {
-					if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
-						if(attr.name == 'style') {
-							
-						}
-					} else el.removeAttribute(attr.name);
-				}
-				switch(el.tagName.toLowerCase()) {
-					case 'a':
-						el.setAttribute('target', '_blank');
-						if(minor >= 20) {
-							el.className += (el.className ? ' ' : '') + 'wiki-link-external';
-						}
-				}
-			} else el.outerHTML = el.innerHTML;
-		} item.outerHTML = item.innerHTML;
+	for(let blk of (data.match(RegExp(ops, 'g')) || [])) {
+		data = data.replace(blk, open[0]);
+		open.splice(0, 1);
 	}
+	data = data.replace(RegExp(cls, 'g'), '}}}');
 	
 	// 리터럴 (제대로 된 방법은 아니겠지만 이게 젤 쉬었어...)
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
 	var nwblocks = {};
 	for(var item of document.querySelectorAll('nowikiblock')) {
 		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
@@ -1206,17 +1196,40 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 			} else if(size) {  // 글자 크기
 				data = data.replace('}}}', '</span>');
 				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
-			} else {
-				blocks.push('</code></nowikiblock>');
-				data = data.replace('{{{', '<nowikiblock><code>');
 			}
 		}
 	}
-	for(var item of document.querySelectorAll('nowikiblock')) {
-		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
-		nwblocks[key] = item.innerHTML;
-		item.outerHTML = key;
+	// #!html 문법
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
+	const whattr = {
+		'*': ['style'],
+		span: ['class'],
+		a: ['href', 'class'],
+		font: ['color', 'size', 'face'],
+	};
+	for(var item of document.querySelectorAll('rawhtml')) {
+		item.innerHTML = item.textContent.replace(/\n/g, '<br>');
+		for(var el of item.getElementsByTagName('*')) {
+			if(whtags.includes(el.tagName.toLowerCase())) {
+				for(var attr of el.attributes) {
+					if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
+						if(attr.name == 'style') {
+							
+						}
+					} else el.removeAttribute(attr.name);
+				}
+				switch(el.tagName.toLowerCase()) {
+					case 'a':
+						el.setAttribute('target', '_blank');
+						if(minor >= 20) {
+							el.className += (el.className ? ' ' : '') + 'wiki-link-external';
+						}
+				}
+			} else el.outerHTML = el.innerHTML;
+		} item.outerHTML = item.innerHTML;
 	}
+	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
 	
 	// 토론 앵커
 	if(discussion) for(let res of (data.match(/(\s|^)[#](\d+)(\s|$)/g) || [])) {
