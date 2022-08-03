@@ -638,7 +638,7 @@ try {
 })(); } if(_ready) {
 
 // 나무마크
-async function markdown(content, discussion = 0, title = '', flags = '') {
+async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	// markdown 아니고 namumark
 	flags = flags.split(' ');
 	
@@ -1296,7 +1296,8 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 			}
 			let itd = processTitle(itf);
 			let d = await curs.execute("select content from documents where title = ? and namespace = ?", [itd.title, itd.namespace]);
-			if(!d.length) {
+			let acl = await getacl(req, itd.title, itd.namespace, 'read', 1)
+			if(!d.length || acl) {
 				data = data.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
 				continue;
 			}
@@ -1309,7 +1310,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 				let def = pd[1] ? item.replace(param + '=', '') : '';
 				d = d.replace(itema, params[param] || def);
 			}
-			d = await markdown(d, 0, itf, 'include noframe');
+			d = await markdown(req, d, 0, itf, 'include noframe');
 			d = d.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
 			
 			data = data.replace(finc, d);
@@ -2657,7 +2658,7 @@ wiki.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			} else {
 				content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + (nd[1] ? ('#' + nd[1]) : '') + '">' + html.escape(ntitle) + '</a>';
 			}
-		} else content = await markdown(rawContent[0].content, 0, doc + '');
+		} else content = await markdown(req, rawContent[0].content, 0, doc + '');
 		
 		if(rev && minor >= 20) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 		if(req.query['from']) {
@@ -2969,7 +2970,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 			doc.title, doc.namespace, text, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
 		]);
-		markdown(text, 0, doc + '', 'backlinkinit');
+		markdown(req, text, 0, doc + '', 'backlinkinit');
 		
 		return res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
 	} while(0);
@@ -3037,7 +3038,7 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 			<body>
 				<h1 class=title>${html.escape(doc + '')}</h1>
 				<div class=wiki-article>
-					${await markdown(req.body['text'], 0, doc + '', 'preview')}
+					${await markdown(req, req.body['text'], 0, doc + '', 'preview')}
 				</div>
 			</body>
 		</html>
@@ -3339,7 +3340,7 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 		<body>
 			<h1 class=title>${html.escape(doc + '')}</h1>
 			<div class=wiki-article>
-				${await markdown(item.content, 0, doc + '', 'preview')}
+				${await markdown(req, item.content, 0, doc + '', 'preview')}
 			</div>
 		</body>
 	`);
@@ -3395,7 +3396,7 @@ wiki.post(/^\/edit_request\/(\d+)\/accept$/, async(req, res, next) => {
 		item.title, item.namespace, item.content, String(rev), item.username, getTime(), changes, item.log, '0', '-1', item.ismember, 'normal', id
 	]);
 	await curs.execute("update edit_requests set state = 'accepted', processor = ?, processortype = ?, processtime = ?, rev = ? where id = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), String(rev), id]);
-	markdown(text, 0, doc + '', 'backlinkinit');
+	markdown(req, text, 0, doc + '', 'backlinkinit');
 	return res.redirect('/edit_request/' + id);
 });
 
@@ -4578,10 +4579,10 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 									rs['hidden'] == '1'
 									? (
 										getperm('hide_thread_comment', ip_check(req))
-										? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + await markdown(rs['content'], 1) + '</div>'
+										? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + await markdown(req, rs['content'], 1) + '</div>'
 										: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 									  )
-									: await markdown(rs['content'], 1)
+									: await markdown(req, rs['content'], 1)
 								}
 							</div>
 						</div>
@@ -4892,7 +4893,7 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 					? '스레드를 <strong>' + rs.content + '</strong> 문서로 이동'
 					: '스레드 주제를 <strong>' + rs.content + '</strong>로 변경'
 				)
-			) : await markdown(rs.content, 1);
+			) : await markdown(req, rs.content, 1);
 		
 		if(rs.hidden == '1') {
 			var rc = rescontent;
@@ -7212,7 +7213,7 @@ if(hostconfig.debug) wiki.get('/ResetXref', function(req, res) {
 					print('초기화 시작...');
 					for(var item of dbdocs) {
 						prt(totitle(item.title, item.namespace) + ' 처리 중... ');
-						await markdown(item.content, 0, totitle(item.title, item.namespace) + '', 'backlinkinit');
+						await markdown(req, item.content, 0, totitle(item.title, item.namespace) + '', 'backlinkinit');
 						print('완료!');
 					}
 					print('모두 처리 완료.');
