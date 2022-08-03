@@ -902,6 +902,8 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	var data   = content;
 	var doc    = processTitle(title);
 	
+	data += '\r\n';
+	
 	data = html.escape(data);
 	const xref = flags.includes('backlinkinit');
 	
@@ -1161,6 +1163,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	blocks = new Stack();
 	// 삼중중괄호 서식
 	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
+		print(block);
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
@@ -1201,9 +1204,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 				}
 				data = data.replace('}}}', '</font>');
 				data = data.replace('{{{' + color[0], '<font color=' + col + '>');
-				blocks.push('</font>');
 			} else if(size) {  // 글자 크기
-				blocks.push('</span>');
 				data = data.replace('}}}', '</span>');
 				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
 			} else {
