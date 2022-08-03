@@ -1288,7 +1288,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	data = data.replace(/--(((?!--).)+)--/g, '<del>$1</del>');
 	data = data.replace(/__(((?!__).)+)__/g, '<u>$1</u>');
 	data = data.replace(/[,][,](((?![,][,]).)+)[,][,]/g, '<sub>$1</sub>');
-	data = data.replace(/[^][^](((?![^][^]).)+)[^][^]/g, '<sup>$1</sup>');
+	data = data.replace(/\^\^(((?!\^\^).)+)\^\^/g, '<sup>$1</sup>');
 	
 	// 글상자
 	if(minor < 7 || (minor == 7 && revision <= 4))
