@@ -919,8 +919,8 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		data = data.replace(esc, '<spannw class=nowiki>' + match[1] + '</spannw>');
 	}
 	
-	// 블록 (접기, CSS, ...)
-	for(let block of (data.match(/([}][}][}]|[{][{][{](((?!}}}).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
+	// 리터럴
+	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
@@ -932,29 +932,23 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		
 		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
-			blocks.push('</dd></dl>');
-			const title = h.match(/^[#][!]folding\s(.*)$/)[1];
-			data = data.replace('{{{' + h + '\n', '<dl class=wiki-folding><dt>' + title + '</dt><dd>');
 		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
-			blocks.push('</div>');
-			const style = (h.match(/style=&quot;(((?!&quot;).)*)&quot;/) || ['', '', ''])[1];
-			data = data.replace('{{{' + h + '\n', '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">');
 		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
-			if(block.includes('}}}')) {
-				var rb = block;
-				rb = rb.replace('}}}', '</rawhtml></nowikiblock>');
-				rb = rb.replace('{{{#!html', '<nowikiblock><rawhtml>');
-				data = data.replace(block, rb);
-			} else {
-				blocks.push('</rawhtml></nowikiblock>');
-				data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
-			}
 		} else {  // 리터럴
 			if(!block.includes('}}}')) {  // 블록
 				blocks.push('</pre></nowikiblock>');
 				var od = data;
 				data = data.replace('{{{\n', '<nowikiblock><pre>');
 				if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
+			} else {  // 한 줄
+				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+				const size = h.match(/^([+]|[-])([1-5])\s/);
+				if(color) {
+				} else if(size) {
+				} else {
+					blocks.push('</code></nowikiblock>');
+					data = data.replace('{{{', '<nowikiblock><code>');
+				}
 			}
 		}
 	}
@@ -1152,7 +1146,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
 		const sl = dest == title ? ' self-link' : '';
-		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + disp + '</a>');
+		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + html.escape(disp) + '</a>');
 		
 		// 역링크
 		if(xref && !external) {
@@ -1164,9 +1158,9 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		}
 	}
 	
-	blocks = new Stack;
+	blocks = new Stack();
 	// 삼중중괄호 서식
-	for(let block of (data.match(/([}][}][}]|[{][{][{](((?!}}}).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
+	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
@@ -1177,9 +1171,25 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		}
 		
 		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
-		if(h.match(/^[#][!]folding\s/)) {
-		} else if(h.match(/^[#][!]wiki\s/)) {
-		} else if(h.match(/^[#][!]html/) && !discussion) {
+		
+		if(h.match(/^[#][!]folding\s/)) {  // 접기
+			blocks.push('</dd></dl>');
+			const title = h.match(/^[#][!]folding\s(.*)$/)[1];
+			data = data.replace('{{{' + h + '\n', '<dl class=wiki-folding><dt>' + title + '</dt><dd>');
+		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
+			blocks.push('</div>');
+			const style = (h.match(/style=\"(((?!\").)*)\"/) || ['', '', ''])[1];
+			data = data.replace('{{{' + h + '\n', '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">');
+		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
+			if(block.includes('}}}')) {
+				var rb = block;
+				rb = rb.replace('}}}', '</rawhtml></nowikiblock>');
+				rb = rb.replace('{{{#!html', '<nowikiblock><rawhtml>');
+				data = data.replace(block, rb);
+			} else {
+				blocks.push('</rawhtml></nowikiblock>');
+				data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
+			}
 		} else if(block.includes('}}}')) {  // 한 줄
 			const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
 			const size = h.match(/^([+]|[-])([1-5])\s/);
@@ -1191,7 +1201,9 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 				}
 				data = data.replace('}}}', '</font>');
 				data = data.replace('{{{' + color[0], '<font color=' + col + '>');
+				blocks.push('</font>');
 			} else if(size) {  // 글자 크기
+				blocks.push('</span>');
 				data = data.replace('}}}', '</span>');
 				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
 			} else {
