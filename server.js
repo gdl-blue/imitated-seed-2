@@ -638,7 +638,7 @@ try {
 })(); } if(_ready) {
 
 // 나무마크
-async function markdown(req, content, discussion = 0, title = '', flags = '') {
+async function markdown(req, content, discussion = 0, title = '', flags = '', root = '') {
 	// markdown 아니고 namumark
 	flags = flags.split(' ');
 	
@@ -902,6 +902,8 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	var data   = content;
 	var doc    = processTitle(title);
 	
+	root = root || title;
+	
 	data += '\r\n';
 	
 	data = html.escape(data);
@@ -1137,7 +1139,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 		
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
-		const sl = dest == title ? ' self-link' : '';
+		const sl = dest == root ? ' self-link' : '';
 		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + html.escape(disp) + '</a>');
 		
 		// 역링크
@@ -1295,7 +1297,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat));
 	data = data.replace(/\[(tableofcontents|목차)\]/gi, tochtml);
 	
-	// 틀 인글루드
+	// 틀 인클루드
 	if(!flags.includes('include')) {
 		for(let finc of (data.match(/\[include[(](((?![)]).)+)[)]\]/gi) || [])) {
 			let inc = finc.match(/\[include[(](((?![)]).)+)[)]\]/i);
@@ -1321,7 +1323,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 				let def = pd[1] ? item.replace(param + '=', '') : '';
 				d = d.replace(itema, params[param] || def);
 			}
-			d = await markdown(req, d, 0, itf, 'include noframe');
+			d = await markdown(req, d, 0, itf, 'include noframe', title);
 			d = d.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
 			
 			data = data.replace(finc, d);
