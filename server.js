@@ -3056,6 +3056,11 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 	`);
 });
 
+if(minor >= 14) wiki.get(/^\/xref\/(.*)/, (req, res) => {
+	const title = req.params[0];
+	res.redirect('/backlink/' + encodeURIComponent(title) + '?flag=' + encodeURIComponent(req.query['flag'] || '0') + '&namespace=' + encodeURIComponent(req.query['namespace'] || '문서'));
+});
+
 wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
