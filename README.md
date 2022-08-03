@@ -1,9 +1,6 @@
-더시드 엔진 (구 프론트엔드 기준) 모방 프로젝트.  
-< "엔진 내부 UI는 상관없음." ( https://feedback.theseed.io/posts/280 ) >  
-테스트 서버 - https://go2021.glitch.me
-
-나무픽스와 거의 호환된다.
-
+# PoipoEngine
+[더시드 모방 엔진](https://github.com/foxtort-99)의 개조판.
+개발자가 공개를 해주면 좋겠다라는 말을 하여 공개함.
 ## 기초 사용 방법
 - css, js 디렉토리를 만든다.
   - https://theseed.io/js/theseed.js, https://theseed.io/js/jquery-2.1.4.min.js, https://theseed.io/js/jquery-1.11.3.min.js, https://theseed.io/js/intersection-observer.js, https://theseed.io/js/dateformatter.js )를 각각 다운로드받아 js 디렉토리에 복사한다.
