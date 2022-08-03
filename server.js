@@ -1233,6 +1233,8 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	}
 	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
 	
+	data = data.replace(/^[#][#](.*)$/gm, '');
+	
 	// 토론 앵커
 	if(discussion) for(let res of (data.match(/(\s|^)[#](\d+)(\s|$)/g) || [])) {
 		const reg = res.match(/(\s|^)[#](\d+)(\s|$)/);
@@ -1312,7 +1314,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			let d = await curs.execute("select content from documents where title = ? and namespace = ?", [itd.title, itd.namespace]);
 			let acl = await getacl(req, itd.title, itd.namespace, 'read', 1)
 			if(!d.length || acl) {
-				data = data.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
+				data = data.replace(finc, '');
 				continue;
 			}
 			d = d[0].content;
