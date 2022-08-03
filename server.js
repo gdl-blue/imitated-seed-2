@@ -1139,7 +1139,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
-		const sl = dest == root ? ' self-link' : '';
+		const sl = dest == root ? ' wiki-self-link' : '';
 		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + html.escape(disp) + '</a>');
 		
 		// 역링크
