@@ -1303,7 +1303,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	if(!flags.includes('include')) {
 		for(let finc of (data.match(/\[include[(](((?![)]).)+)[)]\]/gi) || [])) {
 			let inc = finc.match(/\[include[(](((?![)]).)+)[)]\]/i);
-			let itf = inc[1].split(',')[0];
+			let itf = inc[1].split(',')[0].replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
 			let paramsa = inc[1].split(',').slice(1, 99999);
 			let params = {};
 			for(let item of paramsa) {
