@@ -1,5 +1,5 @@
 # PoipoEngine
-[더시드 모방 엔진](https://github.com/gdl-888)의 개조판.
+[더시드 모방 엔진](https://github.com/foxtrot-99/imitated-seed-v2)의 개조판.
 개발자가 공개를 해주면 좋겠다라는 말을 하여 공개함.
 ## 기초 사용 방법
 - css, js 디렉토리를 만든다.
