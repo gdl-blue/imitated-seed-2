@@ -1303,12 +1303,12 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	if(!flags.includes('include')) {
 		for(let finc of (data.match(/\[include[(](((?![)]).)+)[)]\]/gi) || [])) {
 			let inc = finc.match(/\[include[(](((?![)]).)+)[)]\]/i);
-			let itf = inc[1].split(',')[0].replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
+			let itf = inc[1].split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
 			let paramsa = inc[1].split(',').slice(1, 99999);
 			let params = {};
 			for(let item of paramsa) {
-				let pp = item.split('=')[0];
-				params[pp] = item.replace(pp + '=', '');
+				let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '');
+				params[pp] = item.replace(pp + '=', '').replace(/^(\s+)/, '').replace(/(\s+)$/, '');
 			}
 			let itd = processTitle(itf);
 			let d = await curs.execute("select content from documents where title = ? and namespace = ?", [itd.title, itd.namespace]);
