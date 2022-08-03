@@ -66,7 +66,6 @@ wiki.use(session({
     saveUninitialized: true,
 }));
 wiki.use(cookieParser());
-wiki.set('trust proxy', true);
 
 // 업데이트 수준
 const updatecode = '12';
@@ -193,7 +192,7 @@ function ip_check(req, forceIP) {
 	if(!forceIP && req.session.username)
 		return req.session.username;
 	else
-		return ((req.socket ? req.socket.remoteAddress : req.connection.remoteAddress) || req.ip || '10.0.0.9').split(',')[0];
+		return (req.headers['x-forwarded-for'] || (req.socket ? req.socket.remoteAddress : req.connection.remoteAddress) || req.ip || '10.0.0.9').split(',')[0];
 }
 
 // 사용자설정 가져오기
@@ -1271,6 +1270,39 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat));
 	data = data.replace(/\[(tableofcontents|목차)\]/gi, tochtml);
 	
+	// 틀 인글루드
+	if(!flags.includes('include')) {
+		for(let finc of (data.match(/\[include[(](((?![)]).)+)[)]\]/gi) || [])) {
+			let inc = finc.match(/\[include[(](((?![)]).)+)[)]\]/i);
+			let itf = inc[1].split(',')[0];
+			let paramsa = inc[1].split(',').slice(1, 99999);
+			let params = {};
+			for(let item of paramsa) {
+				let pp = item.split('=')[0];
+				params[pp] = item.replace(pp + '=', '');
+			}
+			let itd = processTitle(itf);
+			let d = await curs.execute("select content from documents where title = ? and namespace = ?", [itd.title, itd.namespace]);
+			if(!d.length) {
+				data = data.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
+				continue;
+			}
+			d = d[0].content;
+			print(params);
+			for(let itema of (d.match(/[@](((?![@]).)+)[@]/gi) || [])) {
+				let item = itema.match(/[@](((?![@]).)+)[@]/i)[1];
+				let pd = item.split('=');
+				let param = pd[0];
+				let def = pd[1] ? item.replace(param + '=', '') : '';
+				d = d.replace(itema, params[param] || def);
+			}
+			d = await markdown(d, 0, itf, 'include noframe');
+			d = d.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
+			
+			data = data.replace(finc, d);
+		}
+	}
+	
 	// 각주 (1)
 	const fnrows = data.split('\n');
 	const frl = fnrows.length;
@@ -1392,7 +1424,7 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 	// 각주
 	if(fnhtml) data += fnhtml;
 	
-	if(!discussion && doc.namespace == '분류') {
+	if(!flags.includes('noframe') && !discussion && doc.namespace == '분류') {
 		let content = '';
 		
 		const dbdata = await curs.execute("select title, namespace, type from backlink where type = 'category' and link = ? and linkns = ?", [doc.title, doc.namespace]);
@@ -1454,18 +1486,20 @@ async function markdown(content, discussion = 0, title = '', flags = '') {
 		data += content;
 	}
 	
-	if(!discussion) data = '<div class="wiki-content clearfix">' + data + '</div>';
+	if(!discussion && !flags.includes('noframe')) data = '<div class="wiki-content clearfix">' + data + '</div>';
 	
 	// 분류
-	if(cates) {
-		data = `
-			<div class=wiki-category>
-				<h2>분류</h2>
-				<ul>${cates}</ul>
-			</div>
-		` + data;
-	} else if(doc.namespace != '사용자' && !discussion && !flags.includes('preview')) {
-		data = alertBalloon('이 문서는 분류가 되어 있지 않습니다. <a href="/w/분류:분류">분류:분류</a>에서 적절한 분류를 찾아 문서를 분류해주세요!', 'info', true) + data;
+	if(!flags.includes('noframe')) {
+		if(cates) {
+			data = `
+				<div class=wiki-category>
+					<h2>분류</h2>
+					<ul>${cates}</ul>
+				</div>
+			` + data;
+		} else if(doc.namespace != '사용자' && !discussion && !flags.includes('preview')) {
+			data = alertBalloon('이 문서는 분류가 되어 있지 않습니다. <a href="/w/분류:분류">분류:분류</a>에서 적절한 분류를 찾아 문서를 분류해주세요!', 'info', true) + data;
+		}
 	}
 	
 	// 리터럴블록 복구
