@@ -1163,7 +1163,6 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	blocks = new Stack();
 	// 삼중중괄호 서식
 	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
-		print(block);
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
@@ -1302,7 +1301,6 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 				continue;
 			}
 			d = d[0].content;
-			print(params);
 			for(let itema of (d.match(/[@](((?![@]).)+)[@]/gi) || [])) {
 				let item = itema.match(/[@](((?![@]).)+)[@]/i)[1];
 				let pd = item.split('=');
