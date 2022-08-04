@@ -6655,6 +6655,32 @@ if(minor >= 19 || (minor == 18 && revision >= 6)) {
 		for(var item of perms)
 			if(hasperm(req, item)) mp.push(item);
 		
+		const webauthnui = '';  `
+			<div class=input-group>
+				<input type=text class=form-control placeholder="Webauthn Device name to be added" />
+				<span class=input-group-btn>
+					<button type=button class="btn btn-primary" disabled>Webauthn Device 추가</button>
+				</span>
+			</div>
+			
+			<table class=table>
+				<thead>
+					<tr>
+						<th>이름</th>
+						<th>등록일</th>
+						<th>마지막 사용</th>
+						<th></th>
+					</tr>
+				</thead>
+				
+				<tbody>
+					<tr>
+						<td colspan=3>등록된 장치가 없습니다.</td>
+					</tr>
+				</tbody>
+			</table>
+		`;
+		
 		var content = `
 			<div id="api-token-generate-modal" class="modal fade" role="dialog" style="display: none;" aria-hidden="true">
 				<div class="modal-dialog">
@@ -6711,29 +6737,7 @@ if(minor >= 19 || (minor == 18 && revision >= 6)) {
 					<label>이중인증</label><br />
 					<a class="btn btn-info" href="/member/activate_otp">TOTP 활성화</a>
 					
-					<div class=input-group>
-						<input type=text class=form-control placeholder="Webauthn Device name to be added" />
-						<span class=input-group-btn>
-							<button type=button class="btn btn-primary" disabled>Webauthn Device 추가</button>
-						</span>
-					</div>
-					
-					<table class=table>
-						<thead>
-							<tr>
-								<th>이름</th>
-								<th>등록일</th>
-								<th>마지막 사용</th>
-								<th></th>
-							</tr>
-						</thead>
-						
-						<tbody>
-							<tr>
-								<td colspan=3>등록된 장치가 없습니다.</td>
-							</tr>
-						</tbody>
-					</table>
+					${webauthnui}
 				</div>
 				
 				<div class=form-group>
