@@ -844,7 +844,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 				}
 				
 				// 셀 배경색
-				var bgcolor = (fulloptions.match(/&lt;((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/) || ['', ''])[1];
+				var bgcolor = (fulloptions.match(/&lt;((#([a-fA-F0-9]{3,6}))|([a-zA-Z]+))&gt;/) || ['', ''])[1];
 				if(bgcolor) {
 					tds += 'background-color: ' + bgcolor + '; ';
 					ntd = ntd.replace(/&lt;((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/, '');
@@ -937,7 +937,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			continue;
 		}
 		
-		const h = block.match(/{{{(((?![}][}][}]).)*)/im)[1];
+		let h = block.match(/{{{(((?![}][}][}]).)*)/im)[1];
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
 			blocks.push(cls);
 			open.push(block);
@@ -957,16 +957,34 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 				data = data.replace('{{{\n', '<nowikiblock><pre>');
 				if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
 			} else {  // 한 줄
-				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-				const size = h.match(/^([+]|[-])([1-5])\s/);
-				if(color) {
-					blocks.push('}}}');
-				} else if(size) {
-					blocks.push('}}}');
-				} else {
-					data = data.replace('{{{', '<nowikiblock><code>');
-					data = data.replace('}}}', '</code></nowikiblock>');
+				function lc(h) {
+					const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+					const size = h.match(/^([+]|[-])([1-5])\s/);
+					h = h.match(/(((?!({{{|}}})).)*)/im)[1];
+					if(color) {
+						blocks.push(cls);
+						open.push('{{{' + h);
+						data = data.replace('{{{' + h, ops);
+					} else if(size) {
+						blocks.push(cls);
+						open.push('{{{' + h);
+						data = data.replace('{{{' + h, ops);
+					} else {
+						data = data.replace('{{{', '<nowikiblock><code>');
+						data = data.replace('}}}', '</code></nowikiblock>');
+					}
 				}
+				
+				h = h.match(/(((?!(}}})).)*)/im)[1];
+				//print(h);
+				do {
+					lc(h);
+					try {
+						h = h.match(/{{{(((?!(}}})).)*)/im)[1];
+					} catch(e) {
+						break;
+					}
+				} while(h.includes('{{{'));
 			}
 			
 		}
@@ -1164,7 +1182,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			continue;
 		}
 		
-		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
+		var h = block.match(/{{{(((?!}}}).)*)/im)[1];
 		
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
 			blocks.push('</dd></dl>');
@@ -1185,20 +1203,32 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 				data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
 			}
 		} else if(block.includes('}}}')) {  // 한 줄
-			const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-			const size = h.match(/^([+]|[-])([1-5])\s/);
-			if(color) {  // 글자 색
-				const htmlcolor = color[1].match(/^([A-Fa-f0-9]{3,6})$/);
-				var col = color[1];
-				if(htmlcolor) {
-					col = '#' + htmlcolor[1];
+			function lc(h) {
+				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+				const size = h.match(/^([+]|[-])([1-5])\s/);
+				if(color) {  // 글자 색
+					const htmlcolor = color[1].match(/^([A-Fa-f0-9]{3,6})$/);
+					var col = color[1];
+					if(htmlcolor) {
+						col = '#' + htmlcolor[1];
+					}
+					blocks.push('</font>');
+					data = data.replace('{{{' + color[0], '<font color=' + col + '>');
+				} else if(size) {  // 글자 크기
+					blocks.push('</span>');
+					data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
 				}
-				data = data.replace('}}}', '</font>');
-				data = data.replace('{{{' + color[0], '<font color=' + col + '>');
-			} else if(size) {  // 글자 크기
-				data = data.replace('}}}', '</span>');
-				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
 			}
+			do {
+				//print(h);
+				lc(h);
+				try {
+					h = h.match(/{{{(((?!}}}).)*)/im)[1];
+					data = data.replace('}}}', '');
+				} catch(e) {
+					break;
+				}
+			} while(block.includes('{{{'));
 		}
 	}
 	// #!html 문법
@@ -1295,19 +1325,53 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		data = data.replace(/{{[|](((?![|]}})(.|\n))+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
 	
 	// 매크로
-	data = data.replace(/\[br\]/gi, '&lt;br&gt;');
+	data = data.replace(/\[br\]/gi, '<br />');
+	data = data.replace(/\[clearfix\]/gi, '<div style="clear: both;"></div>');
 	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat));
 	data = data.replace(/\[(tableofcontents|목차)\]/gi, tochtml);
 	
+	// 동화상
+	for(let finc of (data.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/gi) || [])) {
+		let inc = finc.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?!([)]))(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/i);
+		let vid = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')');
+		let id = inc[2].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
+		let paramsa = inc[2].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',').slice(1, 99999);
+		let params = {};
+		for(let item of paramsa) {
+			let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').toLowerCase();
+			params[pp] = item.replace(pp + '=', '').replace(/^(\s+)/, '').replace(/(\s+)$/, '');
+		}
+		let d;
+		switch(vid.toLowerCase()) {
+		case 'youtube': {
+			d = `<iframe allowfullscreen src="//www.youtube.com/embed/${encodeURIComponent(id)}${params.start ? `?start=${encodeURIComponent(params.start)}` : ''}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		break; case 'kakaotv': {
+			d = `<iframe allowfullscreen src="//tv.kakao.com/embed/player/cliplink/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		break; case 'nicovideo': {
+			d = `<iframe allowfullscreen src="//embed.nicovideo.jp/watch/sm${encodeURIComponent(id)}" loading=lazy width="${params.width || 720}" height="${params.height || 480}" frameborder=0></iframe>`;
+		}
+		break; case 'vimeo': {
+			d = `<iframe allowfullscreen src="//player.vimeo.com/video/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		break; case 'vimeo': {
+			d = `<iframe allowfullscreen src="//tv.naver.com/embed/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		}
+		
+		data = data.replace(finc, d);
+	}
+	
 	// 틀 인클루드
 	if(!flags.includes('include')) {
-		for(let finc of (data.match(/\[include[(](((?![)]).)+)[)]\]/gi) || [])) {
-			let inc = finc.match(/\[include[(](((?![)]).)+)[)]\]/i);
-			let itf = inc[1].split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
-			let paramsa = inc[1].split(',').slice(1, 99999);
+		for(let finc of (data.match(/\[include[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/gi) || [])) {
+			let inc = finc.match(/\[include[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/i);
+			let itf = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
+			let paramsa = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',').slice(1, 99999);
 			let params = {};
 			for(let item of paramsa) {
-				let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '');
+				let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').toLowerCase();
 				params[pp] = item.replace(pp + '=', '').replace(/^(\s+)/, '').replace(/(\s+)$/, '');
 			}
 			let itd = processTitle(itf);
@@ -1321,7 +1385,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			for(let itema of (d.match(/[@](((?![@]).)+)[@]/gi) || [])) {
 				let item = itema.match(/[@](((?![@]).)+)[@]/i)[1];
 				let pd = item.split('=');
-				let param = pd[0];
+				let param = pd[0].toLowerCase();
 				let def = pd[1] ? item.replace(param + '=', '') : '';
 				d = d.replace(itema, params[param] || def);
 			}
