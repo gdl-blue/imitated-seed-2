@@ -3177,7 +3177,7 @@ if(minor >= 20) {
 		curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 		curs.execute("insert into history (isapi, title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
 						values ('1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-			doc.title, doc.namespace, text, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
+			doc.title, doc.namespace, text, String(Number(baserev) + 1), username, getTime(), changes, log, '0', '-1', ismember, advance
 		]);
 		markdown(req, text, 0, doc + '', 'backlinkinit');
 		
