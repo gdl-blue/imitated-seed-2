@@ -37,6 +37,7 @@ var permlist = {};  // 권한 캐시
 var userset = {};  // 사용자 설정 캐시
 var skinList = [];  // 스킨 목록 캐시
 var skincfgs = {};  // 스킨 구성설정 캐시
+var apiTokens = {};  // API 편집 토큰
 
 var loginHistory = {};
 var neededPages = {};
@@ -68,14 +69,14 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '12';
+const updatecode = '14';
 
 // 사용자 권한
 var perms = [
 	'delete_thread', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
 	'update_thread_status', 'acl', 'nsacl', 'hide_thread_comment', 'grant', 'no_force_recaptcha', 
 	'disable_two_factor_login', 'login_history', 'update_thread_document', 'update_thread_topic', 
-	'aclgroup', 'api_access', 'developer', 'owner',
+	'aclgroup', 'api_access', 
 ];
 var disable_autoperms = ['disable_two_factor_login'];
 
@@ -592,7 +593,7 @@ try {
 	// 만들 테이블
 	const tables = {
 		'documents': ['title', 'content', 'namespace', 'time'],
-		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags'],
+		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags', 'isapi'],
 		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
 		'users': ['username', 'password'],
 		'user_settings': ['username', 'key', 'value'],
@@ -618,6 +619,7 @@ try {
 		'classic_acl': ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
 		'autologin_tokens': ['username', 'token'],
 		'trusted_devices': ['username', 'id'],
+		'api_tokens': ['username', 'token'],
 	};
 	
 	// 테이블 만들기
@@ -638,7 +640,7 @@ try {
 })(); } if(_ready) {
 
 // 나무마크
-async function markdown(req, content, discussion = 0, title = '', flags = '') {
+async function markdown(req, content, discussion = 0, title = '', flags = '', root = '') {
 	// markdown 아니고 namumark
 	flags = flags.split(' ');
 	
@@ -844,7 +846,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 				}
 				
 				// 셀 배경색
-				var bgcolor = (fulloptions.match(/&lt;((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/) || ['', ''])[1];
+				var bgcolor = (fulloptions.match(/&lt;((#([a-fA-F0-9]{3,6}))|([a-zA-Z]+))&gt;/) || ['', ''])[1];
 				if(bgcolor) {
 					tds += 'background-color: ' + bgcolor + '; ';
 					ntd = ntd.replace(/&lt;((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/, '');
@@ -902,6 +904,8 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	var data   = content;
 	var doc    = processTitle(title);
 	
+	root = root || title;
+	
 	data += '\r\n';
 	
 	data = html.escape(data);
@@ -922,20 +926,33 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	}
 	
 	// 리터럴
+	blocks = new Stack();
+	let blks;
+	var open = [];
+	var ops = 'RENTRIPLECBRACKET' + rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024) + 'RENTRIPLECBRACKET';
+	var cls = 'RENTRIPLECBRACKETCLOSE' + rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024) + 'RENTRIPLECBRACKETCLOSE';
 	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
 			data = data.replace('}}}', blocks.top() + '');
-			if(od == data) data = data.replace('\n}}}', blocks.top() + '\r');
 			blocks.pop();
 			continue;
 		}
 		
-		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
+		let h = block.match(/{{{(((?![}][}][}]).)*)/im)[1];
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
-		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
+			blocks.push(cls);
+			open.push(block);
+			data = data.replace(block, ops);
 		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
+			blocks.push(cls);
+			open.push(block);
+			data = data.replace(block, ops);
+		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
+			blocks.push(cls);
+			open.push(block);
+			data = data.replace(block, ops);
 		} else {  // 리터럴
 			if(!block.includes('}}}')) {  // 블록
 				blocks.push('</pre></nowikiblock>');
@@ -946,47 +963,50 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
 				const size = h.match(/^([+]|[-])([1-5])\s/);
 				if(color) {
+					blocks.push('}}}');
 				} else if(size) {
+					blocks.push('}}}');
 				} else {
-					blocks.push('</code></nowikiblock>');
 					data = data.replace('{{{', '<nowikiblock><code>');
+					data = data.replace('}}}', '</code></nowikiblock>');
 				}
+			/*
+				blks = new Stack();
+				const block_ = block;
+				for(let bl of (block_.match(/{{{(((?!({{{|}}})).)*)|}}}/))) {
+					if(bl == '}}}') {
+						if(!blks.size()) continue;
+						block = block.replace('}}}', blks.top() + '');
+						blks.pop();
+						continue;
+					}
+					let h = bl.match(/{{{(((?![}][}][}]).)*)/im)[1];
+					
+					const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+					const size = h.match(/^([+]|[-])([1-5])\s/);
+					if(color) {
+						blks.push('}}}');
+					} else if(size) {
+						blks.push('}}}');
+					} else {
+						block = block.replace('{{{', '<nowikiblock><code>');
+						block = block.replace('}}}', '</code></nowikiblock>');
+					}
+				}
+				data = data.replace(block_, block);
+				*/
 			}
+			
 		}
 	}
-	
-	// #!html 문법
-	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
-	const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
-	const whattr = {
-		'*': ['style'],
-		span: ['class'],
-		a: ['href', 'class'],
-		font: ['color', 'size', 'face'],
-	};
-	for(var item of document.querySelectorAll('rawhtml')) {
-		item.innerHTML = item.textContent.replace(/\n/g, '<br>');
-		for(var el of item.getElementsByTagName('*')) {
-			if(whtags.includes(el.tagName.toLowerCase())) {
-				for(var attr of el.attributes) {
-					if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
-						if(attr.name == 'style') {
-							
-						}
-					} else el.removeAttribute(attr.name);
-				}
-				switch(el.tagName.toLowerCase()) {
-					case 'a':
-						el.setAttribute('target', '_blank');
-						if(minor >= 20) {
-							el.className += (el.className ? ' ' : '') + 'wiki-link-external';
-						}
-				}
-			} else el.outerHTML = el.innerHTML;
-		} item.outerHTML = item.innerHTML;
+	for(let blk of (data.match(RegExp(ops, 'g')) || [])) {
+		data = data.replace(blk, open[0]);
+		open.splice(0, 1);
 	}
+	data = data.replace(RegExp(cls, 'g'), '}}}');
 	
 	// 리터럴 (제대로 된 방법은 아니겠지만 이게 젤 쉬었어...)
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
 	var nwblocks = {};
 	for(var item of document.querySelectorAll('nowikiblock')) {
 		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
@@ -1147,7 +1167,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 		
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
-		const sl = dest == title ? ' self-link' : '';
+		const sl = dest == root ? ' wiki-self-link' : '';
 		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + html.escape(disp) + '</a>');
 		
 		// 역링크
@@ -1172,7 +1192,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 			continue;
 		}
 		
-		const h = block.match(/{{{(((?!}}}).)*)/im)[1];
+		var h = block.match(/{{{(((?!}}}).)*)/im)[1];
 		
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
 			blocks.push('</dd></dl>');
@@ -1206,17 +1226,42 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 			} else if(size) {  // 글자 크기
 				data = data.replace('}}}', '</span>');
 				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
-			} else {
-				blocks.push('</code></nowikiblock>');
-				data = data.replace('{{{', '<nowikiblock><code>');
 			}
 		}
 	}
-	for(var item of document.querySelectorAll('nowikiblock')) {
-		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
-		nwblocks[key] = item.innerHTML;
-		item.outerHTML = key;
+	// #!html 문법
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
+	const whattr = {
+		'*': ['style'],
+		span: ['class'],
+		a: ['href', 'class'],
+		font: ['color', 'size', 'face'],
+	};
+	for(var item of document.querySelectorAll('rawhtml')) {
+		item.innerHTML = item.textContent.replace(/\n/g, '<br>');
+		for(var el of item.getElementsByTagName('*')) {
+			if(whtags.includes(el.tagName.toLowerCase())) {
+				for(var attr of el.attributes) {
+					if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
+						if(attr.name == 'style') {
+							
+						}
+					} else el.removeAttribute(attr.name);
+				}
+				switch(el.tagName.toLowerCase()) {
+					case 'a':
+						el.setAttribute('target', '_blank');
+						if(minor >= 20) {
+							el.className += (el.className ? ' ' : '') + 'wiki-link-external';
+						}
+				}
+			} else el.outerHTML = el.innerHTML;
+		} item.outerHTML = item.innerHTML;
 	}
+	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
+	
+	data = data.replace(/^[#][#](.*)$/gm, '');
 	
 	// 토론 앵커
 	if(discussion) for(let res of (data.match(/(\s|^)[#](\d+)(\s|$)/g) || [])) {
@@ -1271,44 +1316,78 @@ async function markdown(req, content, discussion = 0, title = '', flags = '') {
 	data = data.replace(/--(((?!--).)+)--/g, '<del>$1</del>');
 	data = data.replace(/__(((?!__).)+)__/g, '<u>$1</u>');
 	data = data.replace(/[,][,](((?![,][,]).)+)[,][,]/g, '<sub>$1</sub>');
-	data = data.replace(/[^][^](((?![^][^]).)+)[^][^]/g, '<sup>$1</sup>');
+	data = data.replace(/\^\^(((?!\^\^).)+)\^\^/g, '<sup>$1</sup>');
 	
 	// 글상자
 	if(minor < 7 || (minor == 7 && revision <= 4))
-		data = data.replace(/{{[|](((?![|]}}).)+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
+		data = data.replace(/{{[|](((?![|]}})(.|\n))+)[|]}}/g, '<div class=wiki-textbox>$1</div>');
 	
 	// 매크로
-	data = data.replace(/\[br\]/gi, '&lt;br&gt;');
+	data = data.replace(/\[br\]/gi, '<br />');
+	data = data.replace(/\[clearfix\]/gi, '<div style="clear: both;"></div>');
 	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat));
 	data = data.replace(/\[(tableofcontents|목차)\]/gi, tochtml);
 	
-	// 틀 인글루드
+	// 동화상
+	for(let finc of (data.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/gi) || [])) {
+		let inc = finc.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?!([)]))(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/i);
+		let vid = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')');
+		let id = inc[2].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
+		let paramsa = inc[2].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',').slice(1, 99999);
+		let params = {};
+		for(let item of paramsa) {
+			let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').toLowerCase();
+			params[pp] = item.replace(pp + '=', '').replace(/^(\s+)/, '').replace(/(\s+)$/, '');
+		}
+		let d;
+		switch(vid.toLowerCase()) {
+		case 'youtube': {
+			d = `<iframe allowfullscreen src="//www.youtube.com/embed/${encodeURIComponent(id)}${params.start ? `?start=${encodeURIComponent(params.start)}` : ''}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		break; case 'kakaotv': {
+			d = `<iframe allowfullscreen src="//tv.kakao.com/embed/player/cliplink/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		break; case 'nicovideo': {
+			d = `<iframe allowfullscreen src="//embed.nicovideo.jp/watch/sm${encodeURIComponent(id)}" loading=lazy width="${params.width || 720}" height="${params.height || 480}" frameborder=0></iframe>`;
+		}
+		break; case 'vimeo': {
+			d = `<iframe allowfullscreen src="//player.vimeo.com/video/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		break; case 'vimeo': {
+			d = `<iframe allowfullscreen src="//tv.naver.com/embed/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+		}
+		}
+		
+		data = data.replace(finc, d);
+	}
+	
+	// 틀 인클루드
 	if(!flags.includes('include')) {
-		for(let finc of (data.match(/\[include[(](((?![)]).)+)[)]\]/gi) || [])) {
-			let inc = finc.match(/\[include[(](((?![)]).)+)[)]\]/i);
-			let itf = inc[1].split(',')[0];
-			let paramsa = inc[1].split(',').slice(1, 99999);
+		for(let finc of (data.match(/\[include[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/gi) || [])) {
+			let inc = finc.match(/\[include[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/i);
+			let itf = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
+			let paramsa = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',').slice(1, 99999);
 			let params = {};
 			for(let item of paramsa) {
-				let pp = item.split('=')[0];
-				params[pp] = item.replace(pp + '=', '');
+				let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').toLowerCase();
+				params[pp] = item.replace(pp + '=', '').replace(/^(\s+)/, '').replace(/(\s+)$/, '');
 			}
 			let itd = processTitle(itf);
 			let d = await curs.execute("select content from documents where title = ? and namespace = ?", [itd.title, itd.namespace]);
 			let acl = await getacl(req, itd.title, itd.namespace, 'read', 1)
 			if(!d.length || acl) {
-				data = data.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
+				data = data.replace(finc, '');
 				continue;
 			}
 			d = d[0].content;
 			for(let itema of (d.match(/[@](((?![@]).)+)[@]/gi) || [])) {
 				let item = itema.match(/[@](((?![@]).)+)[@]/i)[1];
 				let pd = item.split('=');
-				let param = pd[0];
+				let param = pd[0].toLowerCase();
 				let def = pd[1] ? item.replace(param + '=', '') : '';
 				d = d.replace(itema, params[param] || def);
 			}
-			d = await markdown(req, d, 0, itf, 'include noframe');
+			d = await markdown(req, d, 0, itf, 'include noframe', title);
 			d = d.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
 			
 			data = data.replace(finc, d);
@@ -1796,8 +1875,8 @@ function fetchValue(code) {
 	const codes = {
 		username: '사용자 이름',
 		ip: 'IP 주소',
-		password: '암호',
-		password_check: '암호 확인',
+		password: (minor >= 19 || (minor == 18 && revision >= 6)) ? '비밀번호' : '암호',
+		password_check: (minor >= 19 || (minor == 18 && revision >= 6)) ? '비밀번호 확인' : '암호 확인',
 	};
 	
 	return codes[code] || code;
@@ -1842,10 +1921,13 @@ function err(type, obj) {
 			return `<p class=error-desc>${html.escape(this.msg)}</p>`;
 		};
 	}
-	if(type == 'error') {
+	if(type == 'error' || type == 'raw') {
 		obj.toString = function() {
 			return this.msg;
 		};
+	}
+	if(type == 'raw') {
+		return obj + '';
 	}
 	return obj;
 }
@@ -2963,7 +3045,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		}
 		res.cookie('agree', '1', { expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360) });
 		
-		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 			doc.title, doc.namespace, text, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
@@ -2986,6 +3068,127 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		token,
 	}, '', error, 'edit'));
 });
+
+if(minor >= 20) {
+	wiki.get(/^\/api\/edit\/(.*)$/, async(req, res) => {
+		var auth = req.headers['authorization'] || '';
+		if(!auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/))
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
+		auth = auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/)[1];
+		var dbdata = await curs.execute("select username from api_tokens where token = ?", [auth]);
+		if(!dbdata.length) {
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
+		}
+		const username = dbdata[0].username;
+		if(!getperm('api_access', username))
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
+		const title = req.params[0];
+		const doc = processTitle(title);
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+		if(aclmsg) return res.status(403).json({
+			status: err('raw', { code: 'permission_read', msg: aclmsg }),
+		});
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
+		if(aclmsg) return res.status(403).json({
+			status: err('raw', { code: 'permission_edit', msg: aclmsg }),
+		});
+		var exists = true;
+		var text = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		if(!text[0]) text = '', exists = false;
+		else text = text[0].content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+		const token = Buffer.from(rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 48)).toString('base64');
+		res.json({
+			text, exists, token,
+		});
+		apiTokens[username] = token;
+	});
+	
+	wiki.post(/^\/api\/edit\/(.*)$/, async(req, res) => {
+		var auth = req.headers['authorization'] || '';
+		if(!auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/))
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
+		auth = auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/)[1];
+		var dbdata = await curs.execute("select username from api_tokens where token = ?", [auth]);
+		if(!dbdata.length) {
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
+		}
+		const username = dbdata[0].username;
+		if(!getperm('api_access', username))
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
+		const title = req.params[0];
+		const doc = processTitle(title);
+		
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+		if(aclmsg) return res.status(403).json({
+			status: err('raw', { code: 'permission_read', msg: aclmsg }),
+		});
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
+		if(aclmsg) return res.status(403).json({
+			status: err('raw', { code: 'permission_edit', msg: aclmsg }),
+		});
+		
+		if(!apiTokens[username] || !req.body['token'] || apiTokens[username] != req.body['token'])
+			return res.status(400).json({
+				status: err('raw', 'invalid_token'),
+			});
+		
+		var original = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		var ex = 1;
+		if(!original[0]) ex = 0, original = '';
+		else original = original[0]['content'];
+		var text = req.body['text'] || '';
+		text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+		if(text.startsWith('#넘겨주기 ')) text = text.replace('#넘겨주기 ', '#redirect ');
+		if(text.startsWith('#redirect ')) text = text.split('\n')[0] + '\n';
+		const rawChanges = text.length - original.length;
+		const changes = (rawChanges > 0 ? '+' : '') + String(rawChanges);
+		const log = req.body['log'] || '';
+		var baserev = 0;
+		var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
+		if(data.length) baserev = data[0].rev;
+		const ismember = 'author';
+		var advance = 'normal';
+		var data = await curs.execute("select title from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		if(!data.length) {
+			if(['파일', '사용자'].includes(doc.namespace)) {
+				if((minor >= 11 && !doc.title.includes('/')) || minor < 11) {
+					return res.status(400).json({
+						status: err('raw', { code: 'invalid_namespace' }),
+					}); } }
+			advance = 'create';
+			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, text]);
+		} else {
+			await curs.execute("update documents set content = ? where title = ? and namespace = ?", [text, doc.title, doc.namespace]);
+			curs.execute("update stars set lastedit = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
+		}
+		
+		curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
+		curs.execute("insert into history (isapi, title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
+						values ('1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+			doc.title, doc.namespace, text, String(Number(baserev) + 1), username, getTime(), changes, log, '0', '-1', ismember, advance
+		]);
+		markdown(req, text, 0, doc + '', 'backlinkinit');
+		
+		delete(apiTokens[username]);
+		
+		return res.json({
+			status: 'success',
+			rev: Number(baserev) + 1,
+		});
+	});
+}
 
 wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 	const title = req.params[0];
@@ -3041,6 +3244,11 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 			</body>
 		</html>
 	`);
+});
+
+if(minor >= 14) wiki.get(/^\/xref\/(.*)/, (req, res) => {
+	const title = req.params[0];
+	res.redirect('/backlink/' + encodeURIComponent(title) + '?flag=' + encodeURIComponent(req.query['flag'] || '0') + '&namespace=' + encodeURIComponent(req.query['namespace'] || '문서'));
 });
 
 wiki.get(minor >= 14 ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, res) => {
@@ -3987,7 +4195,7 @@ wiki.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 	if(!['all', 'create', 'delete', 'move', 'revert'].includes(flag)) flag = 'all';
 	if(flag == 'all') flag = '%';
 	
-	var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+	var data = await curs.execute("select isapi, flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
 					where " + (flag == '%' ? "not namespace = '사용자' and " : '') + "advance like ? order by cast(time as integer) desc limit 100", 
 					[flag]);
 	
@@ -4049,7 +4257,7 @@ wiki.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 					</td>
 					
 					<td>
-						${ip_pas(row.username, row.ismember)}
+						${ip_pas(row.username, row.ismember)}${minor >= 20 && row.isapi ?' <i>(API)</i>' : ''}
 					</td>
 					
 					<td>
@@ -6405,7 +6613,304 @@ if(hostconfig.allow_account_rename) wiki.all(/^\/member\/change_username$/, asyn
 	return res.send(await render(req, '사용자 이름 변경', content, {}, _, error, 'delete_account'));
 });
 
-wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
+if(minor >= 19 || (minor == 18 && revision >= 6)) {
+	wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
+		if(!['GET', 'POST'].includes(req.method)) return next();
+		if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fmypage');
+		
+		var myskin = getUserset(req, 'skin', 'default');
+		const defskin = config.getString('wiki.default_skin', hostconfig.skin);
+		
+		var skopt = '';
+		for(var skin of skinList) {
+			var opt = `<option value="${skin}" ${getUserset(req, 'skin', 'default') == skin ? 'selected' : ''}>${skin}</option>`;
+			skopt += opt;
+		}
+		
+		var error = null;
+		
+		var emailfilter = '';
+		if(config.getString('wiki.email_filter_enabled', 'false') == 'true') {
+			emailfilter = `
+				<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
+				<ul class=wiki-list>
+			`;
+			var filters = await curs.execute("select address from email_filters");
+			for(var item of filters) {
+				emailfilter += '<li>' + item.address + '</li>';
+			}
+			emailfilter += '</ul>';
+		}
+		
+		const mp = ['member'];
+		for(var item of perms)
+			if(hasperm(req, item)) mp.push(item);
+		
+		var content = `
+			<div id="api-token-generate-modal" class="modal fade" role="dialog" style="display: none;" aria-hidden="true">
+				<div class="modal-dialog">
+					<form method=post action="/member/generate_api_token">
+						<div class="modal-content">
+							<div class="modal-header">
+								<button type="button" class="close" data-dismiss="modal">×</button> 
+								<h4 class="modal-title">API Token 발급</h4>
+							</div>
+							<div class="modal-body">
+								<p>비밀번호: </p>
+								<input name="password" type="password"> 
+							</div>
+							<div class="modal-footer"> <button type="submit" class="btn btn-danger" style="width:auto">확인</button> <button type="button" class="btn btn-default" data-dismiss="modal" style="background:#efefef">취소</button> </div>
+						</div>
+					</form>
+				</div>
+			</div>
+		
+			<form method=post>
+				<div class=form-group>
+					<label>사용자 이름</label>
+					<p>${html.escape(ip_check(req))}</p>
+				</div>
+				
+				<div class=form-group>
+					<label>전자우편 주소</label>
+					<p>
+						${html.escape(getUserset(req, 'email', ''))}
+						<a class="btn btn-info" href="/member/change_email">이메일 변경</a>
+					</p>
+				</div>
+				
+				<div class=form-group>
+					<label>권한</label>
+					<p>${mp.join(', ')}</p>
+				</div>
+				
+				<div class=form-group>
+					<label>비밀번호</label><br />
+					<a class="btn btn-info" href="/member/change_password">비밀번호 변경</a>
+				</div>
+				
+				<div class=form-group>
+					<label>스킨</label>
+					<select name=skin class=form-control>
+						<option value=default ${myskin == 'default' ? 'selected' : ''}>기본스킨 (${defskin})</option>
+						${skopt}
+					</select>
+					${req.method == 'POST' && !skinList.concat(['default']).includes(req.body['skin']) ? (error = err('p', 'invalid_skin')) : ''}
+				</div>
+				
+				<div class=form-group>
+					<label>이중인증</label><br />
+					<a class="btn btn-info" href="/member/activate_otp">TOTP 활성화</a>
+					
+					<div class=input-group>
+						<input type=text class=form-control placeholder="Webauthn Device name to be added" />
+						<span class=input-group-btn>
+							<button type=button class="btn btn-primary" disabled>Webauthn Device 추가</button>
+						</span>
+					</div>
+					
+					<table class=table>
+						<thead>
+							<tr>
+								<th>이름</th>
+								<th>등록일</th>
+								<th>마지막 사용</th>
+								<th></th>
+							</tr>
+						</thead>
+						
+						<tbody>
+							<tr>
+								<td colspan=3>등록된 장치가 없습니다.</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				
+				<div class=form-group>
+					<label>API Token</label><br />
+					<span data-toggle="modal" data-target="#api-token-generate-modal">
+						<button class="btn btn-danger" type=button>발급</button>
+					</span>
+				</div>
+				
+				<div class=btns>
+					<button type=submit class="btn btn-primary">변경</button>
+				</div>
+			</form>
+		`;
+		
+		if(req.method == 'POST' && !error) {
+			for(var item of ['skin']) {
+				await curs.execute("delete from user_settings where username = ? and key = ?", [ip_check(req), item]);
+				await curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [ip_check(req), item, req.body[item] || '']);
+				userset[ip_check(req)][item] = req.body[item] || '';
+			}
+			
+			if(req.body['password']) {
+				await curs.execute("update users set password = ? where username = ?", [sha3(req.body['password']), ip_check(req)]);
+			}
+			
+			return res.redirect('/member/mypage');
+		}
+		
+		return res.send(await render(req, '내 정보', content, {}, _, error, 'mypage'));
+	});
+	
+	wiki.all(/^\/member\/change_email$/, async(req, res, next) => {
+		if(!['GET', 'POST'].includes(req.method)) return next();
+		if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fchange_email');
+		
+		var error = null;
+		
+		var emailfilter = '';
+		if(config.getString('wiki.email_filter_enabled', 'false') == 'true') {
+			emailfilter = `
+				<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
+				<ul class=wiki-list>
+			`;
+			var filters = await curs.execute("select address from email_filters");
+			for(var item of filters) {
+				emailfilter += '<li>' + item.address + '</li>';
+			}
+			emailfilter += '</ul>';
+		}
+		
+		var content = `
+			<form method=post>
+				<div class=form-group>
+					<label>비밀번호</label>
+					<input type=password name=password class=form-control />
+				</div>
+				
+				<div class=form-group>
+					<label>이메일</label>
+					<p>${html.escape(getUserset(req, 'email', ''))}</p>
+				</div>
+				
+				<div class=form-group>
+					<label>새 이메일</label>
+					<input type=email name=email class=form-control value="" />
+					${emailfilter}
+				</div>
+				
+				<div class=btns>
+					<button type=submit class="btn btn-primary">이메일 변경</button>
+				</div>
+			</form>
+		`;
+		
+		if(req.method == 'POST' && !error) {
+			return res.redirect('/member/mypage');
+		}
+		
+		return res.send(await render(req, '이메일 변경', content, {}, _, error, 'mypage'));
+	});
+
+	
+	wiki.all(/^\/member\/change_password$/, async(req, res, next) => {
+		if(!['GET', 'POST'].includes(req.method)) return next();
+		if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fchange_password');
+		
+		var error = null;
+		
+		if(req.method == 'POST') {
+			var data = await curs.execute("select username, password from users where lower(username) = ? and password = ? COLLATE NOCASE", [ip_check(req).toLowerCase(), sha3(req.body['old_password'] || '')]);
+			var invalidpw = !data.length;
+		}
+		
+		var content = `
+			<form method=post>
+				<div class=form-group>
+					<label>현재 비밀번호</label>
+					<input type=password name=old_password class=form-control />
+					${!error && req.method == 'POST' && !req.body['old_password'] ? (error = err('p', { code: 'validator_required', tag: 'old_password' })) : ''}
+					${!error && req.method == 'POST' && invalidpw ? (error = err('p', { msg: '패스워드가 올바르지 않습니다.'})) : ''}
+				</div>
+				
+				<div class=form-group>
+					<label>비밀번호</label>
+					<input type=password name=password class=form-control />
+					${!error && req.method == 'POST' && !req.body['password'] ? (error = err('p', { code: 'validator_required', tag: 'password' })) : ''}
+				</div>
+				
+				<div class=form-group>
+					<label>비밀번호 확인</label>
+					<input type=password name=password_check class=form-control />
+					${!error && req.method == 'POST' && !req.body['password_check'] ? (error = err('p', { code: 'validator_required', tag: 'password_check' })) : ''}
+					${!error && req.method == 'POST' && req.body['password'] && req.body['password'] != req.body['password_check'] ? (error = err('p', { msg: '패스워드 확인이 올바르지 않습니다.' })) : ''}
+				</div>
+				
+				<div class=btns>
+					<button type=submit class="btn btn-primary">비밀번호 변경</button>
+				</div>
+			</form>
+		`;
+		
+		if(req.method == 'POST' && !error) {
+			await curs.execute("update users set password = ? where username = ?", [sha3(req.body['password']), ip_check(req)]);
+			
+			return res.redirect('/member/mypage');
+		}
+		
+		return res.send(await render(req, '비밀번호 변경', content, {}, _, error, 'mypage'));
+	});
+	
+	wiki.all(/^\/member\/generate_api_token$/, async(req, res) => {
+		if(!['GET', 'POST'].includes(req.method)) return next();
+		if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fmypage');
+		
+		if(req.method == 'POST') {
+			var data = await curs.execute("select username, password from users where lower(username) = ? and password = ? COLLATE NOCASE", [ip_check(req).toLowerCase(), sha3(req.body['password'] || '')]);
+			var invalidpw = !data.length
+		}
+		
+		var error = null;
+		
+		var content = `
+			<form method=post>
+				<div class=form-group>
+					<label>비밀번호: </label>
+					<input type=password name=password class=form-control />
+					${!error && req.method == 'POST' && !req.body['password'] ? (error = err('p', { code: 'validator_required', tag: 'password' })) : ''}
+					${!error && req.method == 'POST' && invalidpw ? (error = err('p', { msg: '패스워드가 올바르지 않습니다.' })) : ''}
+				</div>
+				
+				<div class=btns>
+					<button type=submit class="btn btn-danger">발급</button>
+				</div>
+			</form>
+		`;
+		
+		if(req.method == 'POST' && !error) {
+			const token = Buffer.from(rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 128)).toString('base64');
+			await curs.execute("delete from api_tokens where username = ?", [ip_check(req)]);
+			await curs.execute("insert into api_tokens (username, token) values (?, ?)", [ip_check(req), token]);
+			
+			return res.send(await render(req, 'API Token 발급', `
+				<form>
+					<div class=form-group>
+						<label>토큰: </label>
+						<input type=text class=form-control readonly value="${token}" />
+						
+						<ul class=wiki-list>
+							<li>발급된 토큰은 이 창을 닫으면 다시 확인할 수 없습니다.</li>
+							<li>토큰은 비밀번호와 같이 취급해주세요.</li>
+						</ul>
+					</div>
+					
+					<div class=btns>
+						<a href="/member/mypage" class="btn btn-secondary">닫기</a>
+					</div>
+				</form>
+			`));
+		}
+		
+		return res.send(await render(req, 'API Token 발급', content, {}, _, error));
+	});
+}
+
+else wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 	if(!['GET', 'POST'].includes(req.method)) return next();
 	if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fmypage');
 	
@@ -6463,7 +6968,7 @@ wiki.all(/^\/member\/mypage$/, async(req, res, next) => {
 					<option value=default ${myskin == 'default' ? 'selected' : ''}>기본스킨 (${defskin})</option>
 					${skopt}
 				</select>
-				${req.method == 'POST' && !skinList.concat(['default']).includes(req.body['skin']) ? (error = err('p', 'invalid_skin')) : ''}
+				${!error && req.method == 'POST' && !skinList.concat(['default']).includes(req.body['skin']) ? (error = err('p', 'invalid_skin')) : ''}
 			</div>
 			
 			<div class=form-group>
@@ -7407,6 +7912,16 @@ wiki.use(function(req, res, next) {
 				for(let item of dd) {
 					await curs.execute("update res set slug = ? where tnum = ?", [newID(), item.tnum]);
 				}
+			} catch(e) {}
+		} case 12: {
+			// API 토큰
+			try {
+				await curs.execute("create table api_tokens (username text default '', token text default '')");
+			} catch(e) {}
+		} case 13: {
+			// API 편집
+			try {
+				await curs.execute("alter table history\nADD isapi text;");
 			} catch(e) {}
 		}
 	}
