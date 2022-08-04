@@ -937,7 +937,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			continue;
 		}
 		
-		let h = block.match(/{{{(((?![}][}][}]).)*)/im)[1];
+		const h = block.match(/{{{(((?![}][}][}]).)*)/im)[1];
 		if(h.match(/^[#][!]folding\s/)) {  // 접기
 			blocks.push(cls);
 			open.push(block);
@@ -957,34 +957,16 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 				data = data.replace('{{{\n', '<nowikiblock><pre>');
 				if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
 			} else {  // 한 줄
-				function lc(h) {
-					const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-					const size = h.match(/^([+]|[-])([1-5])\s/);
-					h = h.match(/(((?!({{{|}}})).)*)/im)[1];
-					if(color) {
-						blocks.push(cls);
-						open.push('{{{' + h);
-						data = data.replace('{{{' + h, ops);
-					} else if(size) {
-						blocks.push(cls);
-						open.push('{{{' + h);
-						data = data.replace('{{{' + h, ops);
-					} else {
-						data = data.replace('{{{', '<nowikiblock><code>');
-						data = data.replace('}}}', '</code></nowikiblock>');
-					}
+				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+				const size = h.match(/^([+]|[-])([1-5])\s/);
+				if(color) {
+					blocks.push('}}}');
+				} else if(size) {
+					blocks.push('}}}');
+				} else {
+					data = data.replace('{{{', '<nowikiblock><code>');
+					data = data.replace('}}}', '</code></nowikiblock>');
 				}
-				
-				//h = h.match(/(((?!(}}})).)*)/im)[1];
-				//print(h);
-				//do {
-					lc(h);
-					/*try {
-						h = h.match(/{{{(((?!(}}})).)*)/im)[1];
-					} catch(e) {
-						break;
-					}
-				} while(h.includes('{{{'));*/
 			}
 			
 		}
@@ -1203,32 +1185,20 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 				data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
 			}
 		} else if(block.includes('}}}')) {  // 한 줄
-			function lc(h) {
-				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-				const size = h.match(/^([+]|[-])([1-5])\s/);
-				if(color) {  // 글자 색
-					const htmlcolor = color[1].match(/^([A-Fa-f0-9]{3,6})$/);
-					var col = color[1];
-					if(htmlcolor) {
-						col = '#' + htmlcolor[1];
-					}
-					blocks.push('</font>');
-					data = data.replace('{{{' + color[0], '<font color=' + col + '>');
-				} else if(size) {  // 글자 크기
-					blocks.push('</span>');
-					data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
+			const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+			const size = h.match(/^([+]|[-])([1-5])\s/);
+			if(color) {  // 글자 색
+				const htmlcolor = color[1].match(/^([A-Fa-f0-9]{3,6})$/);
+				var col = color[1];
+				if(htmlcolor) {
+					col = '#' + htmlcolor[1];
 				}
+				data = data.replace('}}}', '</font>');
+				data = data.replace('{{{' + color[0], '<font color=' + col + '>');
+			} else if(size) {  // 글자 크기
+				data = data.replace('}}}', '</span>');
+				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
 			}
-			//do {
-				//print(h);
-				lc(h);
-				/*try {
-					h = h.match(/{{{(((?!}}}).)*)/im)[1];
-					data = data.replace('}}}', '');
-				} catch(e) {
-					break;
-				}
-			} while(block.includes('{{{'));*/
 		}
 	}
 	// #!html 문법
