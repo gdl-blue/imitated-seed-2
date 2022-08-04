@@ -975,16 +975,16 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 					}
 				}
 				
-				h = h.match(/(((?!(}}})).)*)/im)[1];
+				//h = h.match(/(((?!(}}})).)*)/im)[1];
 				//print(h);
-				do {
+				//do {
 					lc(h);
-					try {
+					/*try {
 						h = h.match(/{{{(((?!(}}})).)*)/im)[1];
 					} catch(e) {
 						break;
 					}
-				} while(h.includes('{{{'));
+				} while(h.includes('{{{'));*/
 			}
 			
 		}
@@ -1219,16 +1219,16 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 					data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
 				}
 			}
-			do {
+			//do {
 				//print(h);
 				lc(h);
-				try {
+				/*try {
 					h = h.match(/{{{(((?!}}}).)*)/im)[1];
 					data = data.replace('}}}', '');
 				} catch(e) {
 					break;
 				}
-			} while(block.includes('{{{'));
+			} while(block.includes('{{{'));*/
 		}
 	}
 	// #!html 문법
