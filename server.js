@@ -6699,7 +6699,7 @@ if(minor >= 19 || (minor == 18 && revision >= 6)) {
 				</div>
 				
 				<div class=form-group>
-					<label>이중인증<label><br />
+					<label>이중인증</label><br />
 					<a class="btn btn-info" href="/member/activate_otp">TOTP 활성화</a>
 					
 					<div class=input-group>
