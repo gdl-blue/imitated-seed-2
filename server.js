@@ -69,7 +69,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '14';
+const updatecode = '15';
 
 // 사용자 권한
 var perms = [
@@ -2264,6 +2264,7 @@ function navbtnss(ts, te, start, end, href) {
 // HTML 이스케이프
 const html = {
 	escape(content = '') {
+		if(!content) content = '';
 		content = content.replace(/[&]/gi, '&amp;');
 		content = content.replace(/["]/gi, '&quot;');
 		content = content.replace(/[<]/gi, '&lt;');
@@ -3488,7 +3489,9 @@ wiki.get(/^\/blame\/(.*)/, async (req, res) => {
 	if(!dbdata.length) return res.send(await showError(req, 'revision_not_found'));
 	const revdata = dbdata[0];
 	
-	var content = `미구현`;
+	var content = `
+		미구현
+	`;
 	
 	res.send(await render(req, doc + ' (Blame)', content, {
 		rev,
@@ -3496,9 +3499,9 @@ wiki.get(/^\/blame\/(.*)/, async (req, res) => {
 	}, _, null, 'blame'));
 });
 
-wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
+wiki.get(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)\/preview$/ : /^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 	const id = req.params[0];
-	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and id = ?", [id]);
+	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and (id = ? or slug = ?)", [id, id]);
 	if(!data.length) return res.send(await showError(req, 'edit_request_not_found'));
 	const item = data[0];
 	const doc = totitle(item.title, item.namespace);
@@ -3552,9 +3555,9 @@ wiki.get(/^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 	`);
 });
 
-wiki.post(/^\/edit_request\/(\d+)\/close$/, async(req, res, next) => {
+wiki.post(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)\/close$/ : /^\/edit_request\/(\d+)\/close$/, async(req, res, next) => {
 	const id = req.params[0];
-	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and id = ?", [id]);
+	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and (id = ? or slug = ?)", [id, id]);
 	if(!data.length) return res.send(await showError(req, 'edit_request_not_found'));
 	const item = data[0];
 	const doc = totitle(item.title, item.namespace);
@@ -3564,13 +3567,13 @@ wiki.post(/^\/edit_request\/(\d+)\/close$/, async(req, res, next) => {
 	if(item.state != 'open') {
 		return res.send(await showError(req, 'edit_request_not_open'));
 	}
-	await curs.execute("update edit_requests set state = 'closed', processor = ?, processortype = ?, processtime = ?, reason = ? where id = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), req.body['close_reason'] || '', id]);
+	await curs.execute("update edit_requests set state = 'closed', processor = ?, processortype = ?, processtime = ?, reason = ? where " + (minor >= 16 ? 'slug' : 'id') + " = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), req.body['close_reason'] || '', id]);
 	return res.redirect('/edit_request/' + id);
 });
 
-wiki.post(/^\/edit_request\/(\d+)\/accept$/, async(req, res, next) => {
+wiki.post(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)\/accept$/ : /^\/edit_request\/(\d+)\/accept$/, async(req, res, next) => {
 	const id = req.params[0];
-	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and id = ?", [id]);
+	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and (id = ? or slug = ?)", [id, id]);
 	if(!data.length) return res.send(await showError(req, 'edit_request_not_found'));
 	const item = data[0];
 	const doc = totitle(item.title, item.namespace);
@@ -3601,8 +3604,8 @@ wiki.post(/^\/edit_request\/(\d+)\/accept$/, async(req, res, next) => {
 					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 		item.title, item.namespace, item.content, String(rev), item.username, getTime(), changes, item.log, '0', '-1', item.ismember, 'normal', id
 	]);
-	await curs.execute("update edit_requests set state = 'accepted', processor = ?, processortype = ?, processtime = ?, rev = ? where id = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), String(rev), id]);
-	markdown(req, text, 0, doc + '', 'backlinkinit');
+	await curs.execute("update edit_requests set state = 'accepted', processor = ?, processortype = ?, processtime = ?, rev = ? where " + (minor >= 16 ? 'slug' : 'id') + " = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), String(rev), id]);
+	markdown(req, item.text, 0, doc + '', 'backlinkinit');
 	return res.redirect('/edit_request/' + id);
 });
 
@@ -3705,7 +3708,7 @@ wiki.all(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)\/edit$/ : /^\/edit_request\
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
 	const id = req.params[0];
-	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and id = ?", [id]);
+	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and (id = ? or slug = ?)", [id, id]);
 	if(!data.length) return res.send(await showError(req, 'edit_request_not_found'));
 	const item = data[0];
 	const doc = totitle(item.title, item.namespace);
@@ -3764,7 +3767,7 @@ wiki.all(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)\/edit$/ : /^\/edit_request\
 	if(req.method == 'POST') do {
 		const agree = req.body['agree'];
 		if(!agree) { content = (error = err('alert', { code: 'validator_required', tag: 'agree' })) + content; break; }
-		await curs.execute("update edit_requests set lastupdate = ?, content = ?, log = ? where id = ?", [getTime(), req.body['text'] || '', req.body['log'] || '', id]);
+		await curs.execute("update edit_requests set lastupdate = ?, content = ?, log = ? where " + (minor >= 16 ? 'slug' : 'id') + " = ?", [getTime(), req.body['text'] || '', req.body['log'] || '', id]);
 		return res.redirect('/edit_request/' + id);
 	} while(0);
 	
@@ -3854,10 +3857,11 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 		var data = await curs.execute("select id from edit_requests order by cast(id as integer) desc limit 1");
 		var id = 1;
 		if(data.length) id = Number(data[0].id) + 1;
-		await curs.execute("insert into edit_requests (title, namespace, id, state, content, baserev, username, ismember, log, date, processor, processortype, lastupdate) values (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, '', '', ?)", 
-														[doc.title, doc.namespace, id, req.body['text'] || '', baserev, ip_check(req), islogin(req) ? 'author' : 'ip', req.body['log'] || '', getTime(), getTime()]);
+		const slug = newID();
+		await curs.execute("insert into edit_requests (title, namespace, id, state, content, baserev, username, ismember, log, date, processor, processortype, lastupdate, slug) values (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, '', '', ?, ?)", 
+														[doc.title, doc.namespace, id, req.body['text'] || '', baserev, ip_check(req), islogin(req) ? 'author' : 'ip', req.body['log'] || '', getTime(), getTime(), slug]);
 		
-		return res.redirect('/edit_request/' + id);
+		return res.redirect('/edit_request/' + (minor >= 16 ? slug : id));
 	} while(0);
 	
 	res.send(await render(req, doc + ' (편집 요청)', content, {
@@ -4573,6 +4577,11 @@ wiki.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	`;
 	
 	for(var row of data) {
+		const erq = row.edit_request_id;
+		if(erq && minor >= 16) {
+			var dbd = await curs.execute("select slug from edit_requests where id = ?", [erq]);
+			if(dbd.length) erq = dbd[0].slug;
+		}
 		content += `
 				<li>
 					${generateTime(toDate(row.time), timeFormat)} 
@@ -4699,9 +4708,9 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 		var editRequests = [];
 		var captcha = false;
 		var deleteThread = !!getperm('delete_thread', ip_check(req));
-		trdlst = await curs.execute("select id from edit_requests where state = 'open' and not deleted = '1' and title = ? and namespace = ? order by cast(date as integer) desc", [doc.title, doc.namespace]);
+		trdlst = await curs.execute("select id, slug from edit_requests where state = 'open' and not deleted = '1' and title = ? and namespace = ? order by cast(date as integer) desc", [doc.title, doc.namespace]);
 		for(var item of trdlst) {
-			content += `<li><a href="/edit_request/${item.id}">편집 요청 ${item.id}</a></li>`;
+			content += `<li><a href="/edit_request/${minor >= 16 ? item.slug : item.id}">편집 요청 ${minor >= 16 ? item.slug : item.id}</a></li>`;
 		}
 		
 		content += `
@@ -7922,6 +7931,14 @@ wiki.use(function(req, res, next) {
 			// API 편집
 			try {
 				await curs.execute("alter table history\nADD isapi text;");
+			} catch(e) {}
+		} case 14: {
+			// 더시드 4.16.0이상에서 이상하게 작동하는 버그 수정
+			try {
+				var dd = await curs.execute("select id from edit_requests where slug is null or slug = ''");
+				for(var item of dd) {
+					await curs.execute("update edit_requests set slug = ? where id = ?", [newID(), item.id]);
+				}
 			} catch(e) {}
 		}
 	}
