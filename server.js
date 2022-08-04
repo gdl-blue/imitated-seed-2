@@ -3072,7 +3072,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 if(minor >= 20) {
 	wiki.get(/^\/api\/edit\/(.*)$/, async(req, res) => {
 		var auth = req.headers['authorization'] || '';
-		if(!islogin(req) || !hasperm(req, 'api_access') || !auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/))
+		if(!auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/))
 			return res.status(403).json({
 				status: err('raw', 'permission'),
 			});
@@ -3083,6 +3083,11 @@ if(minor >= 20) {
 				status: err('raw', 'permission'),
 			});
 		}
+		const username = dbdata[0].username;
+		if(!getperm('api_access', username))
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
 		const title = req.params[0];
 		const doc = processTitle(title);
 		var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
@@ -3101,12 +3106,12 @@ if(minor >= 20) {
 		res.json({
 			text, exists, token,
 		});
-		apiTokens[dbdata[0].username] = token;
+		apiTokens[username] = token;
 	});
 	
 	wiki.post(/^\/api\/edit\/(.*)$/, async(req, res) => {
 		var auth = req.headers['authorization'] || '';
-		if(!islogin(req) || !hasperm(req, 'api_access') || !auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/))
+		if(!auth.match(/^Bearer\s([a-zA-Z0-9\=\+\/]+)$/))
 			return res.status(403).json({
 				status: err('raw', 'permission'),
 			});
@@ -3118,6 +3123,10 @@ if(minor >= 20) {
 			});
 		}
 		const username = dbdata[0].username;
+		if(!getperm('api_access', username))
+			return res.status(403).json({
+				status: err('raw', 'permission'),
+			});
 		const title = req.params[0];
 		const doc = processTitle(title);
 		
