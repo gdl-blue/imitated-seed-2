@@ -6672,7 +6672,7 @@ if(minor >= 19 || (minor == 18 && revision >= 6)) {
 				</div>
 				
 				<div class=form-group>
-					<label>전자우편 주소</label>
+					<label>이메일</label>
 					<p>
 						${html.escape(getUserset(req, 'email', ''))}
 						<a class="btn btn-info" href="/member/change_email">이메일 변경</a>
