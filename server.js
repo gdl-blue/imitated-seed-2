@@ -4284,7 +4284,7 @@ wiki.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 										<select class="seed-acl-add-action form-control">
 											<option value="allow">허용</option>
 											<option value="deny">거부</option>
-											${isns || !ver('4.18.0') ? '' : `<option value="gotons">이름공간ACL 실행</option>`}
+											${isns || !ver('4.18.0') ? '' : `<option value="gotons" selected>이름공간ACL 실행</option>`}
 										</select>
 									</div>
 								</div>
