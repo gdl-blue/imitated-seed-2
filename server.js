@@ -2435,7 +2435,10 @@ function expireopt(req) {
 }
 
 wiki.get(/^\/License$/, async(req, res) => {
-	var licepage = `<p>모방 타겟 the seed 버전: v${major}.${minor}.${revision}</p>`;
+	var licepage = `
+		<p>imitated-seed 위키 엔진</p>
+		<p>모방하는 the seed 버전: v${major}.${minor}.${revision}</p>
+	`;
 	
 	if(hostconfig.replicate_theseed_license) {
 		licepage = '';
@@ -2449,9 +2452,17 @@ wiki.get(/^\/License$/, async(req, res) => {
 			
 			<h3>Contributors</h3>
 			<ul class=wiki-list>
-				<li>namu@theseed.io (backend)</li>
-				<li>PPPP@theseed.io (frontend)</li>
-				<li>kasio@theseed.io (old render)</li>
+				${
+					minor >= 13 ? `
+						<li>namu@theseed.io (backend & frontend)</li>
+						<li>PPPP@theseed.io (old frontend)</li>
+						<li>kasio@theseed.io (old render)</li>
+					` : `
+						<li>namu@theseed.io (backend)</li>
+						<li>PPPP@theseed.io (frontend)</li>
+						<li>kasio@theseed.io (old render)</li>
+					`
+				}
 			</ul>
 			
 			<h3>Open source license</h3>
@@ -2466,14 +2477,100 @@ wiki.get(/^\/License$/, async(req, res) => {
 					Author : <a href="https://github.com/paularmstrong">Paul Armstrong</a><br />
 					Swig is licensed under the <a rel="license" href="https://github.com/paularmstrong/swig/blob/master/LICENSE">MIT license</a>.
 				</li>
+				
+				${minor >= 13 ? `
+					<li><pre>/*!
+ * nano-assign v1.0.1
+ * (c) 2018-present egoist &lt;0x142857@gmail.com&gt;
+ * Released under the MIT License.
+ */
+/*!
+ * Vue.js v2.6.10
+ * (c) 2014-2019 Evan You
+ * Released under the MIT License.
+ */
+
+/**!
+ * @fileOverview Kickass library to create and place poppers near their reference elements.
+ * @version 1.16.0
+ * @license
+ * Copyright (c) 2016 Federico Zivolo and contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/**
+ * vuex v3.1.2
+ * (c) 2019 Evan You
+ * @license MIT
+ */
+
+/**
+ * vue-global-events v1.1.2
+ * (c) 2019 Damian Dulisz &lt;damian.dulisz@gmail.com&gt;, Eduardo San Martin Morote &lt;posva13@gmail.com&gt;
+ * @license MIT
+ */
+
+/*!
+ * Determine if an object is a Buffer
+ *
+ * @author   Feross Aboukhadijeh &lt;https://feross.org&gt;
+ * @license  MIT
+ */
+
+/**!
+ * Sortable 1.10.1
+ * @author	RubaXa   &lt;trash@rubaxa.org&gt;
+ * @author	owenm    &lt;owen23355@gmail.com&gt;
+ * @license MIT
+ */
+/*!---------------------------------------------------------------------------------------------
+ *  Copyright (C) David Owens II, owensd.io. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+/*! *****************************************************************************
+Copyright (c) Microsoft Corporation. All rights reserved.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0
+
+THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
+See the Apache Version 2.0 License for specific language governing permissions
+and limitations under the License.
+***************************************************************************** */
+</pre></li>
+				` : ''}
 			</ul>
 		`;
+	}
+	
+	if(minor < 13) {
+		licepage += await readFile('./skins/' + getSkin(req) + '/license.html')
 	}
 	
 	return res.send(await render(req, '라이선스', `
 		<div class=wiki-content>
 			${licepage}
-	` + await readFile('./skins/' + getSkin(req) + '/license.html') + '</div>', {}, _, _, 'license'));
+	` + '</div>', {}, _, _, 'license'));
 });
 
 function redirectToFrontPage(req, res) {
@@ -2826,7 +2923,7 @@ if(minor >= 9) wiki.get(/^\/member\/starred_documents$/, async (req, res) => {
 wiki.get(/^\/raw\/(.*)/, async(req, res) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
-	const rev = req.query['rev'];
+	var rev = req.query['rev'];
 	
 	if(title.replace(/\s/g, '') === '') {
 		return res.send(await await showError(req, 'invalid_title'));
@@ -2838,20 +2935,36 @@ wiki.get(/^\/raw\/(.*)/, async(req, res) => {
 		var data = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	}
 	const rawContent = data;
+	if(!rev) {
+		var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
+		if(data.length) rev = data[0].rev;
+	}
 	var content = '';
 	
 	try {
-		if(!await getacl(req, doc.title, doc.namespace, 'read')) {
-			return res.send(await await showError(req, 'permission_read'));
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+		if(aclmsg) {
+			return res.send(await await showError(req, { code: 'permission_read', msg: aclmsg }));
 		} else {
 			content = rawContent[0].content;
 		}
 	} catch(e) {
 		return res.status(404).send(await showError(req, 'document_not_found'));
 	}
+
+	if(minor < 16) {
+		res.setHeader('Content-Type', 'text/plain');
+		return res.send(content);
+	}
 	
-	res.setHeader('Content-Type', 'text/plain');
-	res.send(content);
+	var rtcontent = `
+		<textarea class=form-control style="height: 600px;" readonly=readonly>${content.replace(/<\/textarea>/gi, '&lt;/textarea&gt;')}</textarea>
+	`;
+	
+	res.send(await render(req, totitle(doc.title, doc.namespace) + ' (r' + rev + ' RAW)', rtcontent, {
+		document: doc,
+		rev,
+	}, '', null, 'raw'));
 });
 
 wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
@@ -3693,9 +3806,38 @@ wiki.get(minor >= 16 ? /^\/edit_request\/([a-zA-Z]+)$/ : /^\/edit_request\/(\d+)
 		</div>
 		
 		<br />
-		
-		${item.state != 'accepted' ? diff(base, item.content, '1', '2').replace('<th class="texttitle">1 vs. 2</th>', '<th class="texttitle"><a target=_blank href="/edit_request/' + id + '/preview">(미리보기)</a></th>') : ''}
 	`;
+	
+	var diffvw = '';
+	if(item.state != 'accepted') {
+		var difftable = diff(base, item.content, '1', '2');
+		
+		if(minor >= 13) {
+			diffvw = `
+				<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
+					<li class="nav-item">
+						<a class="nav-link active" data-toggle="tab" href="#edit" role="tab">비교</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link" data-toggle="tab" href="#preview" role="tab">미리보기</a>
+					</li>
+				</ul>
+
+				<div class="tab-content bordered">
+					<div class="tab-pane active" id="edit" role="tabpanel">
+						${difftable.replace('<th class="texttitle">1 vs. 2</th>', '<th class="texttitle">편집 요청 ' + id + '</th>')}
+					</div>
+					<div class="tab-pane" id="preview" role="tabpanel">
+						<iframe id=previewFrame src="/edit_request/${id}/preview"></iframe>
+					</div>
+				</div>
+			`;
+		} else {
+			diffvw = difftable.replace('<th class="texttitle">1 vs. 2</th>', '<th class="texttitle"><a target=_blank href="/edit_request/' + id + '/preview">(미리보기)</a></th>');
+		}
+	}
+	
+	content += diffvw;
 	
 	var error = false;
 	
@@ -7976,6 +8118,10 @@ wiki.use(function(req, res, next) {
 	
 	if(hostconfig.search_autostart) {
 		child_process.execFile('node', ['search.js'], function() {});
+	}
+	
+	if(hostconfig.file_autostart) {
+		child_process.execFile('node', ['fileserver.js'], function() {});
 	}
 })();
 
