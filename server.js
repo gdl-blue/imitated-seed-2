@@ -2206,7 +2206,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 			} else if(row.conditiontype == 'aclgroup' && ver('4.18.0')) {
 				var ag = null;
 				
-				for(let item of aclgroup[row.condition]) {
+				for(let item of (aclgroup[row.condition] || [])) {
 					if((item.type == 'ip' && ipRangeCheck(ip_check(req, 1), item.username)) || (islogin(req) && item.type == 'username' && ip_check(req) == item.username)) {
 						ag = item;
 						break;
@@ -2218,7 +2218,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 					} else if(row.action == 'deny') {
 						r.ret = 0;
 						if(hostconfig.namuwiki_exclusive && aclgroupWarnings[row.condition] && type == 'edit')
-							r.msg = aclgroupWarnings[row.condition] + '<br /><br /><a href="/self_unblock?id=' + ag.id + '&document=' + encodeURIComponent(totitle(title, namespace) + '') + '">[확인했습니다. #' + ag.id + ']</a>';
+							r.msg = aclgroupWarnings[row.condition] + '<br /><br /><a href="/self_unblock?id=' + ag.id + '&document=' + encodeURIComponent(totitle(title, namespace) + '') + '">[확인했습니다. #' + ag.id + ']</a><br />사유: ' + ag.note;
 						else
 							r.msg = 'ACL그룹 ' + row.condition + ' #' + ag.id + '에 있기 때문에 ' + acltype[type] + ' 권한이 부족합니다.<br />만료일 : ' + (ag.expiration == '0' ? '무기한' : new Date(Number(ag.expiration))) + '<br />사유 : ' + ag.note;
 						break;
