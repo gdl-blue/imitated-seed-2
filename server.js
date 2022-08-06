@@ -6885,7 +6885,7 @@ if(minor >= 19 || (minor == 18 && revision >= 6)) {
 				<div class=form-group>
 					<label>API Token</label><br />
 					<span data-toggle="modal" data-target="#api-token-generate-modal">
-						<button class="btn btn-danger" type=button>발급</button>
+						<a class="btn btn-danger" onclick="return false;" href="/member/generate_api_token">발급</a>
 					</span>
 				</div>
 				
