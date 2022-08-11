@@ -4,6 +4,8 @@
 
 나무픽스와 거의 호환된다.
 
+Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바스크립트에는 ES6 이상 문법을 사용하지 말 것.
+
 ## 기초 사용 방법
 - css, js 디렉토리를 만든다.
   - https://theseed.io/js/theseed.js, https://theseed.io/js/jquery-2.1.4.min.js, https://theseed.io/js/jquery-1.11.3.min.js, https://theseed.io/js/intersection-observer.js, https://theseed.io/js/dateformatter.js )를 각각 다운로드받아 js 디렉토리에 복사한다.
