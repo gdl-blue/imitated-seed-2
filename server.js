@@ -1354,9 +1354,26 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	
 	// 매크로
 	data = data.replace(/\[br\]/gi, '<br />');
+	data = data.replace(/\[br\((((?!\)).)*)\)\]/gi, '<br />');
 	data = data.replace(/\[clearfix\]/gi, '<div style="clear: both;"></div>');
-	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat));
+	data = data.replace(/\[clearfix\((((?!\)).)*)\)\]/gi, '<div style="clear: both;"></div>');
+	data = data.replace(/\[(date|datetime)\]/gi, generateTime(toDate(getTime()), timeFormat + 'O'));
+	data = data.replace(/\[(date|datetime)\((((?!\)).)*)\)\]/gi, generateTime(toDate(getTime()), timeFormat + 'O'));
 	data = data.replace(/\[(tableofcontents|목차)\]/gi, tochtml);
+	data = data.replace(/\[(tableofcontents|목차)\((((?!\)).)*)\)\]/gi, tochtml);
+	
+	var pgcnt = {};
+	var pgcnta = 0;
+	for(var ns of fetchNamespaces()) {
+		const nsc = await curs.execute("select count(title) from documents where namespace = ?", [ns]);
+		pgcnt[ns] = nsc[0]['count(title)'];
+		pgcnta += pgcnt[ns];
+	}
+	data = data.replace(/\[pagecount\]/gi, pgcnta);
+	for(let fpcm of (data.match(/\[pagecount\((((?!\)).)*)\)\]/gi) || [])) {
+		let pcm = fpcm.match(/\[pagecount\((((?!\)).)*)\)\]/i);
+		data = data.replace(fpcm, pgcnt[pcm[1]] === undefined ? pgcnta : pgcnt[pcm[1]]);
+	}
 	
 	// 동화상
 	for(let finc of (data.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/gi) || [])) {
@@ -6240,7 +6257,7 @@ if(ver('4.18.0')) wiki.all(/^\/aclgroup$/, async(req, res) => {
 		if(g.name == '차단된 사용자' && !editable) continue;
 		const delbtn = `<form method=post onsubmit="return confirm('삭제하시겠습니까?');" action="/aclgroup/delete?group=${encodeURIComponent(g.name)}" style="display: inline-block; margin: 0; padding: 0;"><input type=hidden name=group value="${html.escape(g.name)}" /><button type=submit style="background: none; border: none; padding: 0; margin: 0;">×</button></form>`;
 		tabs += `
-			<li class="nav-item">
+			<li class="nav-item" style="display: inline-block;">
 				<a class="nav-link${g.name == group ? ' active' : ''}" href="?group=${encodeURIComponent(g.name)}">${html.escape(g.name)} ${editable ? delbtn : ''}</a>
 			</li>
 		`;
@@ -6274,18 +6291,18 @@ if(ver('4.18.0')) wiki.all(/^\/aclgroup$/, async(req, res) => {
 			</div>
 		</div>
 	
-		<ul class="nav nav-tabs" style="display: flex; height: 38px;">
+		<ul class="nav nav-tabs" style="height: 38px; display: initial;">
 			${tabs}
 			${editable ? `
 				<span data-toggle="modal" data-target="#aclgroup-create-modal">
-					<li class="nav-item">
+					<li class="nav-item" style="display: inline-block;">
 						<a class="nav-link" onclick="return false;" href="/aclgroup/create">+</a>
 					</li>
 				</span>
 			` : ''}
 		</ul>
 
-		<form method=post class="settings-section">
+		<form method=post class="settings-section" style="width: 100%;">
     		<div class="form-group">
     			<div>
 					<select style="width: 130px; display: inline-block;" class=form-control name=mode>
