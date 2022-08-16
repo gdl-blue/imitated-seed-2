@@ -1389,7 +1389,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		let d;
 		switch(vid.toLowerCase()) {
 		case 'youtube': {
-			d = `<iframe allowfullscreen src="//www.youtube.com/embed/${encodeURIComponent(id)}${params.start ? `?start=${encodeURIComponent(params.start)}` : ''}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
+			d = `<iframe allowfullscreen src="//www.youtube.com/embed/${encodeURIComponent(id)}${params.start ? `?start=${encodeURIComponent(params.start)}` : ''}${params.end ? ((params.start ? '&' : '?') + 'end=' + encodeURIComponent(params.end)) : ''}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
 		}
 		break; case 'kakaotv': {
 			d = `<iframe allowfullscreen src="//tv.kakao.com/embed/player/cliplink/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
@@ -1878,6 +1878,7 @@ const aclperms = {
 	document_contributor: '해당 문서 기여자',
 	contributor: (ver('4.7.0') >= 7 ? '위키 기여자' : undefined),
 	match_username_and_document_title: (ver('4.5.9') ? '문서 제목과 사용자 이름이 일치' : undefined),
+	ip: (ver('4.20.0') ? '아이피' : undefined),
 };
 
 // 차단된 사용자 제외 ACL 권한
@@ -3421,6 +3422,29 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 			</body>
 		</html>
 	`);
+});
+
+wiki.post(/^\/commentpreview$/, async(req, res) => {
+	const { id } = req.body;
+	
+	var content = ``;
+	content += `
+		<div style="border: none; margin: 0; padding: 0;" class=res-wrapper data-id="${id}">
+			<div class="res res-type-normal">
+				<div class="r-head">
+					<span class=num>
+						<a id="">#${id}</a>&nbsp;
+					</span> ${ip_pas(ip_check(req), islogin(req) ? 'author' : 'ip', 1).replace('<a ', hasperm(req, 'admin') ? '<a style="font-weight: bold;" ' : '<a ')}${islogin(req) && await userblocked(ip_check(req)) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 사용자'})</small>` : ''}${!islogin(req) && await ipblocked(ip_check(req)) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 아이피'})</small>` : ''} <span class=pull-right>${generateTime(toDate(getTime()), timeFormat)}</span>
+				</div>
+				
+				<div class="r-body">
+					${await markdown(req, req.body['text'], 1, '', 'preview')}
+				</div>
+			</div>
+		</div>
+	`;
+	
+	res.send(content);
 });
 
 if(ver('4.14.0')) wiki.get(/^\/xref\/(.*)/, (req, res) => {
@@ -5228,8 +5252,55 @@ wiki.get(ver('4.16.0') ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-9]
 	
 	content += `
 		<form id=new-thread-form method=post>
-			<textarea class=form-control${['close', 'pause'].includes(status) ? ' readonly disabled' : ''} rows=5 name=text>${status == 'pause' ? 'pause 상태입니다.' : (status == 'close' ? '닫힌 토론입니다.' : '')}</textarea>
-		
+			${ver('4.20.0') ? `
+				<ul class="nav nav-tabs" role="tablist" style="height: 38px;">
+					<li class="nav-item">
+						<a style="width: 128px; text-align: center;" id=textInputLink class="nav-link active" data-toggle="tab" href="#edit" role="tab">${'RAW 편집'}</a>
+					</li>
+					<li class="nav-item">
+						<a style="width: 128px; text-align: center;" id="commentPreviewLink" class="nav-link" data-toggle="tab" href="#preview" role="tab">미리보기</a>
+					</li>
+				</ul>
+
+				<div class="tab-content bordered">
+					<div class="tab-pane active" id="edit" role="tabpanel">
+						<span id=editForm><textarea style="height: initial;" class=form-control${['close', 'pause'].includes(status) ? ' readonly disabled' : ''} rows=5 name=text id=textInput>${status == 'pause' ? 'pause 상태입니다.' : (status == 'close' ? '닫힌 토론입니다.' : '')}</textarea></span>
+					</div>
+					<div class="tab-pane" id="preview" role="tabpanel" style="padding: 20px;">
+						
+					</div>
+				</div>
+				
+				<script>
+					$(function() {
+						/* theseed.js 좀 베낌 ㅎㅎ; */
+						$('#commentPreviewLink').click(function(event) {
+							var id = $('div#res-container > div.res-wrapper').length + 1;
+							var text = $('form#new-thread-form textarea#textInput').val();
+							if($('form#new-thread-form textarea#textInput[disabled]').length || !text) {
+								$('#textInputLink').click();
+								return false;
+							}
+							$(".tab-pane#preview").html('<div style="border: none; margin: 0; padding: 0;" class="res-wrapper res-loading" data-id="' + id + '" data-locked="true" data-visible="true"><div class="res res-type-normal"><div class="r-head"><span class="num"><a href=#>#' + id + '</a>&nbsp;</span></div><div class="r-body"></div></div></div>');
+							$.ajax({
+								type: 'POST',
+								data: {
+									id,
+									text,
+								},
+								url: '/commentpreview',
+								dataType: 'html',
+								success: function(d) {
+									$(".tab-pane#preview").html(d);
+								}
+							});
+						});
+					});
+				</script>
+			` : `
+				<textarea class=form-control${['close', 'pause'].includes(status) ? ' readonly disabled' : ''} rows=5 name=text>${status == 'pause' ? 'pause 상태입니다.' : (status == 'close' ? '닫힌 토론입니다.' : '')}</textarea>
+			`}
+			
 			${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론에 참여합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
 			<div class=btns>
