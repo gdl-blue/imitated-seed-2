@@ -3424,7 +3424,7 @@ wiki.post(/^\/preview\/(.*)$/, async(req, res) => {
 	`);
 });
 
-wiki.post(/^\/commentpreview$/, async(req, res) => {
+if(ver('4.20.0')) wiki.post(/^\/commentpreview$/, async(req, res) => {
 	const { id } = req.body;
 	
 	var content = ``;
