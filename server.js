@@ -6374,13 +6374,22 @@ if(ver('4.18.0')) wiki.all(/^\/aclgroup$/, async(req, res) => {
 		</ul>
 
 		<form method=post class="settings-section" style="width: 100%;">
+			<script>
+				$(function() {
+					$('#modeSelect').on('change', function() {
+						if(this.value == 'ip') $('#usernameInput').attr('placeholder', 'CIDR');
+						else $('#usernameInput').attr('placeholder', '사용자 이름');
+					});
+				});
+			</script>
+		
     		<div class="form-group">
     			<div>
-					<select style="width: 130px; display: inline-block;" class=form-control name=mode>
+					<select id=modeSelect style="width: 130px; display: inline-block;" class=form-control name=mode>
 						<option value=ip>아이피</option>
 						<option value=username${req.method == 'POST' && req.body['mode'] == 'username' ? ' selected' : ''}>사용자 이름</option>
 					</select>
-    				<input value="${req.method == 'POST' ? (req.body['username'] || '') : ''}" style="width: auto; display: inline-block;" type="text" class=form-control name="username" />
+    				<input placeholder="CIDR" id=usernameInput value="${req.method == 'POST' ? (req.body['username'] || '') : ''}" style="width: auto; display: inline-block;" type="text" class=form-control name="username" />
     			</div>
     		</div>
 
