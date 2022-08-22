@@ -5349,6 +5349,37 @@ wiki.post(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function postThreadComment(r
 	res.json({});
 });
 
+wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/raw$/, async function sendThreadData(req, res) {
+	var tnum = req.params[0];
+	var slug = tnum;
+	var data = await curs.execute("select tnum from threads where slug = ?", [tnum]);
+	if(data.length) tnum = data[0].tnum;
+	const tid = req.params[1];
+	
+	var data = await curs.execute("select id from res where tnum = ?", [tnum]);
+	var rescount = data.length;
+	var data = await curs.execute("select deleted from threads where tnum = ?", [tnum]);
+	if(data.length && data[0].deleted == '1') rescount = 0;
+	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
+	
+	var data = await curs.execute("select username from res where tnum = ? and (id = '1')", [tnum]);
+	const fstusr = data[0]['username'];
+	
+	var data = await curs.execute("select title, namespace, topic, status, slug from threads where tnum = ?", [tnum]);
+	const { title, topic, status, namespace } = data[0];
+	const doc = totitle(title, namespace);
+	
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
+	if(aclmsg) return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
+	
+	var content = ``;
+	var data = await curs.execute("select isadmin, type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and id = ? order by cast(id as integer) asc", [tnum, Number(tid)]);
+	
+	res.setHeader('content-type', 'text/plain');
+	if(!data.length) return res.send('');
+	res.send(data[0].content)
+});
+
 wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadData(req, res) {
 	var tnum = req.params[0];
 	var slug = tnum;
@@ -5372,9 +5403,33 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 	
-	content = ``;
+	var content = ``;
 	var data = await curs.execute("select isadmin, type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
 	for(var rs of data) {
+		var menu = '';
+		if(ver('4.19.0')) {
+			var _hidebtn = '';
+			if(getperm('hide_thread_comment', ip_check(req))) {
+				_hidebtn = `<a style="width: 100%;" class="btn btn-danger btn-sm" href="/admin/thread/${tnum}/${rs.id}/${rs.hidden == '1' ? 'show' : 'hide'}">[ADMIN] 숨기기${rs.hidden == '1' ? ' 해제' : ''}</a>`;
+			}
+			
+			menu = `
+				<span style="position: relative;">
+					<button onclick="$('.thread-popover:not(#popover-${rs.id})').hide(); $(this).next().fadeToggle('fast');" class="btn btn-secondary btn-sm" type=button style="background-color: transparent; padding: 8px 6px; line-height: 0px;">
+						<span style="border-left: .3em solid transparent; border-right: .3em solid transparent; border-top: .3em solid; display: inline-block; height: 0; vertical-align: middle; width: 0;"></span>
+					</button>
+					
+					<div class=thread-popover id=popover-${rs.id} class=wrapper style="z-index: 9999; display: none; position: absolute; top: 32px; right: -2px;">
+						<div class="tooltip-inner popover-inner" style="position: relative; background: #f9f9f9; border-radius: 5px; box-shadow: 0 5px 30px rgba(0, 0, 0, .2); color: #000; padding: 16px;">
+							<button data-state=wiki onclick="var btn = $(this); if(btn.attr('data-state') == 'wiki') window.rescontent${rs.id} = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(), $.ajax({ url: '/thread/${tnum}/${rs.id}/raw', dataType: 'html', success: function(d) { var obj = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').text(d.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n')); obj.html(obj.html().replace(/\\n/g, '<br />')); btn.attr('data-state', 'raw'); btn.text('위키 보기'); } }); else $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(window.rescontent${rs.id}), btn.text('원문 보기'), btn.attr('data-state', 'wiki');" style="width: 100%;" class="btn btn-secondary btn-sm">원문 보기</button>
+							${_hidebtn}
+						</div>
+						<div class="tooltip-arrow popover-arrow" style="border-style: solid; height: 0; margin: 5px; position: absolute; width: 0; z-index: 1; border-width: 0 5px 5px; right: 5px; margin-bottom: 0; margin-top: 0; top: -5px; border-left-color: transparent !important; border-right-color: transparent !important; border-top-color: transparent !important; border-color: #f9f9f9;"></div>
+					</div>
+				</span>
+			`;
+		}
+		
 		var rescontent = rs.status == 1
 			? (
 				rs.type == 'status'
@@ -5391,7 +5446,7 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 			rescontent = '[' + rs.hider + '에 의해 숨겨진 글입니다.]';
 			if(getperm('hide_thread_comment', ip_check(req))) {
 				if(ver('4.13.0')) {
-					rescontent += '<a class="btn btn-danger" onclick="$(this).parent().attr(\'class\', \'r-body\'); $(this).parent().html($(this).parent().children(\'.hidden-content\').html()); return false;">[ADMIN] SHOW</a><div class=hidden-content style="display:none">' + rc + '</div>';
+					rescontent += '<a class="btn btn-danger btn-sm" onclick="$(this).parent().attr(\'class\', \'r-body\'); $(this).parent().html($(this).parent().children(\'.hidden-content\').html()); return false;">[ADMIN] SHOW</a><div class=hidden-content style="display:none">' + rc + '</div>';
 				} else {
 					rescontent += '<div class=text-line-break style="margin: 25px 0px 0px -10px; display:block"><a class=text onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class=line></div></div><div class=hidden-content style="display:none">' + rc + '</div>';
 				}
@@ -5404,14 +5459,18 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 					<div class="r-head${rs.username == fstusr ? ' first-author' : ''}">
 						<span class=num>
 							<a id="${rs.id}">#${rs.id}</a>&nbsp;
-						</span> ${ip_pas(rs.username, rs.ismember, 1).replace('<a ', rs.isadmin == '1' ? '<a style="font-weight: bold;" ' : '<a ')}${rs['ismember'] == 'author' && await userblocked(rs.username) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 사용자'})</small>` : ''}${rs.ismember == 'ip' && await ipblocked(rs.username) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 아이피'})</small>` : ''} <span class=pull-right>${generateTime(toDate(rs.time), timeFormat)}</span>
+						</span> ${ip_pas(rs.username, rs.ismember, 1).replace('<a ', rs.isadmin == '1' ? '<a style="font-weight: bold;" ' : '<a ')}${rs['ismember'] == 'author' && await userblocked(rs.username) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 사용자'})</small>` : ''}${rs.ismember == 'ip' && await ipblocked(rs.username) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 아이피'})</small>` : ''}
+						<span class=pull-right>
+							${generateTime(toDate(rs.time), timeFormat)}
+							${menu}
+						</span>
 					</div>
 					
 					<div class="r-body${rs.hidden == '1' ? ' r-hidden-body' : ''}">
 						${rescontent}
 					</div>
 		`;
-		if(getperm('hide_thread_comment', ip_check(req))) {
+		if(getperm('hide_thread_comment', ip_check(req)) && !menu) {
 			content += `
 				<div class="combo admin-menu">
 					<a class="btn btn-danger btn-sm" href="/admin/thread/${tnum}/${rs.id}/${rs.hidden == '1' ? 'show' : 'hide'}">[ADMIN] 숨기기${rs.hidden == '1' ? ' 해제' : ''}</a>
