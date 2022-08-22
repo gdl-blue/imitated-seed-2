@@ -5376,7 +5376,7 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/raw$/, async function sendThre
 	var data = await curs.execute("select isadmin, type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and id = ? order by cast(id as integer) asc", [tnum, Number(tid)]);
 	
 	res.setHeader('content-type', 'text/plain');
-	if(!data.length) return res.send('');
+	if(!data.length || (data[0].hidden == '1' && !getperm('hide_thread_comment', ip_check(req)))) return res.send('');
 	res.send(data[0].content)
 });
 
@@ -5413,7 +5413,7 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 				_hidebtn = `<a style="width: 100%;" class="btn btn-danger btn-sm" href="/admin/thread/${tnum}/${rs.id}/${rs.hidden == '1' ? 'show' : 'hide'}">[ADMIN] 숨기기${rs.hidden == '1' ? ' 해제' : ''}</a>`;
 			}
 			
-			menu = `
+			if(rs.status != 1) menu = `
 				<span style="position: relative;">
 					<button onclick="$('.thread-popover:not(#popover-${rs.id})').hide(); $(this).next().fadeToggle('fast');" class="btn btn-secondary btn-sm" type=button style="background-color: transparent; padding: 8px 6px; line-height: 0px;">
 						<span style="border-left: .3em solid transparent; border-right: .3em solid transparent; border-top: .3em solid; display: inline-block; height: 0; vertical-align: middle; width: 0;"></span>
@@ -5421,7 +5421,7 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 					
 					<div class=thread-popover id=popover-${rs.id} class=wrapper style="z-index: 9999; display: none; position: absolute; top: 32px; right: -2px;">
 						<div class="tooltip-inner popover-inner" style="position: relative; background: #f9f9f9; border-radius: 5px; box-shadow: 0 5px 30px rgba(0, 0, 0, .2); color: #000; padding: 16px;">
-							<button data-state=wiki onclick="var btn = $(this); if(btn.attr('data-state') == 'wiki') window.rescontent${rs.id} = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(), $.ajax({ url: '/thread/${tnum}/${rs.id}/raw', dataType: 'html', success: function(d) { var obj = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').text(d.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n')); obj.html(obj.html().replace(/\\n/g, '<br />')); btn.attr('data-state', 'raw'); btn.text('위키 보기'); } }); else $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(window.rescontent${rs.id}), btn.text('원문 보기'), btn.attr('data-state', 'wiki');" style="width: 100%;" class="btn btn-secondary btn-sm">원문 보기</button>
+							<button data-state=wiki onclick="var btn = $(this); if(btn.attr('data-state') == 'wiki') window.rescontent${rs.id} = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(), $.ajax({ url: '/thread/${tnum}/${rs.id}/raw', dataType: 'html', success: function(d) { var obj = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').text(d.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n')); obj.html(obj.html().replace(/\\n/g, '<br />')); btn.attr('data-state', 'raw'); btn.text('위키 보기'); if(!d) { alert('권한이 부족합니다.'); btn.click(); } } }); else $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(window.rescontent${rs.id}), btn.text('원문 보기'), btn.attr('data-state', 'wiki');" style="width: 100%;" class="btn btn-secondary btn-sm">원문 보기</button>
 							${_hidebtn}
 						</div>
 						<div class="tooltip-arrow popover-arrow" style="border-style: solid; height: 0; margin: 5px; position: absolute; width: 0; z-index: 1; border-width: 0 5px 5px; right: 5px; margin-bottom: 0; margin-top: 0; top: -5px; border-left-color: transparent !important; border-right-color: transparent !important; border-top-color: transparent !important; border-color: #f9f9f9;"></div>
@@ -5470,7 +5470,7 @@ wiki.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadDat
 						${rescontent}
 					</div>
 		`;
-		if(getperm('hide_thread_comment', ip_check(req)) && !menu) {
+		if(getperm('hide_thread_comment', ip_check(req)) && !ver('4.19.0')) {
 			content += `
 				<div class="combo admin-menu">
 					<a class="btn btn-danger btn-sm" href="/admin/thread/${tnum}/${rs.id}/${rs.hidden == '1' ? 'show' : 'hide'}">[ADMIN] 숨기기${rs.hidden == '1' ? ' 해제' : ''}</a>
