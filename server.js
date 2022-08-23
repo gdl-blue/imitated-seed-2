@@ -20,9 +20,13 @@ const jquery = require('jquery');
 const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
+const captchapng = require('captchapng');
 
 const timeFormat = 'Y-m-d H:i:s';  // 날짜 및 시간 기본 형식
 const _ = undefined;
+
+const floorof = Math.floor;
+const randint = (s, e) => floorof(Math.random() * (e + 1 - s) + s);
 
 // 더 시드 모방 버전 (나중에 config.json에서 불러옴)
 var major = 4, minor = 12, revision = 0;
@@ -1914,6 +1918,7 @@ function fetchErrorString(code, ...params) {
 		username_already_exists: '사용자 이름이 이미 존재합니다.',
 		username_format: '사용자 이름을 형식에 맞게 입력해주세요.',
 		invalid_title: '문서 이름이 올바르지 않습니다.',
+		captcha_validation_failed: 'reCAPTCHA 인증에 실패했습니다.',
 	};
 	
 	return codes[code] || code;
@@ -2347,6 +2352,86 @@ function cacheSkinList() {
     }
 }
 cacheSkinList();
+
+function generateCaptcha(req, num) {
+    if(!hostconfig.enable_captcha) return '';
+    
+    var numbers = [];
+    var i;
+    var fullnum = '';
+    var caps = [];
+    var retHTML = '';
+    
+	if(num) {
+		numbers = [String(num).slice(0, 3), String(num).slice(3, 6)];
+	} else {
+		numbers.push(parseInt(Math.random()*900+100));
+		numbers.push(parseInt(Math.random()*900+100));
+    }
+	
+    for(i of numbers) {
+        fullnum += i;
+        caps.push(new captchapng(120, 45, i));
+    }
+    
+    req.session.captcha = fullnum;
+    
+    for(i of caps) {
+        switch(randint(1, 6)) {
+            case 1:
+                i.color(120, 200, 255, 255);
+                i.color(255, 255, 255, 255);
+            break;case 2:
+                i.color(46, 84, 84, 255);
+                i.color(52, 235, 195, 255);
+            break;case 3:
+                i.color(44, 56, 222, 255);
+                i.color(227, 43, 52, 255);
+            break;case 4:
+                i.color(31, 216, 220, 255);
+                i.color(255, 0, 0, 255);
+            break;case 5:
+                i.color(85, 170, 170, 255);
+                i.color(255, 255, 255, 255);
+            break;case 6:
+                i.color(225, 202, 48, 255);
+                i.color(9, 198, 122, 255);
+        }
+        
+        const img = i.getBase64();
+        
+        retHTML += `
+            <img style="border-radius: 6px; border: 1px solid white; box-shadow: 3px 3px 20px 1px grey inset; display: inline-block;" class=captcha-image src="data:image/png;base64,${Buffer.from(img, 'base64').toString('base64')}" />
+        `;
+    }
+    
+    return `
+        <div class="captcha-frame" style="margin: 20px 0 20px 0; border-color: #000; border-width: 1px 1px 1px; border-style: solid; border-radius: 6px; display: table; padding: 10px; background: rgb(153, 208, 249); background: linear-gradient(rgb(153, 208, 249) 0%, rgb(13, 120, 200) 31%, rgb(43, 157, 242) 30%, rgb(202, 233, 255));">
+            <div class=captcha-images>
+                ${retHTML}
+            </div>
+            
+            <div class=captcha-input>
+                <label style="color: white;">보이는 숫자 입력: </label><br>
+                <input type=text class=form-control name=captcha>
+            </div>
+        </div>
+    `;
+}
+
+function validateCaptcha(req) {
+    if(!hostconfig.enable_captcha) return true;
+    
+    try {
+        if(req.body['captcha'].replace(/\s/g, '') != req.session.captcha) {
+            return false;
+        }
+    } catch(e) {
+        return false;
+    }
+    
+    return true;
+}
 
 // HTTPS 리다이렉트
 /*
@@ -3108,6 +3193,8 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
+			${generateCaptcha(req, req.session.captcha)}
+			
 			<div class="btns">
 				<button id="editBtn" class="btn btn-primary" style="width: 100px;">저장</button>
 			</div>
@@ -3138,6 +3225,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		</form>
 	`;
 	if(!aclmsg && req.method == 'POST') do {
+		if(!validateCaptcha(req)) { content = (error = err('alert', { code: 'captcha_validation_failed' })) + content; break; }
 		var original = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		var ex = 1;
 		if(!original[0]) ex = 0, original = '';
@@ -3221,6 +3309,7 @@ wiki.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			await curs.execute("update documents set content = ? where title = ? and namespace = ?", [text, doc.title, doc.namespace]);
 			curs.execute("update stars set lastedit = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 		}
+		delete req.session.captcha;
 		res.cookie('agree', '1', { expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360) });
 		
 		curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
@@ -4067,6 +4156,8 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
+			${generateCaptcha(req, req.session.captcha)}
+			
 			<div class="btns">
 				<button id="editBtn" class="btn btn-primary" style="width: 100px;">저장</button>
 			</div>
@@ -4074,6 +4165,8 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 	`;
 	
 	if(req.method == 'POST') do {
+		if(!validateCaptcha(req)) { content = (error = err('alert', { code: 'captcha_validation_failed' })) + content; break; }
+		
 		if(rawContent == req.body['text']) {
 			error = err('alert', { code: 'text_unchanged' });
 			content = error + content;
@@ -4089,6 +4182,8 @@ wiki.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 		const slug = newID();
 		await curs.execute("insert into edit_requests (title, namespace, id, state, content, baserev, username, ismember, log, date, processor, processortype, lastupdate, slug) values (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, '', '', ?, ?)", 
 														[doc.title, doc.namespace, id, req.body['text'] || '', baserev, ip_check(req), islogin(req) ? 'author' : 'ip', req.body['log'] || '', getTime(), getTime(), slug]);
+		
+		delete req.session.captcha;
 		
 		return res.redirect('/edit_request/' + (ver('4.16.0') ? slug : id));
 	} while(0);
@@ -5071,6 +5166,8 @@ wiki.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 				
 				${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론 주제를 생성합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 				
+				${generateCaptcha(req, req.session.captcha)}
+				
 				<div class="btns">
 					<button id="createBtn" class="btn btn-primary" style="width: 8rem;">전송</button>
 				</div>
@@ -5112,6 +5209,8 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'create_thread', 1);
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_create_thread', msg: aclmsg }));
 	
+	if(!validateCaptcha(req)) return res.send(await showError(req, { code: 'captcha_validation_failed' }));
+	
 	if(!req.body['topic']) return res.send(await showError(req, { code: 'validator_required', tag: 'topic' }));
 	if(!req.body['text']) return res.send(await showError(req, { code: 'validator_required', tag: 'text' }));
 	
@@ -5128,7 +5227,9 @@ wiki.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, slug) values \
 					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0', newid]);
-					
+	
+	delete req.session.captcha;
+	
 	res.redirect('/thread/' + tnum);
 });
 
