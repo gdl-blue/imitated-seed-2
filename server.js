@@ -2443,6 +2443,13 @@ wiki.use(function(req, res, next) {
 });
 */
 
+// 아이피차단
+wiki.all('*', async function(req, res, next) {
+	if(hostconfig.block_ip && hostconfig.block_ip.includes(ip_check(req, 1)))
+		return;
+	next();
+});
+
 // 자동 로그인 & 차단 로그아웃
 wiki.all('*', async function(req, res, next) {
 	if(!ver('4.1.0')) {
@@ -2585,8 +2592,8 @@ function expireopt(req) {
 
 wiki.get(/^\/License$/, async(req, res) => {
 	var licepage = `
-		<p>imitated-seed 위키 엔진</p>
-		<p>모방하는 the seed 버전: v${major}.${minor}.${revision}</p>
+		<p>imitated-seed</p>
+		<p>(the seed v${major}.${minor}.${revision})</p>
 	`;
 	
 	if(hostconfig.replicate_theseed_license) {
