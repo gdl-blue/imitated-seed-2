@@ -2191,7 +2191,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						break;
 					} else if(row.action == 'deny') {
 						r.ret = 0;
-						r.m1 = 'member:' + aclperms[row.condition] || row.condition;
+						r.m1 = 'member:' + row.condition;
 						break;
 					} else if(row.action == 'gotons' && ver('4.18.0')) {
 						r = await f(ns, 1);
@@ -2205,7 +2205,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						break;
 					} else if(row.action == 'deny') {
 						r.ret = 0;
-						r.m1 = 'ip:' + aclperms[row.condition] || row.condition;
+						r.m1 = 'ip:' + row.condition;
 						break;
 					} else if(row.action == 'gotons' && ver('4.18.0')) {
 						r = await f(ns, 1);
@@ -2219,7 +2219,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 						break;
 					} else if(row.action == 'deny') {
 						r.ret = 0;
-						r.m1 = 'geoip:' + aclperms[row.condition] || row.condition;
+						r.m1 = 'geoip:' + row.condition;
 						break;
 					} else if(row.action == 'gotons' && ver('4.18.0')) {
 						r = await f(ns, 1);
