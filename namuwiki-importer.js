@@ -147,7 +147,6 @@ const curs = {
 		const title = d.value.title;
 		const namespace = namespaces[d.value.namespace];
 		if(docs.length && !docs.includes(totitle(title, namespace) + '')) return;
-		print('처리 중 - ' + totitle(title, namespace));
 		(async() => {
 			var dbdata = await curs.execute("select title from documents where title = ? and namespace = ?", [title, namespace]);
 			if(dbdata.length) {
@@ -160,6 +159,7 @@ const curs = {
 					return;
 				}
 			}
+			print('처리 중 - ' + totitle(title, namespace));
 			var rev = 1;
 			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [title, namespace, d.value.text]);
 			await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, d.value.text, rev++, 'External Importer', String(new Date().getTime()), '+' + d.value.text.length, 'fork', 'author', 'create']);
