@@ -37,7 +37,7 @@ function readline(prompt, hide) {
 	});
 }
 
-print('---- 나무위키 데이타베이스 변환기 ----');
+print('---- 나무위키 & 알파위키 데이타베이스 변환기 ----');
 
 conn.commit = function() {};
 conn.sd = [];
