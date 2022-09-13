@@ -121,17 +121,23 @@ const curs = {
 	print('\n문서가 위키에 이미 존재하면 어떻게 하시겠습니까?');
 	print('1) 건너뛰기');
 	print('2) 덮어쓰기');
-	const overwrite = Number(input(' -> ')) - 1;
+	const overwrite = Number(input(' => ')) - 1;
 	if(![0, 1].includes(overwrite)) return print('입력이 잘못되었습니다');
 	
 	print('\n일부 문서만 가져오고 싶다면 제목을 입력해 주십시오');
 	print('입력을 다 했거나 입력하지 않고 모두 가져오려면 리턴글쇠를 누르십시오');
 	const docs = [];
 	while(1) {
-		var intitle = await readline(' -> ');
+		var intitle = await readline(' => ');
 		if(!intitle) break;
 		docs.push(processTitle(intitle) + '');
 	}
+	
+	print('\n어떤 위키에서 가져오고 계십니까?');
+	print('1) 나무위키');
+	print('2) 알파위키');
+	const prefix = [, 'N:', 'A:'][input(' => ')];
+	if(!prefix) return print('입력이 잘못되었습니다');
 	
 	var jsonname = await readline('\nJSON 파일 이름: ');
 	if(!jsonname.toUpperCase().endsWith('.JSON')) jsonname += '.JSON';
@@ -164,7 +170,7 @@ const curs = {
 			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [title, namespace, d.value.text]);
 			await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, d.value.text, rev++, 'External Importer', String(new Date().getTime()), '+' + d.value.text.length, 'fork', 'author', 'create']);
 			if(d.value.contributors) for(var item of d.value.contributors) {
-				await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, d.value.text, rev++, (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || item.includes(':') ? item : 'N:' + item), String(new Date().getTime()), '0', 'contributor', (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || (item.includes(':') && !item.match(/^.[:]/)) ? 'ip' : 'author'), 'normal']);
+				await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, d.value.text, rev++, (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || item.includes(':') ? item : (prefix + item)), String(new Date().getTime()), '0', 'contributor', (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || (item.includes(':') && !item.match(/^.[:]/)) ? 'ip' : 'author'), 'normal']);
 			}
 			pr++;
 		})();
