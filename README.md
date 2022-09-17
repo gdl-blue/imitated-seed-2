@@ -38,6 +38,7 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
   - `replicate_theseed_license`: (기본값 false) 라이선스 페이지를 더시드 엔진처럼 띄운다. 가급적이면 쓰지 않는 것을 권장한다.
   - `namuwiki_exclusive`: (기본값 false) 나무위키 전용 기능(경고 ACL 그룹, 문서 이전 판 경고 등)을 활성화한다.
   - `enable_captcha`: (기본값 false) 보안문자를 쓰게 한다.
+  - `block_ip`: (기본값 []) 접속을 차단할 IP를 지정한다. CIDR는 지원하지 않는다.
 
 ## 라이선스
 자유롭게 쓰기 바란다. (렌더러는 개조 시 소스 코드 공개해주었으면 좋겠음. 그리고 포크판을 특허출원 하지 마라.)
