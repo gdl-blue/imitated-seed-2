@@ -17,14 +17,19 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
   - css, js 디렉토리를 만든다.
     - https://theseed.io/js/theseed.js, https://theseed.io/js/jquery-2.1.4.min.js, https://theseed.io/js/jquery-1.11.3.min.js, https://theseed.io/js/intersection-observer.js, https://theseed.io/js/dateformatter.js )를 각각 다운로드받아 js 디렉토리에 복사한다.
     - https://theseed.io/css/wiki.css, https://theseed.io/css/katex.min.css, https://theseed.io/css/diffview.css )를 각각 다운로드받아 css 디렉토리에 복사한다.
+    - 아 근데 이거 [ps1 파일](./installScript.ps1)로 자동화하려고 한다. 될런지는 모르겠다.
 - skins 디렉토리를 만든다.
   - [buma](https://github.com/LiteHell/theseed-skin-buma/tree/d77eef50a77007da391c5082b4b94818db372417), [liberty](https://github.com/namuwiki/theseed-skin-liberty/tree/153cf78f70206643ec42e856aff8280dc21eb2c0) 등 원하는 스킨을 내려받고 skins 디렉토리에 스킨 이름으로 하위디렉토리를 만들어 복사한다.
+  - 이건 그냥 로컬에서 그 디렉토리에 포크를 받아와도 상관 없다. 포크로 받아오면 이 레포에선 서브모듈로 간주하는 것 같지만.
 - `npm i`를 실행한다.
+  - 뭐 설치니까 알아서 하시면 된다.
 - `node server`를 실행한다.
 
 ## 추가 도구
 - undelete-thread.js: 삭제된 토론 복구
 - namuwiki-importer.js: 나무위키 데이타베이스 덤프 가져오기
+
+난 여기 둘 중에 스레드 복구 툴만 쓸 거 같긴 하다. 삭제하면 실행 안 될 게 뻔하니 그냥 냅두는 거.
 
 ## config.json
 - config.json 수정으로 숨겨진 설정을 제어할 수 있다.
@@ -36,6 +41,7 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
   - `allow_account_rename`: (기본값 false) 닉네임 변경을 허용한다.
   - `search_host`: (기본값 "127.5.5.5") 검색 서버 호스트 주소
   - `search_port`: (기본값 25005) 검색 서버 포트
+    - 검색 서버 설정은 안 건드리는 게 정신 건강에 이로울 거다.
   - `search_autostart`: (기본값 false) 같은 디렉토리에 검색 서버 프로그램(search.js)이 있을 경우 위키 서버 시작 시 검색 서버를 같이 시작시킨다.
   - `no_username_format`: (기본값 false) 한글, 공백 등의 특수문자를 사용자 이름으로 쓸 수 있게 하고 길이 제한을 없앤다.
   - `owners`: (기본값 \[\]) /admin/config에 접속할 수 있는 사용자 이름 배열
