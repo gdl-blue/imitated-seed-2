@@ -1,0 +1,216 @@
+.wiki-article #previewFrame {
+	display: block;
+    width: 100%;
+    height: 30rem;
+    border: none;
+}
+
+.wiki-article #editForm #textInput {
+	width: 100%;
+	height: 30rem;
+	border: none;
+}
+
+.ui-front {
+	z-index: 1003;
+}
+
+.res-wrapper {
+	padding-bottom: 20px;
+}
+
+.r-head, .r-body {
+	border: 1px solid black;
+    border-collapse: collapse;
+}
+
+.r-head {
+	background: #dbcfcf;
+	border-bottom: 0px;
+	padding: 5px 10px;
+}
+
+.r-head.first-author {
+	background: #a89b9b;
+}
+
+.r-body.r-hidden-body {
+	background: gray;
+	color: white;
+}
+
+.Liberty .content-wrapper .liberty-content {
+	margin-top: -20px;
+}
+
+.r-body {
+	background: whitesmoke;
+	padding: 10px;
+    overflow: scroll;
+    max-height: 50vh;
+}
+
+.more-box {
+	border: 1px solid black;
+	margin: 30px;
+	padding: 10px;
+	display: block;
+	width: 80px;
+	background: whitesmoke;
+}
+
+.res.res-type-status .r-body {
+	background: darkorange;
+}
+
+.r-head.first-author {
+    background: #C4D7F5;
+}
+
+.r-head, .r-body {
+    border: 1px solid gainsboro;
+}
+
+.r-body {
+    padding-bottom: 0;
+}
+
+#createBtn {
+    float: right;
+    margin-top: 10px;
+}
+
+s:hover, strike:hover, del:hover{
+    color:#666;background-color:#eee;text-decoration:none;
+}
+
+.wiki-article div.wiki-category {
+    border: 1px solid #e1e8ed;
+    padding: 0.4rem;
+    padding-left: 1rem;
+    box-shadow: 0.15rem 0.15rem 0 0 #cfdae2;
+    border-radius: 0.35rem;
+    display: inline-block;
+    width: 100%;
+}
+
+.r-body .wiki-quote p {
+    padding: 10px;
+}
+
+.wiki-quote .wiki-list {
+    margin-left: 30px;
+}
+
+.wiki-article .wiki-quote {
+    border-left: 5px solid #80ADEF;
+}
+
+button.btn.btn-block:hover {
+    background: #5d92de;
+    color: white;
+}
+
+table.wiki-closure tbody tr td {
+    padding: 10px;
+}
+
+table.wiki-closure tbody tr td p {
+    margin-bottom: 0;
+}
+
+.res.res-type-status .r-body {
+    background: #FFCC66;
+    padding-bottom: 10px;
+}
+
+.r-body.r-hidden-body {
+    padding-bottom: 10px;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .title > h1 {
+    word-break: break-all;
+    min-height: 33px;
+}
+
+.wiki-article h2 {
+    word-break: break-all;
+}
+
+table.diff tbody {
+    font-family: "";
+}
+
+.ui-widget-content li:hover {
+    background: #cfddf2;
+}
+
+.ui-widget-content {
+    font-size: 13px;
+}
+
+.ui-state-active, .ui-widget-content .ui-state-active, .ui-widget-header .ui-state-active {
+    border: 1px solid transparent;
+    background: none;
+    font-weight: unset;
+    color: unset;
+}
+
+div.scroll-buttons a {
+    display: inline-block;
+    float: left;
+    width: 42px;
+    height: 42px;
+    padding: 5px 8px 9px 8px;
+    border: 1px solid #545454;
+    border-left: 0;
+    text-decoration: none;
+    text-align: center;
+    background: rgba(26,26,26,0.9);
+    border-bottom: 0;
+}
+
+.scroll-buttons a:link, .scroll-buttons a:visited {
+    color: white;
+}
+
+div.scroll-buttons {
+    position: fixed;
+    float: right;
+    height: 42px;
+    text-align: right;
+    font-size: 1.7em;
+    z-index: 10000;
+    margin-bottom: -10px;
+    bottom: 10px;
+    right: 0px;
+    opacity: 0.8;
+}
+
+.wiki-category-container li {
+    margin-left: 20px;
+}
+
+@keyframes loading-head-animation{
+    0% {background-color: #dbcfcf;}
+    50% {background-color: hsla(0, 15%, 54%, 1);}
+    100% {background-color: #dbcfcf;}
+}
+
+@keyframes loading-res-animation {
+    0% {transform: rotate(2deg);}
+    50% {transform: rotate(-2deg);}
+    100% {transform: rotate(2deg);}
+}
+
+.res-loading[data-visible="true"] .r-head {
+    animation: loading-head-animation 1s infinite;
+}
+
+.res-loading .r-body {
+    height: 50px;
+}
+
+.res-loading[data-visible="true"] .res {
+    animation: loading-res-animation 1s infinite;
+}

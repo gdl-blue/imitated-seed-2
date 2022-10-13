@@ -1,0 +1,661 @@
+@import url(//fonts.googleapis.com/earlyaccess/nanumgothic.css);
+/* 메인 색깔 #4188f1 */
+/* 테두리 색깔 #e1e8ed */
+
+/* 태그 수정 */
+* {
+    outline: none;
+
+}
+
+input:hover, button:hover, select:hover {
+    transition: 0.3s;
+}
+
+html {
+    font-size: 15px;
+    font-smoothing: antialiased;
+}
+
+body {
+    font-size: 0.95rem;
+}
+
+body, h1, h2, h3, h4, h5, h6 {
+    font-family: "Nanum Gothic", "KoPubDotum M", "Noto Sans Korean", "Noto Sans", "Malgun Gothic", "맑은 고딕", sans-serif;
+    margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6, b {
+    font-family: "Nanum Gothic", "KoPubDotum B", "Noto Sans Korean", "Noto Sans", "Malgun Gothic", "맑은 고딕", sans-serif;
+
+}
+
+input[type=password] {
+    font-family: sans-serif;
+}
+
+h1 {
+    font-size: 2.0rem;
+}
+
+h2 {
+    font-size: 1.8rem;
+}
+
+h3 {
+    font-size: 1.6rem;
+}
+
+h4 {
+    font-size: 1.5rem;
+}
+
+h5 {
+    font-size: 1.3rem;
+}
+
+h6 {
+    font-size: 1.1rem;
+}
+
+ol, ul, p {
+    margin: 0;
+    padding: 0;
+}
+
+p {
+    margin-bottom: 0.8rem;
+}
+
+ol {
+    margin: 0 !important;
+    margin-left: 2.2rem !important;
+    margin-right: 1rem !important;
+    list-style-image: none;
+}
+
+pre {
+    display: block;
+    color: #333;
+    word-break: break-all;
+    word-wrap: break-word;
+    background-color: #f5f8fa;
+    border: 1px solid #e1e8ed;
+    border-radius: 0.35rem;
+    padding: 0.8rem;
+}
+
+a:focus {
+    outline: 0;
+}
+
+p {
+    overflow-wrap: break-word;
+}
+
+ul {
+    list-style-image: url(data:image/svg+xml,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20version%3D%221.1%22%20width%3D%225%22%20height%3D%2213%22%3E%0A%3Ccircle%20cx%3D%222.5%22%20cy%3D%229.5%22%20r%3D%222.5%22%20fill%3D%22%23373a3c%22%2F%3E%0A%3C%2Fsvg%3E%0A);
+}
+
+img {
+    max-width: 100%;
+/*    height: auto;*/
+    margin: 0;
+}
+
+th[rowspan], td[rowspan] {
+    position: relative;
+}
+
+th[rowspan]:after, td[rowspan]:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -1px;
+    width: 1px;
+    height: 100%;
+    /*background: #e0e0e0;*/
+}
+
+input[type=search] {
+    -webkit-appearance: none; /* iOS 잡다한 css설정 제거 */
+}
+
+textarea {
+    width: 100%;
+    border: 1px solid #e1e8ed;
+    padding: 0.5rem;
+}
+
+hr {
+    border-top: 1px solid #e1e8ed;
+}
+
+
+html input[type=button]:hover, html input[type=submit]:hover, button:hover, #mw-editform-cancel:hover {
+    background-color: #449d44;
+}
+
+label {
+    vertical-align: middle;
+    word-break: keep-all;
+}
+
+del, s, strike {
+    color: gray;
+}
+/* 태그 수정 End */
+
+/* 백그라운드 색 지정 */
+.Liberty {
+    background-color: #f5f5f5;
+}
+/* 백그라운드 색 지정 End*/
+
+/* 컨텐츠 넓이 수정 및 가운대 정렬 */
+.Liberty .nav-wrapper .navbar, .Liberty .content-wrapper {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+/* 컨텐츠 넓이 수정 및 가운대 정렬 End */
+
+/* 네비 수정 */
+.Liberty .nav-wrapper {
+    min-height: 2.8rem;
+    background-color: #4188f1;
+    z-index: 1001;
+    box-shadow: 0 2px 4px 0 rgba(0,0,0,0.16),0 2px 10px 0 rgba(0,0,0,0.12);
+}
+
+.Liberty .nav-wrapper .navbar {
+    padding: 0 1rem;
+    border: 0;
+    border-radius: 0;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-brand {
+    height: 2.8rem;
+    width: 6.6rem;
+    background: transparent url("../img/logo.png") no-repeat scroll left center/auto 1.9rem;
+    padding: 0;
+    margin: 0;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-nav .nav-item {
+    margin: 0;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-nav .nav-item .fa {
+    margin-right: 0.5rem;
+    font-size: 1rem;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-nav .nav-item .nav-link {
+    color: #fff;
+    font-size: 1rem;
+    padding: 0.7rem 0.8rem;
+    line-height: 1.4rem;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-nav .nav-item .nav-link:hover, .Liberty .nav-wrapper .navbar .navbar-nav .nav-item .nav-link:focus {
+    background-color: #71a5f4;
+    transition: 0.3s;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-nav .nav-item .dropdown-menu {
+    margin-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-nav .nav-item .dropdown-toggle::after {
+    margin-right: 0;
+    margin-left: 0.35rem;
+}
+
+.Liberty .nav-wrapper .navbar .form-inline {
+    padding: 0.4rem 0;
+    float: right;
+}
+
+.Liberty .nav-wrapper .navbar .form-inline .form-control {
+    font-size: 0.8rem;
+    height: 2rem;
+    width: 10.8rem;
+    padding: 0.2rem 0.4rem;
+    border-color: #e1e8ed;
+    border-radius: 0;
+    border-top-left-radius: 0.35rem;
+    border-bottom-left-radius: 0.35rem;
+}
+
+.Liberty .nav-wrapper .navbar .form-inline .form-control:focus {
+    border-right-color: #e1e8ed;
+}
+
+.Liberty .nav-wrapper .navbar .form-inline .btn {
+    color: #4f5b63;
+    padding: 0.2rem 0.4rem;
+    line-height: 22px;
+}
+
+.Liberty .nav-wrapper .navbar .form-inline .btn:hover, .Liberty .nav-wrapper .navbar .form-inline .btn:focus {
+    background-color: #4188f1;
+    border-color: #5997f3;
+    color: #fff;
+    outline: 0;
+}
+
+.Liberty .nav-wrapper .navbar .form-inline .btn .fa {
+    width: 0.9rem;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-notification {
+    float: right;
+    padding-left: 0.8rem;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-notification .label {
+    padding: 0.25rem 0.4rem;
+    line-height: 1rem;
+    margin: 0.6rem 0;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login {
+    float: right;
+    padding-left: 0.8rem;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .fa {
+    color: #fff;
+    padding: 0.7rem 0;
+    font-size: 1.5rem;
+    line-height: 1.4rem;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .login-menu {
+    float: left;
+    cursor: pointer;
+    padding: 0.4rem 0;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .login-menu>a:after {
+    display: none;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .profile-img {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.35rem;
+    margin: 0;
+    border: 1px solid #e1e8ed;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .logout-btn {
+    margin-left: 0.8rem;
+    display: inline-block;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .login-dropdown-menu {
+    top: 120%;
+    right: -1rem;
+    z-index: 1002;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .login-dropdown-menu:before, .Liberty .nav-wrapper .navbar .navbar-login .login-dropdown-menu:after {
+    bottom: 100%;
+    border: solid transparent;
+    content: " ";
+    position: absolute;
+    left: 0;
+    right: auto;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .login-dropdown-menu:before {
+    border-bottom-color: #e1e8ed;
+    border-width: 0.8rem;
+    left: auto;
+    right: 1.15rem;
+}
+
+.Liberty .nav-wrapper .navbar .navbar-login .login-dropdown-menu:after {
+    border-bottom-color: #fff;
+    border-width: 0.78rem;
+    left: auto;
+    right: 1.15rem;
+}
+/* 네비 수정 End */
+
+/* 오른쪽 메뉴 수정 */
+.Liberty .content-wrapper .liberty-sidebar {
+    float: right;
+    width: 15rem;
+    position: relative;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed {
+    position: fixed;
+    z-index: 999;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent {
+    width: 15rem;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav {
+    border: 0;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item {
+    width: 15rem;
+    border: 1px solid #e1e8ed;
+    border-top-left-radius: 0.35rem;
+    border-top-right-radius: 0.35rem;
+    background-color: #f5f8fa;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link {
+    border: 0;
+    border-radius: 0;
+    border-top-left-radius: 0.35rem;
+    border-top-right-radius: 0.35rem;
+    text-align: center;
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+    color: #6e7478;
+    position: relative;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link.active,
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link:hover,
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link:focus,
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link:active {
+    color: #373a3c;
+    background-color: #fff;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link.active::before,
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link:hover::before,
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link:focus::before,
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-header .nav .nav-item .nav-link:active::before {
+    position: absolute;
+    left: -1px;
+    bottom: -1px;
+    content: " ";
+    width: 15rem;
+    display: block;
+    border-bottom: 2px solid #4188f1;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-content {
+    background-color: #fff;
+    border: 1px solid #e1e8ed;
+    border-top: 0;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-content .live-recent-list {
+    list-style: none;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-content .live-recent-list li {
+    border-bottom: 1px solid #e1e8ed;
+    padding: 0.2rem 0.6rem;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-content .live-recent-list li:last-child {
+    border-bottom: none;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-content .live-recent-list .recent-item {
+    font-size: 0.80rem;
+    color: #373a3c;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-content .live-recent-list .recent-item .new {
+    font-size: 0.80rem;
+    color: #b73333;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-footer {
+    background-color: #f5f8fa;
+    border: 1px solid #e1e8ed;
+    border-top: 0;
+    border-bottom-left-radius: 0.35rem;
+    border-bottom-right-radius: 0.35rem;
+    text-align: right;
+    padding: 0.4rem 0.6rem;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-footer .label {
+    background-color: #5997f3;
+    padding: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 400;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .liberty-right-fixed .live-recent .live-recent-footer .label:hover {
+    background-color: #2979f0;
+    transition: 0.3s;
+}
+
+.Liberty .content-wrapper .liberty-sidebar .right-ads {
+    position: absolute;
+    top: 25.73rem;
+    width: 15rem;
+}
+    /* 오른쪽 메뉴 수정 End */
+
+/* 컨텐츠 수정 */
+.Liberty .content-wrapper {
+    margin-top: 3.33rem;
+}
+
+.Liberty .content-wrapper .liberty-content {
+    margin-right: 16rem;
+    padding: 0;
+    padding-bottom: 1rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header {
+    border: 1px solid #e1e8ed;
+    border-radius: 0.35rem 0.35rem 0 0;
+    background-color: #f5f8fa;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .liberty-notice {
+    margin: 1rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .liberty-notice ul {
+    list-style-image: none;
+    list-style-type: none;
+    text-align: center;
+    line-height: 1.8rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools {
+    float: right;
+    padding-right: 1rem;
+    padding-top: 1rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools .tools-btn {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.8rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools .dropdown-toggle {
+    padding: 0.4rem 0.3rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools .tools-btn:hover,
+.Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools .tools-btn:focus,
+.Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools .tools-btn:active {
+    background-color: #4188f1;
+    color: #fff;
+    transition: 0.3s;
+    outline: 0;
+    border-color: #e1e8ed;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools .dropdown-menu {
+    top: 92%;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .title {
+    padding: 1rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .contentSub {
+    margin-top: -0.5rem;
+    padding: 1rem;
+    padding-top: 0;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .title>h1 {
+    color: #000;
+    font-weight: bold;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-header .header-ads {
+    margin: 1rem;
+    margin-bottom: 0;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-main {
+    border-left: 1px solid #e1e8ed;
+    border-right: 1px solid #e1e8ed;
+    background-color: #fff;
+    padding: 1rem;
+    overflow: hidden;
+    line-height: 1.6rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-main .social-buttons {
+    float: right;
+    margin-bottom: 1rem;
+    width: 100%;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-main .social-buttons>div {
+    float: right;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin: 0;
+    padding: 0;
+    padding-top: 0.45rem;
+    margin-left: 0.25rem;
+    border-radius: 0.35rem;
+    text-align: center;
+    cursor: pointer;
+    background: #ccc;
+    color: #fff;
+    position: relative;
+    font-size: 1.8rem;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-main .social-buttons>.facebook {
+    background-color: #5d82d1;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-main .social-buttons>.twitter {
+    background-color: #40bff5;
+}
+
+.Liberty .content-wrapper .liberty-content .liberty-content-main .social-buttons>.google {
+    background-color: #eb5e4c;
+    display: none;
+}
+/* 컨텐츠 수정 End */
+
+/* 컨텐츠 하단 수정 */
+.Liberty .content-wrapper .liberty-footer {
+    border: 1px solid #e1e8ed;
+    border-radius: 0 0 0.35rem 0.35rem;
+    background-color: #f5f8fa;
+    padding: 1rem;
+    clear: both;
+}
+
+.Liberty .content-wrapper .liberty-footer ul {
+    list-style-type: none;
+    list-style-image: none;
+}
+
+.Liberty .content-wrapper .liberty-footer ul {
+    margin-bottom: 0.8rem;
+    display: inline-block;
+    width: 100%;
+}
+
+.Liberty .content-wrapper .liberty-footer .footer-places li {
+    text-align: left;
+    float: left;
+    margin-right: 0.8rem;
+}
+
+.Liberty .content-wrapper .liberty-footer .footer-icons {
+    margin-bottom: 0;
+}
+
+.Liberty .content-wrapper .liberty-footer .footer-icons li {
+    margin-right: 0.8rem;
+    float: left;
+}
+/* 컨텐츠 하단 수정 End */
+
+/* 부트스트랩 커스텀 */
+.dropdown-menu {
+    font-size: 0.95rem;
+    box-shadow: 0 6px 12px rgba(0,0,0,.175);
+    border-color: #e1e8ed;
+}
+
+.dropdown-menu .dropdown-item:hover {
+    background-color: #5997f3;
+    color: #fff;
+    transition: 0.3s;
+}
+
+.dropdown-divider {
+    border-color: #e1e8ed;
+}
+
+.form-control {
+    font-size: 0.9rem;
+}
+
+.form-control:focus {
+    border-color: #66afe9;
+    outline: 0;
+    box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6);
+    transition: 0.3s;
+}
+
+.btn {
+    box-shadow: none;
+    border-radius: 0.35rem;
+}
+
+.btn:hover {
+    transition: 0.3s;
+}
+
+.btn:active, .btn:focus {
+    outline: 0;
+}
+
+.input-group-btn:last-child > .btn, .input-group-btn:last-child > .btn-group {
+    z-index: 3; /* 파폭, IE 테두리관련 버그 */
+}
+
+.close:focus, .close:hover {
+    transition: 0.3s;
+}
+
+caption {
+    color: #373a3c;
+    caption-side: top;
+}
+/* 부트스트랩 커스텀 End*/

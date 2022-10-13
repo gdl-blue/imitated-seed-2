@@ -1,0 +1,175 @@
+/* 부트스트랩 기본 폰트가 16이라 기본폰트 15인 리버티스킨은 bootstrap 반응형 부분을 쓰기가 힘듬
+   그래서 그냥 px로 때려박는걸로
+*/
+
+/* Max-width: 1023 데스크탑 마지노선 */
+@media (max-width: 1023px) {
+    .Liberty .nav-wrapper .navbar {
+        padding: 0 0.5rem;
+    }
+
+    .Liberty .nav-wrapper .navbar .form-inline {
+        float: left;
+        padding: 0;
+        padding-top: 0.25rem;
+        padding-bottom: 0.5rem;
+    }
+
+    .Liberty .nav-wrapper .navbar .form-inline .input-group {
+        display: table;
+        width: 100%;
+    }
+
+    .Liberty .nav-wrapper .navbar .form-inline .input-group .form-control {
+        width: 100%;
+    }
+
+    .Liberty .nav-wrapper .navbar .form-inline .input-group .input-group-btn {
+        width: 1%;
+    }
+
+    .Liberty .content-wrapper {
+        margin-top: 5.89rem;
+    }
+
+    .Liberty .content-wrapper .liberty-sidebar {
+        display: none;
+    }
+
+    .Liberty .content-wrapper .liberty-content {
+        margin-right: auto;
+        padding-bottom: 0.5rem;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-header .liberty-notice {
+        margin: 0.5rem;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-header .content-tools {
+        float: none;
+        text-align: right;
+        border-bottom: 1px solid #e1e8ed;
+        padding: 0.5rem;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-header .title {
+        padding: 0.5rem;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-header .contentSub {
+        margin-top: -0.25rem;
+        padding: 0.5rem;
+        padding-top: 0;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-header .header-ads {
+        margin: 0.5rem;
+        margin-bottom: 0;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-main {
+        padding: 0.5rem;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-main #upload-div {
+        display: none;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-main iframe {
+        width: 80%;
+        height: 30rem;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-main .mobile-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .Liberty .content-wrapper .liberty-content .bottom-ads {
+        padding: 0.5rem;
+        background-color: #fff;
+        border-left: 1px solid #e1e8ed;
+        border-right: 1px solid #e1e8ed;
+    }
+
+    .Liberty .content-wrapper .liberty-footer {
+        padding: 0.5rem;
+    }
+}
+
+/* Max-width: 798 메뉴 마지노선 테블릿 모드로 전환 시작하기위한 부분 */
+@media (max-width: 798px) {
+    .Liberty .nav-wrapper .navbar .navbar-nav .nav-item .fa {
+        text-align: center;
+        margin: 0 0.25rem;
+    }
+
+    .Liberty .nav-wrapper .navbar .navbar-nav .nav-item .nav-link .hide-title {
+        display: none;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-main iframe {
+        width: 90%;
+        height: 20rem;
+    }
+}
+
+/* Max-width: 520px 테블릿 이하 시작 부분 */
+@media (max-width: 520px) {
+    .Liberty .nav-wrapper .navbar .navbar-nav .nav-item .nav-link {
+        padding: 0.7rem 0.3rem;
+    }
+
+    .Liberty .nav-wrapper .navbar .navbar-login .view-logout {
+        display: block;
+    }
+
+    .Liberty .nav-wrapper .navbar .navbar-login .hide-logout {
+        display: none;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-main table.infobox,
+    .Liberty .content-wrapper .liberty-content .liberty-content-main table.wikitable {
+        float: none !important;
+        width: 100% !important;
+        margin: auto !important;
+    }
+
+    .Liberty .content-wrapper .liberty-content .liberty-content-main iframe {
+        width: 100%;
+        height: 15rem;
+    }
+	
+	#searchform {
+		width:100%;
+	}
+}
+
+/* Max-width: 397px 대형폰 이하 시작 부분 */
+@media (max-width: 397px) {
+    .Liberty .nav-wrapper .navbar .navbar-brand {
+        width: 5rem;
+        /* 모바일에서 Libre 로고 나타내는 거 수정 */
+        /*background: transparent url(../img/logo.png?2015-12-18T21:00:00Z) no-repeat scroll left center/auto 1.5rem*/
+    }
+
+    .Liberty .nav-wrapper .navbar .navbar-nav .nav-item .nav-link::after {
+        display: none;
+    }
+
+    .Liberty .nav-wrapper .navbar .navbar-nav .nav-item .nav-link {
+        padding: 0.7rem 0.2rem;
+    }
+
+    .Liberty .nav-wrapper .navbar .navbar-login {
+        padding-left: 0.4rem;
+    }
+
+    .Liberty .nav-wrapper .navbar .navbar-notification {
+        padding-left: 0.4rem;
+    }
+
+    .Liberty .nav-wrapper .navbar .form-inline {
+        padding-top: 0.04rem;
+    }
+}
+

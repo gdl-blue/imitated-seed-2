@@ -1,0 +1,52 @@
+{
+	"override_views": [],
+	"static_files": [
+		"css/font-awesome.min.css",
+		"bootstrap/css/bootstrap.min.css",
+		"css/font/Noto Sans KR.css",
+		"css/default.css",
+		"css/default_mobile.css",
+		"css/theseed.css",
+		"css/jquery-ui.min.css",
+		"js/lib/bootstrap.min.js",
+		"js/lib/jquery-ui.min.js",
+		"js/live_Recents.js",
+		"js/layout.js",
+		"js/theseed.js"
+	],
+	"auto_js_targets": {
+		"*": [
+			{
+				"path": "js/lib/bootstrap.min.js"
+			},
+			{
+				"path": "js/lib/jquery-ui.min.js"
+			},
+			{
+				"path": "js/live_Recents.js"
+			},
+			{
+				"path": "js/layout.js"
+			},
+			{
+				"path": "js/theseed.js"
+			}
+		]
+	},
+	"auto_css_targets": {
+		"*": [
+			"css/font-awesome.min.css",
+			"bootstrap/css/bootstrap.min.css",
+			"css/font/Noto Sans KR.css",
+			"css/default.css",
+			"css/default_mobile.css",
+			"css/jquery-ui.min.css",
+			"css/theseed.css"
+		]
+	},
+	"manual_file_targets": {},
+	"body_classes": [
+		"Liberty"
+	],
+	"additional_heads": "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1\">"
+}

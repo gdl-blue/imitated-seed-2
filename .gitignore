@@ -2,3 +2,4 @@ css/*.css
 js/*.js
 - js/banana.js
 - **/.keep_folder
+node_modules/
