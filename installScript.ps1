@@ -6,5 +6,5 @@ $file = "js/theseed.js", "js/jquery-2.1.4.min.js", "js/jquery-1.11.3.min.js", "j
 foreach ($aaa in $file) {
     $source = "https://theseed.io/" + $aaa
     $dest = $PSScriptRoot + "/" + $aaa
-    wget -Url $source -OutFile $dest
+    wget -Uri $source -OutFile $dest
 }
