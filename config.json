@@ -8,5 +8,6 @@
   "uninitialized": false,
   "disable_email": true,
   "namuwiki_exclusive": true,
-  "theseed_version": "4.18.0"
+  "theseed_version": "4.18.0",
+  "get_long_license": true
 }

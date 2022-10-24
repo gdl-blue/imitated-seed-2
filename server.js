@@ -47,7 +47,13 @@ var loginHistory = {};
 var neededPages = {};
 
 // https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
-// 무작위 문자열 생성
+/**
+ * 무작위 문자열 생성
+ * 
+ * @param {string} chars 
+ * @param {int} length 
+ * @returns 생성된 무작위 문자열
+ */
 function rndval(chars, length) {
 	var result           = '';
 	var characters       = chars;
@@ -88,7 +94,12 @@ var disable_autoperms = ['disable_two_factor_login'];
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
 
-// 삐
+/**
+ * 삐
+ * 
+ * @param {int?} cnt 경고음 재생 횟수, 기본: 1
+ * @print cnt만큼 경고음 재생
+ */
 function beep(cnt = 1) { // 경고음 재생
 	for(var i=1; i<=cnt; i++)
 		prt('');
@@ -155,10 +166,19 @@ function insert(table, obj) {
 // 보안을 위해...
 wiki.disable('x-powered-by');
 
-// 현재 시간 타임스탬프
+/**
+ * 현재 시간 타임스탬프
+ * 
+ * @returns 타임스탬프
+ */
 function getTime() { return Math.floor(new Date().getTime()); };
 
-// 시간 포맷
+/**
+ * 시간 포맷
+ * 
+ * @param {int} t unix 시간
+ * @returns 포맷된 시간
+ */
 function toDate(t) {
 	var cur = getTime();
 	// 초 단위 시간 구분
@@ -227,7 +247,13 @@ function getUserSetting(username, str, def = '') {
     return userset[username][str];
 }
 
-// 더시드 엔진 4.16.0에 도입된 토론/편집요청 ID
+/**
+ * @theseed-version 4.16.0
+ * 
+ * 토론/편집요청 ID
+ * 
+ * @returns 토론/편집요청 ID
+ */
 function newID() {
     const a = [
         'A',
@@ -643,6 +669,12 @@ try {
 	process.exit(0);
 })(); } if(_ready) {
 
+/**
+ * 버전 확인 (이상)
+ * 
+ * @param {string} v 버전('major.minor.revision')
+ * @returns true: 해당 버전 이상 | false: 해당 버전 미만
+ */
 function ver(v) {
 	var sp = v.split('.');
 	var maj = Number(sp[0]);
@@ -658,6 +690,12 @@ function ver(v) {
 	return true;
 }
 
+/**
+ * 버전 확인 (이하)
+ * 
+ * @param {string} v 버전('major.minor.revision')
+ * @returns true: 해당 버전 이하 | false: 해당 버전 초과
+ */
 function verrev(v) {
 	var sp = v.split('.');
 	var maj = Number(sp[0]);
@@ -1673,7 +1711,13 @@ function getSkin(req) {
 	return ret;
 }
 
-// 권한 보유여부
+/**
+ * 권한 보유여부
+ * 
+ * @param {string} perm 권한
+ * @param {string} username 사용자 ID
+ * @returns true: 권한 보유 | false: 권한 미보유 or 권한 미존재
+ */
 function getperm(perm, username) {
 	if(!perms.includes(perm)) return false;
 	if(!permlist[username]) permlist[username] = [];
@@ -1891,7 +1935,12 @@ const exaclperms = [
 	'member', 'member_signup_15days_ago', 'document_contributor', 'contributor',
 ];
 
-// 오류메시지
+/** 오류메시지
+ * 
+ * @param {string} code 오류코드
+ * @param {string[]?} params 추가 파라미터
+ * @returns {string} 리스트에 있으면 한글로, 없으면 코드 그대로
+ */
 function fetchErrorString(code, ...params) {
 	const codes = {
 		permission: '권한이 부족합니다.',
@@ -2591,11 +2640,65 @@ function expireopt(req) {
 	return ret;
 }
 
+/**
+ * Recieves version intager and returns license string.
+ * 버전 넘버를 받아서 긴 라이센스를 리턴.
+ * 
+ * @param {int} maj: Major version of the seed
+ * @param {int} min: Minor version of the seed
+ * @param {int} pat: Revision of the seed
+ * 
+ * @returns the full license
+ */
+ function getLicense(maj, min, pat) {
+    var wikiver = '20220917 (patched by @JeonDohyeon at 2022.10.24)';
+    var licebegin = `
+            <h2>imitated-seed</h2>
+            <p>ver.${wikiver}</p>
+    `;
+    var licebegin2 = `
+            <p></p>
+            <p>Copyright <a href="https://github.com/gdl-blue">gdl-blue</a>. Do not distribute!</p>
+    `;
+    var licecontrib = `
+            <h2>Contributors</h2>
+            <ul class=wiki-list>
+                <li><a href="https://github.com/gdl-blue">github@gdl-blue</a> (Source Code)</li>
+                <li><a href="https://github.com/JeonDohyeon">github@JeonDohyeon</a> (Server Flight & Skin Modifications)
+            </ul>
+            <h2>theseed Contributors</h2>
+            <ul class=wiki-list>
+                <li>namu@theseed.io (backend & frontend)</li>
+                <li>PPPP@theseed.io (old frontend)</li>
+                <li>kasio@theseed.io (old render)</li>
+            </ul>
+    `;
+    var opensourcelicense = '';
+
+    var liceimitatedtheseed = `
+            <p>(the seed v${maj}.${min}.${pat})</p>
+    `;
+
+    var licefull = '';
+    licefull += licebegin;
+    licefull += liceimitatedtheseed;
+    licefull += licebegin2;
+    licefull += licecontrib;
+    licefull += opensourcelicense;
+
+    return licefull;
+}
+
 wiki.get(/^\/License$/, async(req, res) => {
 	var licepage = `
 		<p>imitated-seed</p>
 		<p>(the seed v${major}.${minor}.${revision})</p>
 	`;
+
+	if(hostconfig.get_long_license) {
+		licepage = '';
+		licepage += getLicense(major,minor,revision);
+	}
 	
 	if(hostconfig.replicate_theseed_license) {
 		licepage = '';
