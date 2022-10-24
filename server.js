@@ -1877,6 +1877,7 @@ const aclperms = {
 	member: '로그인된 사용자',
 	admin: '관리자',
 	member_signup_15days_ago: '가입한지 15일 지난 사용자',
+	aclgroup: (ver('4.18.0') ? 'ACL 관리자' : undefined),
 	suspend_account: (ver('4.18.0') ? undefined : '차단된 사용자'),
 	blocked_ipacl: (ver('4.18.0') >= 18 ? undefined : '차단된 아이피'),
 	document_contributor: '해당 문서 기여자',
