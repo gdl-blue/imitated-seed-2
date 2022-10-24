@@ -17,10 +17,10 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
   - css, js 디렉토리를 만든다.
     - https://theseed.io/js/theseed.js, https://theseed.io/js/jquery-2.1.4.min.js, https://theseed.io/js/jquery-1.11.3.min.js, https://theseed.io/js/intersection-observer.js, https://theseed.io/js/dateformatter.js )를 각각 다운로드받아 js 디렉토리에 복사한다.
     - https://theseed.io/css/wiki.css, https://theseed.io/css/katex.min.css, https://theseed.io/css/diffview.css )를 각각 다운로드받아 css 디렉토리에 복사한다.
-    - 아 근데 이거 [ps1 파일](./installScript.ps1)로 자동화하려고 한다. 될런지는 모르겠다.
+    - [ps1 파일](./installScript.ps1)로 자동화함.
 - skins 디렉토리를 만든다.
   - [buma](https://github.com/LiteHell/theseed-skin-buma/tree/d77eef50a77007da391c5082b4b94818db372417), [liberty](https://github.com/namuwiki/theseed-skin-liberty/tree/153cf78f70206643ec42e856aff8280dc21eb2c0) 등 원하는 스킨을 내려받고 skins 디렉토리에 스킨 이름으로 하위디렉토리를 만들어 복사한다.
-  - 이건 그냥 로컬에서 그 디렉토리에 포크를 받아와도 상관 없다. 포크로 받아오면 이 레포에선 서브모듈로 간주하는 것 같지만.
+  - 이건 그냥 로컬에서 그 디렉토리에 포크를 받아와도 상관 없다. 뭐 포크때리면 레포에 자동으로 추가되니 알아서.
 - `npm i`를 실행한다.
   - 뭐 설치니까 알아서 하시면 된다.
 - `node server`를 실행한다.
