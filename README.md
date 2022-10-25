@@ -9,8 +9,9 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
 ## 경고
 <b style="size: 3em;">이 레포는 실사를 위해 생성한 포크다. PR로 깽판 치면 잠궈버릴 거니 유의 바람.</b>
 
-
 원본 보고 싶으면 [마스터 브랜치](https://github.com/JeonDohyeon/imitated-seed/blob/master)나 [진짜 원본](https://github.com/gdl-blue/imitated-seed-2)으로.
+
+마개조 일지는 [위키](http://wiki.jdh5968.pe.kr:8800/w/개발일지:개발일지)에도 씨부려 놨지만, 간단하게 [여기](https://github.com/JeonDohyeon/imitated-seed/wiki/패치-일람)에서도 볼 수 있다.
 
 ## 기초 사용 방법
 - **만약 config.json에서 `use_external_js`과 `use_external_css`이 true이면 아래 단계는 생략해도 된다.** 스킨만 추가하면 된다.
