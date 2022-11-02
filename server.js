@@ -45,7 +45,7 @@ var apiTokens = {};  // API 편집 토큰
 
 var loginHistory = {};
 var neededPages = {};
-
+wiki.use('/skins',express.static('skins'));
 // https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
 // 무작위 문자열 생성
 function rndval(chars, length) {
@@ -2475,28 +2475,6 @@ wiki.all('*', async function(req, res, next) {
 		}
 	}
 	next();
-});
-
-wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res, next) {
-	const skinname = req.params[0];
-	const filepath = req.params[1];
-	
-	if(!skinList.includes(skinname))
-		return next();
-	
-	if(decodeURIComponent(filepath).includes('./') || decodeURIComponent(filepath).includes('..')) {
-		return next();
-	}
-	
-	var skinconfig = skincfgs[skinname];
-	/* if(!skinconfig.static_files.includes(filepath))
-		return next(); */
-	
-	try {
-		res.sendFile(filepath, { root: './skins/' + skinname + '/static' });
-	} catch(e) {
-		next();
-	}
 });
 
 wiki.get('/js/:filepath', function sendJS(req, res) {
