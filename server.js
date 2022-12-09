@@ -1629,27 +1629,6 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			data = data.replace(finc, d);
 		}
 	}
-	/*
-	// 각주 (1)
-	const fnrows = data.split('\n');
-	const frl = fnrows.length;
-	for(let fi=0; fi<frl; fi++) {
-		let row = fnrows[fi];
-		for(let fn of (row.match(/(\[[*](((?!\s).)*)\s|\])/g) || [])) {
-			if(fn == ']') {
-				if(!footnotes.size()) continue;
-				row = row.replace(']', '</fnstub>');
-				footnotes.pop();
-				fnrows[fi] = row;
-				continue;
-			}
-			if(!row.includes(']')) continue;
-			const reg = fn.match(/(\[[*](((?!\s).)*)\s|\])/);
-			row = row.replace(fn, '<fnstub' + (reg[2] ? (' name="' + reg[2] + '"') : '') + '>');
-			footnotes.push('[');
-			fnrows[fi] = row;
-		}
-	} data = fnrows.join('\n');*/
 	
 	// 표렌더
 	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
@@ -1660,29 +1639,6 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		const ihtml = el.innerHTML;
 		el.innerHTML = parseTable(ihtml.replace(/<br>/g, '\n')).replace(/\n/g, '<br>');
 	} ft(document);
-	/*
-	// 각주 (2)
-	function ff(el) {
-		const blks = el.querySelectorAll('fnstub');
-		if(blks.length) for(let el2 of blks) ff(el2);
-		el = (el == document ? el.querySelector('body') : el);
-		el = el.querySelector('fnstub');
-		if(!el) return;
-		const span = document.createElement('span');
-		span.innerHTML = el.innerHTML;
-		el.outerHTML = `<a ${el.getAttribute('name') ? 'name="' + el.getAttribute('name') + '" ' : ''}class=wiki-fn-content title="${span.textContent}">${el.innerHTML}</a>`;
-	} ff(document);
-	
-	// 각주(3)
-	for(let item of document.querySelectorAll('a.wiki-fn-content')) {
-		const id = item.getAttribute('name') || fnnum;
-		const numid = fnnum;
-		item.removeAttribute('name');
-		item.setAttribute('href', '#fn-' + id);
-		fnhtml += `<span class=footnote-list><span id=fn-${id} class=target></span><a href=#rfn-${numid}>[${id}]</a> ${item.innerHTML}</span>`;
-		item.innerHTML = `<span id=rfn-${numid}>[${id}]`;
-		fnnum++;
-	}*/
 	
 	// 각주 마무리
 {
