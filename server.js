@@ -1063,7 +1063,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	// 한 글자 리터럴
 	for(let esc of (data.match(/(?:\\)(.)/g) || [])) {
 		const match = data.match(/(?:\\)(.)/);
-		data = data.replace(esc, '<spannw class=nowiki>' + match[1] + '</spannw>');
+		data = data.replace(esc, '<spannw>' + match[1] + '</spannw>');
 	}
 	
 	var dq, bopen, bclose, segments;
@@ -1080,7 +1080,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 				const tend = data.indexOf('\n', pos + 12);
 				if(tend == -1) continue;
 				const raw = data.slice(pos + 12, tend);
-				const title = raw.trim().split('').map(chr => '<spannw class=nowiki>' + chr + '</spannw>').join('') || 'More';
+				const title = raw.trim().replace(/<spannw>(.)<\/spannw>/g, '\\$1').split('').map(chr => '<spannw>' + chr + '</spannw>').join('') || 'More';
 				bopen.pushBack({ index: pos, replace: '<dl class=wiki-folding><dt>' + title + '</dt><dd>', length: 12 + raw.length + 1 });
 				dq.pushBack({ close: '</dd></dl>', bopenIndex: bopen.size() - 1 });
 			} else if(data.substr(pos + 3, 6) == '#!wiki') {
@@ -1174,6 +1174,144 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		item.outerHTML = key;
 	}
 	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
+	
+	// 새각주
+	var rdata = {}, tdata = {}, tdata2 = {};
+	function parseFootnotes() {
+		var dq = new Deque(), bopen = new Deque(), close = new Queue;
+		var segments;
+		var ret = '';
+		var repeating = false;
+		for(var row of data.split('\n')) {
+			dq.clear();
+			bopen.clear();
+			bclose.clear();
+			for(var pos=0; ; pos++) {
+				if(!row[pos]) break;
+				if(row[pos] == '[') {
+					if(row[pos + 1] != '*') {
+						dq.pushBack({ close: null });
+						continue;
+					}
+					var tend = row.indexOf(' ', pos);
+					var tend2 = row.indexOf(']', pos);
+					if(tend == -1 && tend2 == -1) continue;
+					if(tend2 < tend) repeating = true;
+					const raw = row.slice(pos + 2, tend < tend2 ? tend : tend2);
+					const title = raw.replace(/<spannw>(.)<\/spannw>/g, '\\$1').split('').map(chr => '<spannw>' + chr + '</spannw>').join('');
+					if(repeating) bopen.pushBack({ index: pos, replace: '<footnote title="' + title + '" repeating>', length: 2 + raw.length });
+					else bopen.pushBack({ index: pos, replace: '<footnote title="' + title + '">', length: 2 + raw.length + 1 });
+					dq.pushBack({ close: '</footnote>', bopenIndex: bopen.size() - 1 });
+					pos += raw.length + 1;
+				} else if(row[pos] == ']' && row.slice(pos - '<spannw>'.length, pos + '</spannw>'.length) != '<spannw>]</span>' && !dq.empty()) {
+					if(dq.back().close !== null)
+						bclose.push({ index: pos, replace: dq.back().close, length: 1 });
+					dq.popBack();
+				}
+			}
+			while(!dq.empty()) bopen._internalArray[dq.popFront().bopenIndex] = null;
+			bopen._internalArray = bopen._internalArray.filter(item => item !== null);
+			segments = [];
+			for(var pos=0; ; pos++) {
+				var op, cl;
+				if(!row[pos]) break;
+				if(!bopen.empty() && pos == (op = bopen.front()).index) {
+					segments.push(op.replace);
+					pos += op.length - 1;
+					bopen.popFront();
+				} else if(!bclose.empty() && pos == (cl = bclose.front()).index) {
+					segments.push(cl.replace);
+					pos += cl.length - 1;
+					bclose.pop();
+				} else {
+					segments.push(row[pos]);
+				}
+			}
+			ret += segments.join('') + '\n';
+		}
+		ret = ret.replace(/\n$/, '');
+		
+		var qfn = new Queue();
+		var qa = new Queue();
+		var { document } = (new JSDOM(ret.replace(/\n/g, '<br>'))).window;
+		var id = 1;
+		var fn = [];
+		var rpid = {};
+		var rpnid = {};
+		rdata = {}, tdata = {}, tdata2 = {};
+		var fnhtml = '';
+		for(var item of document.querySelectorAll('footnote')) {
+			var title = item.getAttribute('title');
+			if(title) {
+				rpid[title] = rpid[title] || 0;
+				if(!rpnid[title]) rpnid[title] = id;
+				item.setAttribute('fn-id', rpnid[title] + '.' + (++rpid[title]));
+			} else item.setAttribute('fn-id', id);
+			item.setAttribute('fn-numeric-id', id);
+			id++;
+		}
+		for(var item of document.querySelectorAll('footnote')) {
+			var tooltip, rendered;
+			var nid = item.getAttribute('fn-numeric-id');
+			if(tdata[nid] === undefined) {	
+				var elp = document.createElement('span');
+				var el = document.createElement('footnote');
+				elp.appendChild(el);
+				var nfid = random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 128);
+				el.setAttribute('id', 'nf' + nfid);
+				el.innerHTML = item.innerHTML;
+				elp.querySelectorAll('#nf' + nfid + ' > footnote').forEach(item => item.remove());
+				el.removeAttribute('id');
+				tdata[nid] = el.textContent;
+			}
+			if(tdata2[item.getAttribute('title')] === undefined)
+				tdata2[item.getAttribute('title')] = tdata[nid];
+			if(rdata[nid] === undefined) {
+				var elp = document.createElement('span');
+				var el = document.createElement('footnote');
+				elp.appendChild(el);
+				var nfid = random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 128);
+				el.setAttribute('id', 'nf' + nfid);
+				el.innerHTML = item.innerHTML;
+				elp.querySelectorAll('#nf' + nfid + ' > footnote').forEach(item => {
+					var dispid = item.getAttribute('title') || item.getAttribute('fn-id');
+					item.outerHTML = '<a data-numeric-id="' + item.getAttribute('fn-numeric-id') + '" data-title="' + dispid + '" data-repeating="' + item.getAttribute('repeating') + '" class=wiki-fn-content title="" href="#fn-' + dispid + '"><span id=rfn-' + item.getAttribute('fn-numeric-id') + '>[' + dispid + ']</span></a>';
+				});
+				el.removeAttribute('id');
+				rdata[nid] = el.innerHTML;
+			}
+		}
+		for(var item of document.querySelectorAll('footnote')) {
+			var nid = item.getAttribute('fn-numeric-id');
+			var dispid = item.getAttribute('title') || item.getAttribute('fn-id');
+			var idx = fn.findIndex(item => item.index == dispid);
+			if(idx == -1) idx = fn.push({ index: dispid, footnote: { rendered: rdata[nid], title: dispid, id: [] } }) - 1;
+			fn[idx].footnote.id.push({
+				rfn: item.getAttribute('fn-numeric-id'),
+				display: item.getAttribute('fn-id'),
+			});
+		}
+		for(var _fn of fn) {
+			var idx = _fn.index
+			const item = _fn.footnote;
+			if(item.id.length > 1) {
+				fnhtml += `<span class=footnote-list><span id="fn-${idx}" class=target></span>[${item.title}] `;
+				for(var id of item.id)
+					fnhtml += `<a href=#rfn-${id.rfn}><sup>${id.display}</sup></a> `;
+				fnhtml += `${item.rendered || ''}</span>`;
+			}
+			else
+				fnhtml += `<span class=footnote-list><span id="fn-${idx}" class=target></span><a href=#rfn-${item.id[0].rfn}>[${item.title}]</a> ${item.rendered || ''}</span>`;
+		}
+		for(var item of document.querySelectorAll('body > footnote')) {
+			var dispid = item.getAttribute('title') || item.getAttribute('fn-id');
+			item.outerHTML = '<a data-numeric-id="' + item.getAttribute('fn-numeric-id') + '" data-title="' + dispid + '" data-repeating="' + item.getAttribute('repeating') + '" class=wiki-fn-content title="" href="#fn-' + dispid + '"><span id=rfn-' + item.getAttribute('fn-numeric-id') + '>[' + dispid + ']</span></a>';
+		}
+		ret = document.body.innerHTML.replace(/<br>/g, '\n');
+		if(fnhtml) ret += '<div class=wiki-macro-footnote>' + fnhtml + '</div>';
+		return ret;
+	}
+	data = parseFootnotes(data);
 	
 	// 인용문
 	function parseQuotes(data) {
@@ -1343,9 +1481,11 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	data = data.replace(/^[#][#](.*)$/gm, '');
 	
 	// 토론 앵커
-	if(discussion) for(let res of (data.match(/(\s|^)[#](\d+)(\s|$)/g) || [])) {
-		const reg = res.match(/(\s|^)[#](\d+)(\s|$)/);
-		data = data.replace(res, reg[1] + '<a class=wiki-self-link href="#' + reg[2] + '">#' + reg[2] + '</a>' + reg[3]);
+	var reg;
+	var anc = /(\s|^)[#](\d+)(\s|$)/g;
+	if(discussion) while(reg = anc.exec(data)) {
+		data = data.replace(reg[0], reg[1] + '<a class=wiki-self-link href="#' + reg[2] + '">#' + reg[2] + '</a>' + reg[3]);
+		anc.lastIndex--;
 	}
 	
 	// 문단
@@ -1425,11 +1565,11 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	}
 	
 	// 동화상
-	for(let finc of (data.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/gi) || [])) {
-		let inc = finc.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?!([)]))(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/i);
-		let vid = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')');
-		let id = inc[2].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
-		let paramsa = inc[2].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',').slice(1, 99999);
+	for(let finc of (data.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?![)])(.|<spannw>[)]<\/spannw>))+)[)]\]/gi) || [])) {
+		let inc = finc.match(/\[(youtube|kakaotv|nicovideo|vimeo|navertv)[(](((?!([)]))(.|<spannw>[)]<\/spannw>))+)[)]\]/i);
+		let vid = inc[1].replace(/<spannw>[)]<\/spannw>/, ')');
+		let id = inc[2].replace(/<spannw>[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
+		let paramsa = inc[2].replace(/<spannw>[)]<\/spannw>/, ')').split(',').slice(1, 99999);
 		let params = {};
 		for(let item of paramsa) {
 			let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').toLowerCase();
@@ -1459,10 +1599,10 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	
 	// 틀 인클루드
 	if(!flags.includes('include')) {
-		for(let finc of (data.match(/\[include[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/gi) || [])) {
-			let inc = finc.match(/\[include[(](((?![)])(.|<spannw\sclass=\"nowiki\">[)]<\/spannw>))+)[)]\]/i);
-			let itf = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
-			let paramsa = inc[1].replace(/<spannw\sclass=\"nowiki\">[)]<\/spannw>/, ')').split(',').slice(1, 99999);
+		for(let finc of (data.match(/\[include[(](((?![)])(.|<spannw>[)]<\/spannw>))+)[)]\]/gi) || [])) {
+			let inc = finc.match(/\[include[(](((?![)])(.|<spannw>[)]<\/spannw>))+)[)]\]/i);
+			let itf = inc[1].replace(/<spannw>[)]<\/spannw>/, ')').split(',')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').replace(/[&]quot;/g, '"').replace(/[&]amp;/g, '&').replace(/[&]lt;/g, '<').replace(/[&]gt;/g, '>');
+			let paramsa = inc[1].replace(/<spannw>[)]<\/spannw>/, ')').split(',').slice(1, 99999);
 			let params = {};
 			for(let item of paramsa) {
 				let pp = item.split('=')[0].replace(/^(\s+)/, '').replace(/(\s+)$/, '').toLowerCase();
@@ -1489,34 +1629,8 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			data = data.replace(finc, d);
 		}
 	}
-	// 각주 (1)
 	/*
-	dq.clear();
-	bopen.clear();
-	bclose.clear();
-	for(var pos=0; ; pos++) {
-		if(!data[pos] || data[pos] == '\n') {
-			while(!dq.empty()) bopen._internalArray[dq.popFront().bopenIndex] = null;
-			bopen._internalArray = bopen._internalArray.filter(item => item !== null);
-			if(!data[pos]) break;
-			continue;
-		}
-		if(data[pos] == '[') {
-			if(data[pos + 1] != '*') {
-				bopen.pushBack({ index: pos, replace: null });
-				dq.pushBack({ close: null, bopenIndex: bopen.size() - 1 });
-				continue;
-			}
-			
-			bopen.pushBack({ index: pos, replace: '<span class="wiki-size size-' + (size[0] == '+' ? 'up' : 'down') + '-' + size[1] + '">', length: 6 });
-			dq.pushBack({ close: '</span>', bopenIndex: bopen.size() - 1 });
-		} else if(data[pos] == ']' && data.slice(pos - '<spannw class="nowiki">'.length, pos + '</spannw>'.length) != '<spannw class="nowiki">]</span>' && !dq.empty()) {
-			if(dq.back().close !== null) {
-				// bclose.push({ index: pos, replace: dq.back().close, length: 3, line: dq.back().line });
-			} else bopen.popBack();
-			dq.popBack();
-		}
-	}*/
+	// 각주 (1)
 	const fnrows = data.split('\n');
 	const frl = fnrows.length;
 	for(let fi=0; fi<frl; fi++) {
@@ -1535,7 +1649,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			footnotes.push('[');
 			fnrows[fi] = row;
 		}
-	} data = fnrows.join('\n');
+	} data = fnrows.join('\n');*/
 	
 	// 표렌더
 	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
@@ -1546,7 +1660,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		const ihtml = el.innerHTML;
 		el.innerHTML = parseTable(ihtml.replace(/<br>/g, '\n')).replace(/\n/g, '<br>');
 	} ft(document);
-	
+	/*
 	// 각주 (2)
 	function ff(el) {
 		const blks = el.querySelectorAll('fnstub');
@@ -1568,12 +1682,22 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		fnhtml += `<span class=footnote-list><span id=fn-${id} class=target></span><a href=#rfn-${numid}>[${id}]</a> ${item.innerHTML}</span>`;
 		item.innerHTML = `<span id=rfn-${numid}>[${id}]`;
 		fnnum++;
-	}
+	}*/
 	
-	if(fnhtml) fnhtml = '<div class=wiki-macro-footnote>' + fnhtml + '</div>';
+	// 각주 마무리
+{
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	for(var item of document.querySelectorAll('a.wiki-fn-content')) {
+		item.setAttribute('title', tdata[item.getAttribute('data-numeric-id')] || tdata2[item.getAttribute('data-title')]);
+		item.removeAttribute('data-title');
+		item.removeAttribute('data-repeating');
+		item.removeAttribute('data-numeric-id');
+	}
+	data = document.body.innerHTML.replace(/<br>/g, '\n');
+}
 	
 	// 한 글자 리터럴 처리
-	for(let item of document.querySelectorAll('spannw.nowiki')) {
+	for(let item of document.querySelectorAll('spannw')) {
 		item.outerHTML = item.innerHTML;
 	}
 	
@@ -1633,9 +1757,6 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			}
 		}
 	}
-	
-	// 각주
-	if(fnhtml) data += fnhtml;
 	
 	if(!flags.includes('noframe') && !discussion && doc.namespace == '분류') {
 		let content = '';
