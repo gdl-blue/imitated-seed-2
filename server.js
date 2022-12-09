@@ -1655,6 +1655,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		const ihtml = el.innerHTML;
 		el.innerHTML = parseTable(ihtml.replace(/<br>/g, '\n')).replace(/\n/g, '<br>');
 	} ft(document);
+	data = document.body.innerHTML.replace(/<br>/g, '\n');
 	
 	// 각주 마무리
 {
