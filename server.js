@@ -58,6 +58,14 @@ function rndval(chars, length) {
 	return result;
 }
 
+function nullCoalesce(x, y) {
+	if(x == null) return y;
+	return x;
+}
+
+const cssColors = ['Black', 'Gray', 'Grey', 'Silver', 'White', 'Red', 'Maroon', 'Yellow', 'Olive', 'Lime', 'Green', 'Aqua', 'Cyan', 'Teal', 'Blue', 'Navy', 'Magenta', 'Fuchsia', 'Purple', 'DimGray', 'DimGrey', 'DarkGray', 'DarkGrey', 'LightGray', 'LightGrey', 'Gainsboro', 'WhiteSmoke', 'Brown', 'DarkRed', 'FireBrick', 'IndianRed', 'LightCoral', 'RosyBrown', 'Snow', 'MistyRose', 'Salmon', 'Tomato', 'DarkSalmon', 'Coral', 'OrangeRed', 'LightSalmon', 'Sienna', 'Seashell', 'Chocolate', 'SaddleBrown', 'SandyBrown', 'PeachPuff', 'Peru', 'Linen', 'Bisque', 'DarkOrange', 'BurlyWood', 'AntiqueWhite', 'Tan', 'NavajoWhite', 'BlanchedAlmond', 'PapayaWhip', 'Moccasin', 'Orange', 'Wheat', 'OldLace', 'FloralWhite', 'DarkGoldenRod', 'GoldenRod', 'CornSilk', 'Gold', 'Khaki', 'LemonChiffon', 'PaleGoldenRod', 'DarkKhaki', 'Beige', 'Ivory', 'LightGoldenRodYellow', 'LightYellow', 'OliveDrab', 'YellowGreen', 'DarkOliveGreen', 'GreenYellow', 'Chartreuse', 'LawnGreen', 'DarkGreen', 'DarkSeaGreen', 'ForestGreen', 'HoneyDew', 'LightGreen', 'LimeGreen', 'PaleGreen', 'SeaGreen', 'MediumSeaGreen', 'SpringGreen', 'MintCream', 'MediumSpringGreen', 'MediumAquaMarine', 'Aquamarine', 'Turquoise', 'LightSeaGreen', 'MediumTurquoise', 'Azure', 'DarkCyan', 'DarkSlateGray', 'DarkSlateGrey', 'LightCyan', 'PaleTurquoise', 'DarkTurquoise', 'CadetBlue', 'PowderBlue', 'LightBlue', 'DeepSkyBlue', 'SkyBlue', 'LightSkyBlue', 'SteelBlue', 'AliceBlue', 'DodgerBlue', 'LightSlateGray', 'LightSlateGrey', 'SlateGray', 'SlateGrey', 'LightSteelBlue', 'CornFlowerBlue', 'RoyalBlue', 'DarkBlue', 'GhostWhite', 'Lavender', 'MediumBlue', 'MidnightBlue', 'SlateBlue', 'DarkSlateBlue', 'MediumSlateBlue', 'MediumPurple', 'RebeccaPurple', 'BlueViolet', 'Indigo', 'DarkOrchid', 'DarkViolet', 'MediumOrchid', 'DarkMagenta', 'Plum', 'Thistle', 'Violet', 'Orchid', 'MediumVioletRed', 'DeepPink', 'HotPink', 'LavenderBlush', 'PaleVioletRed', 'Crimson', 'Pink', 'LightPink'];
+const cssColorMatches = cssColors.map(item => '#' + item.toLowerCase() + ' ');
+
 // 모듈 사용
 wiki.use(bodyParser.json());
 wiki.use(bodyParser.urlencoded({ extended: true }));
@@ -136,6 +144,25 @@ const random = {
                 return x[ Math.floor(Math.random() * x.length) ];
         }
     }
+};
+
+function findAll(regex, str, flags, sp, ep) {
+	flags = flags || '';
+	if(!regex.flags.includes('g'))
+		regex = RegExp(regex.source, regex.flags + 'g');
+	const ret = [];
+	const func = flags.includes('reverse') ? 'unshift' : 'push';
+	var match = null;
+	while(match = regex.exec(str)) {
+		if(sp !== undefined && match.index < sp) continue;
+		if(ep !== undefined && match.index > ep) continue;
+		ret[func](match);
+	}
+	return ret;
+}
+
+String.prototype.splice = function splice(s, l, r) {
+	return this.substr(0, s) + r + this.substr(s + l, this.length);
 };
 
 // 데이타 베이스에 추가
@@ -489,28 +516,108 @@ swig.setFilter('localdate', generateTime);
 
 // 스택 (렌더러에 필요)
 class Stack {
-	constructor() {
-		this.internalArray = [];
+	constructor(arr) {
+		this._internalArray = arr || [];
 	}
 	
 	push(x) {
-		return this.internalArray.push(x);
+		return this._internalArray.push(x);
 	}
 	
 	pop() {
-		return this.internalArray.pop();
+		return this._internalArray.pop();
 	}
 	
 	top() {
-		return this.internalArray[this.internalArray.length - 1];
+		return this._internalArray[this._internalArray.length - 1];
 	}
 	
 	size() {
-		return this.internalArray.length;
+		return this._internalArray.length;
 	}
 	
 	empty() {
-		return !this.internalArray.length;
+		return !this._internalArray.length;
+	}
+	
+	clear() {
+		this._internalArray = [];
+	}
+};
+
+class Queue {
+	constructor(arr) {
+		this._internalArray = arr || [];
+	}
+	
+	push(x) {
+		return this._internalArray.push(x);
+	}
+	
+	pop() {
+		var ret = this._internalArray[0];
+		this._internalArray.splice(0, 1);
+		return ret;
+	}
+	
+	front() {
+		return this._internalArray[0];
+	}
+	
+	size() {
+		return this._internalArray.length;
+	}
+	
+	empty() {
+		return !this._internalArray.length;
+	}
+	
+	clear() {
+		this._internalArray = [];
+	}
+};
+
+class Deque {
+	constructor(arr) {
+		this._internalArray = arr || [];
+	}
+	
+	pushBack(x) {
+		return this._internalArray.push(x);
+	}
+	
+	pushFront(x) {
+		return this._internalArray.unshift(x);
+	}
+	
+	popBack() {
+		return this._internalArray.pop();
+	}
+	
+	popFront() {
+		var ret = this._internalArray[0];
+		this._internalArray.splice(0, 1);
+		return ret;
+	}
+	
+	back() {
+		return this._internalArray[this._internalArray.length - 1];
+	}
+	
+	front() {
+		return this._internalArray[0];
+	}
+	
+	size() {
+		return this._internalArray.length;
+	}
+	
+	empty() {
+		return !this._internalArray.length;
+	}
+	
+	clear() {
+		this._internalArray = [];
 	}
 };
 
@@ -922,7 +1029,6 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	
 	function multiply(a, b) {
 		if(typeof a == 'number') return a * b;
-		
 		var ret = '';
 		for(let i=0; i<b; i++) ret += a;
 		return ret;
@@ -931,6 +1037,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	var footnotes = new Stack();
 	var blocks    = new Stack();
 	var fndisp    = {};
+	var nwblocks  = {};
 	
 	var fnnum  = 1;
 	var fnhtml = '';
@@ -959,13 +1066,380 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		data = data.replace(esc, '<spannw class=nowiki>' + match[1] + '</spannw>');
 	}
 	
+	var dq, bopen, bclose, segments;
+	dq     = new Deque();
+	bopen  = new Deque();
+	bclose = new Queue();
+	var lopen = false;  // 리터럴 블록 처리 중...
+	var line = 1;
+	for(var pos=0; ; pos++) {
+		if(!data[pos]) break;
+		if(data[pos] == '\n') { line++; continue; }
+		if(data.substr(pos, 3) == '{{{') {
+			if(data.substr(pos + 3, 9) == '#!folding') {
+				const tend = data.indexOf('\n', pos + 12);
+				if(tend == -1) continue;
+				const raw = data.slice(pos + 12, tend);
+				const title = raw.trim().split('').map(chr => '<spannw class=nowiki>' + chr + '</spannw>').join('') || 'More';
+				bopen.pushBack({ index: pos, replace: '<dl class=wiki-folding><dt>' + title + '</dt><dd>', length: 12 + raw.length + 1 });
+				dq.pushBack({ close: '</dd></dl>', bopenIndex: bopen.size() - 1 });
+			} else if(data.substr(pos + 3, 6) == '#!wiki') {
+				const tend = data.indexOf('\n', pos + 9);
+				if(tend == -1) continue;
+				const raw = data.slice(pos + 9, tend);
+				const style = (raw.match(/style=[&]quot(((?![&]quot).)*)[&]quot/) || ['', '', ''])[1];
+				bopen.pushBack({ index: pos, replace: '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">', length: 9 + raw.length + 1 });
+				dq.pushBack({ close: '</div>', bopenIndex: bopen.size() - 1 });
+			} else if(data.substr(pos + 3, 6) == '#!html' && !discussion) {
+				bopen.pushBack({ index: pos, replace: '<nowikiblock><rawhtml>', length: 9 });
+				dq.pushBack({ close: '</rawhtml></nowikiblock>', bopenIndex: bopen.size() - 1 });
+			} else if(data.substr(pos + 3, 3).match(/^([+]|[-])[1-5]\s$/i)) {
+				var size = data.substr(pos + 3, 2);
+				bopen.pushBack({ index: pos, replace: '<span class="wiki-size size-' + (size[0] == '+' ? 'up' : 'down') + '-' + size[1] + '">', length: 6 });
+				dq.pushBack({ close: '</span>', bopenIndex: bopen.size() - 1 });
+			} else {
+				var isColor = false;
+				var color = null;
+				var match = null;
+				if(match = data.substr(pos + 3, 8).match(/^[#]([a-fA-F0-9]{3,6})\s/i))
+					isColor = true, color = '#' + match[1];
+				for(var cc of cssColorMatches)
+					if(data.substr(pos + 3, cc.length).toLowerCase() == cc)
+						isColor = true, color = cc.slice(1, cc.length - 1);
+				if(isColor) {
+					bopen.pushBack({ index: pos, replace: '<font color=' + color + '>', length: 3 + (color[0] == '#' ? 0 : 1) + color.length + 1 });
+					dq.pushBack({ close: '</font>', bopenIndex: bopen.size() - 1 });
+				} else {  // 리터럴
+					bopen.pushBack({ index: pos, replace: '<nowikiblock><pre>', length: 3, line });
+					dq.pushBack({ close: '</pre></nowikiblock>', line, bopenIndex: bopen.size() - 1 });
+				}
+			}
+			pos += 2;
+		} else if(data.substr(pos, 3) == '}}}' && !dq.empty()) {
+			bclose.push({ index: pos, replace: dq.back().close, length: 3, line: dq.back().line });
+			dq.popBack();
+			pos += 2;
+		}
+	}
+	while(!dq.empty()) bopen._internalArray[dq.popFront().bopenIndex] = null;  // 유효하지 않은 블록열기
+	bopen._internalArray = bopen._internalArray.filter(item => item !== null);
+	segments = [];
+	line = 1;
+	var openline = 1;
+	var soi = -1;
+	var lnest = 0;
+	for(var pos=0; ; pos++) {
+		var op, cl;
+		if(!data[pos]) break;
+		if(data[pos] == '\n') { line++; segments.push('\n'); continue; }
+		if(!bopen.empty() && pos == (op = bopen.front()).index && op.replace !== null) {
+			if(lopen) {
+				lnest++;
+				bopen.popFront();
+				segments.push(data[pos]);
+				continue;
+			}
+			if(op.replace.startsWith('<nowikiblock>'))
+				lopen = true;
+			soi = segments.push(op.replace) - 1;
+			pos += op.length - 1;
+			bopen.popFront();
+			openline = line;
+		} else if(!bclose.empty() && pos == (cl = bclose.front()).index) {
+			if(lnest) {
+				lnest--;
+				bclose.pop();
+				segments.push(data[pos]);
+				continue;
+			}
+			if(openline == line && soi >= 0 && cl.replace == '</pre></nowikiblock>') {
+				segments[soi] = '<nowikiblock><code>';
+				cl.replace = '</code></nowikiblock>';
+			}
+			segments.push(cl.replace);
+			pos += cl.length - 1;
+			bclose.pop();
+			lopen = false;
+		} else {
+			segments.push(data[pos]);
+		}
+	}
+	data = segments.join('');
+	/*
+	for(var match of findAll(/({{{(((?!({{{)).)*)|}}})/im, data)) {
+		var block = match[0];
+		function blockCloseProc(pos) {
+			if(!dq.empty()) {
+				bclose.push({ index: nullCoalesce(pos, match.index), replace: dq.back().close, length: 3 });
+				dq.popBack(); } }
+		if(block == '}}}') {
+			blockCloseProc();
+			continue; }
+		
+		var h = block.substr(3, block.length);
+		if((h.match(/^[#][!]folding/) && !h.includes('}}}')) ||
+			(h.match(/^[#][!]html/) && !discussion) ||
+			(h.match(/^[#][!]wiki/) && !h.includes('}}}')) ||
+			(h.match(/^[#]([a-zA-Z0-9]+)\s/) || h.match(/^([+]|[-])[1-5]\s/)))
+		{  // 리터럴 블록 아님
+			continue;
+		}
+		
+		if(h.includes('}}}')) {  // 한 줄
+			dq.pushBack({ close: '</code></nowikiblock>', match });
+			bopen.pushBack({ index: match.index, replace: '<nowikiblock><code>', length: 3 });
+			blockCloseProc(match.index + block.indexOf('}}}'));
+		} else {  // 블록
+			dq.pushBack({ close: '</pre></nowikiblock>', match });
+			bopen.pushBack({ index: match.index, replace: '<nowikiblock><pre>', length: 3 });
+		}
+	}*/
+	
+	// 리터럴 (제대로 된 방법은 아니겠지만...)
+	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+	for(var item of document.querySelectorAll('nowikiblock')) {
+		const key = rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+=/', 2048);
+		nwblocks[key] = item.innerHTML;
+		item.outerHTML = key;
+	}
+	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
+	
+	/*
+	// 리터럴 (제일 안쪽 블록부터 처리)
+	var bopen  = new Deque(findAll(/{{{(((?!{{{).)*)/im, data, _, startPos, endPos));
+	var bclose = new Queue(findAll(/}}}/im, data, _, startPos, endPos));
+	var spl    = new Stack();
+	
+	while(bopen.size()) {  // 블록 열기부터 돌면서
+		var match = bopen.pop();
+		var block = match[0];
+		if(bclose.empty()) {  // 닫는 중괄호가 없으면 무효
+			bopen.clear();
+			bclose.clear();
+			break; }
+		
+		var h = block.substr(3, block.length);
+		if((h.match(/^[#][!]folding/) && !h.includes('}}}')) ||
+			(h.match(/^[#][!]html/) && !discussion) ||
+			(h.match(/^[#][!]wiki/) && !h.includes('}}}')) ||
+			(h.match(/^[#]([a-zA-Z0-9]+)\s/) || h.match(/^([+]|[-])[1-5]\s/)))
+		{  // 리터럴 블록 아님
+			bclose.pop();
+			continue;
+		}
+		
+		if(h.includes('}}}')) {  // 한 줄
+			if(h.match(/^[#]((a-zA-Z0-9)+)\s/) || h.match(/^([+]|[-])[1-5]\s/)) continue;
+			spl.push({ start: match.index, length: 3, replace: '<nowikiblock><code>' });
+			spl.push({ start: bclose.pop().index, length: 3, replace: '</code></nowikiblock>' });
+		} else {  // 블록
+			spl.push({ start: match.index, length: 3, replace: '<nowikiblock><pre>' });
+			spl.push({ start: bclose.pop().index, length: 3, replace: '</pre></nowikiblock>' });
+		}
+	}
+	spl._internalArray.sort((l, r) => l.start - r.start);
+	while(spl.size()) {  // 맨 뒤에서부터 렌더링
+		var d = spl.pop();
+		data = data.splice(d.start, d.length, d.replace);
+	}*/
+	/*
+	dq     = new Deque();
+	bopen  = new Deque();
+	bclose = new Queue();
+	for(var match of findAll(/({{{(((?!({{{)).)*)|}}})/im, data)) {
+		var block = match[0];
+		function blockCloseProc(pos) {
+			if(!dq.empty()) {
+				bclose.push({ index: nullCoalesce(pos, match.index), replace: dq.back().close, length: 3 });
+				dq.popBack(); } }
+		if(block == '}}}') {
+			blockCloseProc();
+			continue; }
+		
+		var h = block.substr(3, block.length);
+		if(h.match(/^[#][!]folding/) && !h.includes('}}}')) {  // 접기
+			const title = h.substr(9, h.length);
+			dq.pushBack({ close: '</dd></dl>', match });
+			bopen.pushBack({ index: match.index, replace: '<dl class=wiki-folding><dt>' + (title || 'More') + '</dt><dd>', length: 12 + title.length + 1 });
+		} else if(h.match(/^[#][!]wiki/) && !h.includes('}}}')) {  // 위키문법 & CSS
+			const raw = h.substr(6, h.length);
+			const style = (h.match(/style=\"(((?!\").)*)\"/) || ['', '', ''])[1];
+			dq.pushBack({ close: '</div>', match });
+			bopen.pushBack({ index: match.index, replace: '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">', length: 9 + raw.length + 1 });
+		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
+			dq.pushBack({ close: '</rawhtml></nowikiblock>', match });
+			bopen.pushBack({ index: match.index, replace: '<nowikiblock><rawhtml>', length: 9 });
+			if(h.includes('}}}')) blockCloseProc(match.index + block.indexOf('}}}'));
+		} else if(h.match(/^[#]([a-zA-Z0-9]+)\s/)) {
+			var color = h.match(/^[#]([a-zA-Z0-9]+)\s/)[1];
+			dq.pushBack({ close: '</font>', match });
+			bopen.pushBack({ index: match.index, replace: '<font color="' + (color.match(/^([a-fA-F0-9]{6})$/) ? '#' : '') + color + '">', length: 4 + color.length + 1 });
+			if(h.includes('}}}')) blockCloseProc(match.index + block.indexOf('}}}'));
+		} else if(h.match(/^([+]|[-])[1-5]\s/)) {
+			var size = h.match(/^([+]|[-])([1-5])\s/);
+			dq.pushBack({ close: '</span>', match });
+			bopen.pushBack({ index: match.index, replace: '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">', length: 6 });
+			if(h.includes('}}}')) blockCloseProc(match.index + block.indexOf('}}}'));
+		}
+	}
+	print(dq);
+	print(bopen);
+	while(!dq.empty()) dq.popFront(), bopen.popFront();  // 유효하지 않은 블록열기
+	segments = [];
+	for(var pos=0; ; pos++) {
+		var op, cl;
+		if(!data[pos]) break;
+		if(!bopen.empty() && pos == (op = bopen.front()).index) {
+			segments.push(op.replace);
+			pos += op.length - 1;
+			bopen.popFront();
+		} else if(!bclose.empty() && pos == (cl = bclose.front()).index) {
+			segments.push(cl.replace);
+			pos += cl.length - 1;
+			bclose.pop();
+		} else {
+			segments.push(data[pos]);
+		}
+	}
+	data = segments.join('');*/
+	
+	/*
+	function parseBlocks(startPos, endPos) {
+		// HTML, 접기, 서식
+		var bopen  = new Stack(findAll(/{{{(((?!{{{).)*)/im, data, _, startPos, endPos));
+		var bclose = new Queue(findAll(/}}}/im, data, _, startPos, endPos));
+		var spl    = new Stack();
+		
+		while(bopen.size()) {  // 블록 열기부터 돌면서
+			var match = bopen.pop();
+			var block = match[0];
+			if(bclose.empty()) {  // 닫는 중괄호가 없으면 무효
+				print(match);
+				bopen.clear();
+				bclose.clear();
+				break; }
+			
+			var h = block.substr(3, block.length);
+			print(h);
+			if(h.match(/^[#][!]folding/)) {  // 접기
+				const title = h.substr(9, h.length);
+				spl.push({ start: match.index, length: 12 + title.length, replace: '<dl class=wiki-folding><dt>' + (title || 'More') + '</dt><dd>' });
+				spl.push({ start: match.index + 12 + title.length, length: 1, replace: '' });
+				spl.push({ start: bclose.pop().index, length: 3, replace: '</dd></dl>' });
+			} else if(h.match(/^[#][!]wiki/)) {  // 위키문법 & CSS
+				const raw = h.substr(6, h.length);
+				const style = (h.match(/style=\"(((?!\").)*)\"/) || ['', '', ''])[1];
+				spl.push({ start: match.index, length: 9 + raw.length, replace: '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">' });
+				spl.push({ start: match.index + 9 + title.length, length: 1, replace: '' });
+				spl.push({ start: bclose.pop().index, length: 3, replace: '</div>' });
+			} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
+				spl.push({ start: match.index, length: 9, replace: '<nowikiblock><rawhtml>' });
+				spl.push({ start: bclose.pop().index, length: 3, replace: '<nowikiblock><rawhtml>' });
+			} else if(h.match(/^[#]([a-zA-Z0-9]+)\s/)) {
+				var color = h.match(/^[#]([a-zA-Z0-9]+)\s/)[1];
+				spl.push({ start: match.index, length: 4 + color.length + 1, replace: '<font color="' + (color.match(/^([a-fA-F0-9]{6})$/) ? '#' : '') + color + '">' });
+				spl.push({ start: bclose.pop().index, length: 3, replace: '</font>' });
+			} else if(h.match(/^([+]|[-])[1-5]\s/)) {
+				var size = h.match(/^([+]|[-])([1-5])\s/);
+				spl.push({ start: match.index, length: 6, replace: '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">' });
+				spl.push({ start: bclose.pop().index, length: 3, replace: '</span>' });
+			} else {  // ???
+				bclose.pop();
+				continue;
+			}
+		}
+		spl._internalArray.sort((l, r) => l.start - r.start);
+		while(spl.size()) {  // 맨 뒤에서부터 렌더링
+			var d = spl.pop();
+			data = data.splice(d.start, d.length, d.replace);
+		}
+		// #!html 문법
+		var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
+		const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
+		const whattr = {
+			'*': ['style'],
+			span: ['class'],
+			a: ['href', 'class'],
+			font: ['color', 'size', 'face'],
+		};
+		for(var item of document.querySelectorAll('rawhtml')) {
+			item.innerHTML = item.textContent.replace(/\n/g, '<br>');
+			for(var el of item.getElementsByTagName('*')) {
+				if(whtags.includes(el.tagName.toLowerCase())) {
+					for(var attr of el.attributes) {
+						if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
+							if(attr.name == 'style') {
+								
+							}
+						} else el.removeAttribute(attr.name);
+					}
+					switch(el.tagName.toLowerCase()) {
+						case 'a':
+							el.setAttribute('target', '_blank');
+							if(ver('4.20.0')) {
+								el.className += (el.className ? ' ' : '') + 'wiki-link-external';
+							}
+					}
+				} else el.outerHTML = el.innerHTML;
+			} item.outerHTML = item.innerHTML;
+		}
+		data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
+	}*/
+	
+	/*
+	var spos, newData = '';
+	spos = 0;
+	blocks.clear();
+	for(var pos=0; ; pos++) {
+		if(!data[pos]) {
+			pos--;
+			parseLiterals(spos, pos);
+			break;
+		}
+		if(data.substr(pos, 3) == '{{{') {
+			blocks.push(1);
+			pos += 2;
+		} else if(data.substr(pos, 3) == '}}}') {
+			if(blocks.empty()) { pos += 2; continue; }
+			blocks.pop();
+			if(blocks.empty()) {
+				parseLiterals(spos, pos);
+				spos = pos + 3;
+			}
+			pos += 2;
+		}
+	}
+	
+	spos = 0;
+	blocks.clear();
+	for(var pos=0; ; pos++) {
+		if(!data[pos]) {
+			pos--;
+			parseBlocks(spos, pos);
+			break;
+		}
+		if(data.substr(pos, 3) == '{{{') {
+			blocks.push(1);
+			pos += 2;
+		} else if(data.substr(pos, 3) == '}}}') {
+			if(blocks.empty()) { pos += 2; continue; }
+			blocks.pop();
+			if(blocks.empty()) {
+				parseBlocks(spos, pos);
+				spos = pos + 3;
+			}
+			pos += 2;
+		}
+	}*/
+	
+	/*
 	// 리터럴
 	blocks = new Stack();
 	let blks;
 	var open = [];
 	var ops = 'RENTRIPLECBRACKET' + rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024) + 'RENTRIPLECBRACKET';
 	var cls = 'RENTRIPLECBRACKETCLOSE' + rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024) + 'RENTRIPLECBRACKETCLOSE';
-	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
+	for(let block of (data.match(/([}][}][}]|[{][{][{](.*))/gim) || [])) {
 		if(block == '}}}') {
 			if(!blocks.size()) continue;
 			var od = data;
@@ -987,48 +1461,26 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			blocks.push(cls);
 			open.push(block);
 			data = data.replace(block, ops);
+		} else if(!block.includes('}}}')) {  // 블록
+			blocks.push('</pre></nowikiblock>');
+			var od = data;
+			data = data.replace('{{{\n', '<nowikiblock><pre>');
+			if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
+		}
+	}
+	for(let block of (data.match(/([{][{][{](((?![}][}][}]).)*)[}][}][}])/gim) || [])) {
+		let h = block.match(/{{{(((?![}][}][}]).)*)/im)[1];
+		if(h.match(/^[#][!]folding\s/)) {  // 접기
+		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
+		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
 		} else {  // 리터럴
-			if(!block.includes('}}}')) {  // 블록
-				blocks.push('</pre></nowikiblock>');
-				var od = data;
-				data = data.replace('{{{\n', '<nowikiblock><pre>');
-				if(od == data) data = data.replace('{{{', '<nowikiblock><pre>');
-			} else {  // 한 줄
-				const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-				const size = h.match(/^([+]|[-])([1-5])\s/);
-				if(color) {
-					blocks.push('}}}');
-				} else if(size) {
-					blocks.push('}}}');
-				} else {
-					data = data.replace('{{{', '<nowikiblock><code>');
-					data = data.replace('}}}', '</code></nowikiblock>');
-				}
-			/*
-				blks = new Stack();
-				const block_ = block;
-				for(let bl of (block_.match(/{{{(((?!({{{|}}})).)*)|}}}/))) {
-					if(bl == '}}}') {
-						if(!blks.size()) continue;
-						block = block.replace('}}}', blks.top() + '');
-						blks.pop();
-						continue;
-					}
-					let h = bl.match(/{{{(((?![}][}][}]).)*)/im)[1];
-					
-					const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-					const size = h.match(/^([+]|[-])([1-5])\s/);
-					if(color) {
-						blks.push('}}}');
-					} else if(size) {
-						blks.push('}}}');
-					} else {
-						block = block.replace('{{{', '<nowikiblock><code>');
-						block = block.replace('}}}', '</code></nowikiblock>');
-					}
-				}
-				data = data.replace(block_, block);
-				*/
+			const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
+			const size = h.match(/^([+]|[-])([1-5])\s/);
+			if(color) {
+			} else if(size) {
+			} else {
+				data = data.replace('{{{', '<nowikiblock><code>');
+				data = data.replace('}}}', '</code></nowikiblock>');
 			}
 			
 		}
@@ -1048,6 +1500,7 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 		item.outerHTML = key;
 	}
 	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
+	*/
 	
 	// 인용문
 	function parseQuotes(data) {
@@ -1213,87 +1666,6 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 			}
 		}
 	}
-	
-	blocks = new Stack();
-	// 삼중중괄호 서식
-	for(let block of (data.match(/([}][}][}]|[{][{][{](((?![}][}][}]).)*)[}][}][}]|[{][{][{](((?!}}}).)*))/gim) || [])) {
-		if(block == '}}}') {
-			if(!blocks.size()) continue;
-			var od = data;
-			data = data.replace('}}}', blocks.top() + '');
-			if(od == data) data = data.replace('\n}}}', blocks.top() + '\r');
-			blocks.pop();
-			continue;
-		}
-		
-		var h = block.match(/{{{(((?!}}}).)*)/im)[1];
-		
-		if(h.match(/^[#][!]folding\s/)) {  // 접기
-			blocks.push('</dd></dl>');
-			const title = h.match(/^[#][!]folding\s(.*)$/)[1];
-			data = data.replace('{{{' + h + '\n', '<dl class=wiki-folding><dt>' + title + '</dt><dd>');
-		} else if(h.match(/^[#][!]wiki\s/)) {  // 위키문법 & CSS
-			blocks.push('</div>');
-			const style = (h.match(/style=\"(((?!\").)*)\"/) || ['', '', ''])[1];
-			data = data.replace('{{{' + h + '\n', '<div style="' + style.replace(/&amp;quot;/g, '&quot;') + '">');
-		} else if(h.match(/^[#][!]html/) && !discussion) {  // HTML
-			if(block.includes('}}}')) {
-				var rb = block;
-				rb = rb.replace('}}}', '</rawhtml></nowikiblock>');
-				rb = rb.replace('{{{#!html', '<nowikiblock><rawhtml>');
-				data = data.replace(block, rb);
-			} else {
-				blocks.push('</rawhtml></nowikiblock>');
-				data = data.replace('{{{#!html', '<nowikiblock><rawhtml>');
-			}
-		} else if(block.includes('}}}')) {  // 한 줄
-			const color = h.match(/^[#]([A-Za-z0-9]+)\s/);
-			const size = h.match(/^([+]|[-])([1-5])\s/);
-			if(color) {  // 글자 색
-				const htmlcolor = color[1].match(/^([A-Fa-f0-9]{3,6})$/);
-				var col = color[1];
-				if(htmlcolor) {
-					col = '#' + htmlcolor[1];
-				}
-				data = data.replace('}}}', '</font>');
-				data = data.replace('{{{' + color[0], '<font color=' + col + '>');
-			} else if(size) {  // 글자 크기
-				data = data.replace('}}}', '</span>');
-				data = data.replace('{{{' + size[0], '<span class="wiki-size size-' + (size[1] == '+' ? 'up' : 'down') + '-' + size[2] + '">');
-			}
-		}
-	}
-	// #!html 문법
-	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
-	const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
-	const whattr = {
-		'*': ['style'],
-		span: ['class'],
-		a: ['href', 'class'],
-		font: ['color', 'size', 'face'],
-	};
-	for(var item of document.querySelectorAll('rawhtml')) {
-		item.innerHTML = item.textContent.replace(/\n/g, '<br>');
-		for(var el of item.getElementsByTagName('*')) {
-			if(whtags.includes(el.tagName.toLowerCase())) {
-				for(var attr of el.attributes) {
-					if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
-						if(attr.name == 'style') {
-							
-						}
-					} else el.removeAttribute(attr.name);
-				}
-				switch(el.tagName.toLowerCase()) {
-					case 'a':
-						el.setAttribute('target', '_blank');
-						if(ver('4.20.0')) {
-							el.className += (el.className ? ' ' : '') + 'wiki-link-external';
-						}
-				}
-			} else el.outerHTML = el.innerHTML;
-		} item.outerHTML = item.innerHTML;
-	}
-	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
 	
 	data = data.replace(/^[#][#](.*)$/gm, '');
 	
@@ -1646,7 +2018,42 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	
 	// 리터럴블록 복구
 	for(var item in nwblocks) {
-		data = data.replace(item, nwblocks[item]);
+		var nwdata = nwblocks[item];
+		
+		// #!html 문법
+		if(nwdata.startsWith('<rawhtml>')) {
+			var { document } = (new JSDOM(nwdata)).window;
+			const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
+			const whattr = {
+				'*': ['style'],
+				span: ['class'],
+				a: ['href', 'class'],
+				font: ['color', 'size', 'face'],
+			};
+			var dom = document.querySelector('rawhtml');
+			dom.innerHTML = dom.textContent.replace(/\n/g, '<br>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+			for(var el of dom.getElementsByTagName('*')) {
+				if(whtags.includes(el.tagName.toLowerCase())) {
+					for(var attr of el.attributes) {
+						if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
+							if(attr.name == 'style') {
+								
+							}
+						} else el.removeAttribute(attr.name);
+					}
+					switch(el.tagName.toLowerCase()) {
+						case 'a':
+							el.setAttribute('target', '_blank');
+							if(ver('4.20.0')) {
+								el.className += (el.className ? ' ' : '') + 'wiki-link-external';
+							}
+					}
+				} else el.outerHTML = el.innerHTML;
+			} //dom.outerHTML = dom.innerHTML;
+			nwdata = dom.innerHTML;
+		}
+		
+		data = data.replace(item, nwdata);
 	}
 	
 	return data;
@@ -7691,6 +8098,7 @@ wiki.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) 
 	
 	var content = `
 		${req.method == 'POST' && !error && filteredemail ? (error = err('alert', { msg: '이메일 허용 목록에 있는 이메일이 아닙니다.' })) : ''}
+		${req.method == 'POST' && !error && blockmsg ? (error = err('alert', { msg: blockmsg })) : ''}
 		
 		<form method=post class=signup-form>
 			<div class=form-group>
