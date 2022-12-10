@@ -431,7 +431,8 @@ wiki.use(function(req, res, next) {
 	
 	// 작성이 필요한 문서
 	async function cacheNeededPages() {
-		neededPages = {};
+		for(var prop of Object.getOwnPropertyNames(neededPages))
+			delete neededPages[prop];
 		for(var ns of fetchNamespaces()) {
 			neededPages[ns] = [];
 			var data = await curs.execute("select distinct link from backlink where exist = '0' and linkns = ?", [ns]);
