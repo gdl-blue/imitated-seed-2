@@ -1,21 +1,14 @@
 const sqlite3 = require('sqlite3').verbose();
-const inputReader = require('wait-console-input');
+const express = require('express');
+const server = express();
 const conn = new sqlite3.Database('./wikidata.db', () => 1);
-
 function Split(str, del) { return str.split(del); }; const split = Split;
 function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
 function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
-
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
-function input(prpt) {
-	prt(prpt);
-	return inputReader.readLine('');
-}
-
 conn.commit = function() {};
 conn.sd = [];
-
 const curs = {
 	execute: function executeSQL(sql = '', params = []) {
 		return new Promise((resolve, reject) => {
@@ -37,7 +30,6 @@ const curs = {
 		return conn.sd;
 	},
 };
-
 const html = {
 	escape(content = '') {
 		content = content.replace(/[&]/gi, '&amp;');
@@ -48,7 +40,6 @@ const html = {
 		return content;
 	}
 };
-
 String.prototype.replaceAll = function(tofind, replacewith, matchcase = 1) {
     if(matchcase) {
         var esc = tofind.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -62,9 +53,6 @@ String.prototype.replaceAll = function(tofind, replacewith, matchcase = 1) {
         return ss;
     }
 };
-
-const express = require('express');
-const server = express();
 
 server.get(/^\/search\/(.*)/, async(req, res) => {
 	const query = req.params[0];
