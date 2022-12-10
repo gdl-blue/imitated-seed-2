@@ -176,6 +176,21 @@ function toDate(t) {
     return year + "-" + month + "-" + day + " " + hour + ":" + min + ":" + sec;
 }
 
+function toTime(t) {
+	var cur = getTime();
+	// 초 단위 시간 구분
+	if(Math.abs(cur - Math.floor(Number(t)) * 1000) < Math.abs(cur - Math.floor(Number(t)))) {
+		t = Number(t) * 1000;
+	}
+	var date = new Date(Number(t));
+	
+	var hour = date.getUTCHours(); hour = (hour < 10 ? "0" : "") + hour;
+    var min  = date.getUTCMinutes(); min = (min < 10 ? "0" : "") + min;
+    var sec  = date.getUTCSeconds(); sec = (sec < 10 ? "0" : "") + sec;
+
+    return hour + ":" + min + ":" + sec;
+}
+
 // 시간 <time> 반환
 function generateTime(time, fmt) {
 	const d = time.split(' ')[0];
@@ -444,7 +459,7 @@ function newID() {
         'Downtown',
     ];
 
-    if(minor >= 17 || (minor == 16 && revision >= 1)) {
+    if(ver('4.16.1')) {
         pa = random.choice(b);
         pb = random.choice(b);
         pc = random.choice(b);
@@ -1065,7 +1080,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 							if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
 								ret = 1;
 								if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
-								else msg = 'IP가 차단되었습니다.' + (minor < 6 ? ' <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.' : '') + '<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+								else msg = 'IP가 차단되었습니다.' + (verrev('4.5.9') ? ' <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.' : '') + '<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
 								break;
 							}
 						}
@@ -1211,7 +1226,7 @@ async function getacl(req, title, namespace, type, getmsg) {
 	const r = await f(doc);
 	if(!getmsg) return r.ret;
 	if(!r.ret && !r.msg) {
-		r.msg = `${ver('4.7.0') && !r.m1 && !r.m2 ? 'ACL에 허용 규칙이 없기 때문에 ' : ''}${r.m1 && minor >= 7 ? r.m1 + '이기 때문에 ' : ''}${acltype[type]} 권한이 부족합니다.${r.m2 && minor >= 7 ? ' ' + r.m2.replace(/\sOR\s$/, '') + '(이)여야 합니다. ' : ''}`;
+		r.msg = `${ver('4.7.0') && !r.m1 && !r.m2 ? 'ACL에 허용 규칙이 없기 때문에 ' : ''}${r.m1 && ver('4.7.0') ? r.m1 + '이기 때문에 ' : ''}${acltype[type]} 권한이 부족합니다.${r.m2 && ver('4.7.0') ? ' ' + r.m2.replace(/\sOR\s$/, '') + '(이)여야 합니다. ' : ''}`;
 		if(ver('4.5.9')) r.msg += ` 해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.`;
 		if(type == 'edit' && getmsg != 2)
 			r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
@@ -1466,6 +1481,27 @@ function expireopt(req) {
 	return ret;
 }
 
+function simplifyRequest(req) {
+	return {
+		session: req.session, 
+		cookies: req.cookies, 
+		method: req.method, 
+		path: req.path, 
+		query: req.query, 
+		params: req.params, 
+		body: req.body, 
+		socket: {
+			remoteAddress: req.socket.remoteAddress },
+		headers: req.headers, 
+		connection: {
+			remoteAddress: req.connection.remoteAddress },
+	};
+}
+
+function log(thread, msg) {
+	console.log(`[${toTime(getTime())}] [${thread} 쓰레드]: ${msg}`);
+}
+
 module.exports = {
 	version,
 	ver,
@@ -1501,6 +1537,7 @@ module.exports = {
 	findAll, 
 	getTime, 
 	toDate, 
+	toTime,
 	generateTime, 
 	islogin, 
 	ip_check, 
@@ -1520,4 +1557,7 @@ module.exports = {
 	timeFormat, _, floorof, randint,
 	
 	upload,
+	
+	simplifyRequest,
+	log,
 };
