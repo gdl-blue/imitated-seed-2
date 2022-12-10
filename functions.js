@@ -623,9 +623,13 @@ function verrev(v) {
 const config = {
 	getString(str, def = '') {
 		if(wikiconfig[str] === undefined) {
-			curs.execute("insert into config (key, value) values (?, ?)", [str, def]);
-			wikiconfig[str] = def;
-			return def;
+			if(def != undefined) {
+				curs.execute("insert into config (key, value) values (?, ?)", [str, def]);
+				wikiconfig[str] = def;
+				return def;
+			} else {
+				return null;
+			}
 		}
 		return wikiconfig[str];
 	}

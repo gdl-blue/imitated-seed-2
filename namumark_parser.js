@@ -14,13 +14,12 @@ const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
 const captchapng = require('captchapng');
-const { parentPort, workerData } = require('worker_threads');
 
 const hostconfig = require('./hostconfig');
 const functions = require('./functions');
 for(var item in functions) global[item] = functions[item];
 
-async function markdown(req, content, discussion = 0, title = '', flags = '', root = '') {
+module.exports = async function markdown(req, content, discussion = 0, title = '', flags = '', root = '') {
 	// markdown 아니고 namumark
 	flags = flags.split(' ');
 	
@@ -1082,10 +1081,3 @@ async function markdown(req, content, discussion = 0, title = '', flags = '', ro
 	
 	return data;
 }
-
-markdown(workerData.req, workerData.content, workerData.discussion, workerData.title, workerData.flags, workerData.root)
-	.then(data => parentPort.postMessage(data))
-	.catch(e => {
-		log('렌더러', '오류! ' + e.stack);
-		parentPort.postMessage('');
-	});
