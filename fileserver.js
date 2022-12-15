@@ -24,3 +24,19 @@ const sha224 = require('sha224');
 
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
+
+const hostconfig = require('./hostconfig');
+const app = express();  // file server
+
+app.all('/', (req, res) => {
+  res.sendStatus(403);//Imitate file.alphawiki.org
+});
+app.get('/upload', (req, res) => {
+  res.status(405).send('GET method is not allowed.');
+});
+app.post('/upload', (req, res) => {
+  
+});
+app.all('/images/:filename', (req, res) => {
+  res.sendFile('uploads/'+req.params.filename);
+});
