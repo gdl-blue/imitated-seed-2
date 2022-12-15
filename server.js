@@ -31,6 +31,8 @@ async function init() {
 	var hostconfig = {
 		host: input('호스트 주소: '),
 		port: input('포트 번호: '),
+		image_host: input('이미지 서버 호스트 주소: '),
+		image_port: input('이미지 서버 포트 번호: '),
 		skin: input('기본 스킨 이름: '),
 		search_host: '127.5.5.5',
 		search_port: '25005',
