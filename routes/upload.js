@@ -86,7 +86,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 		var title = req.body['document'];
 		if(!title) { content = (error = err('alert', { code: 'validator_required', tag: 'document' })) + content; break; }
 		var doc = processTitle(title);
-		if(doc.namespace != '파일') { content = (error = err('alert', { msg: '업로드는 파일 네임스페이스(파일:)  가능합니다.' })) + content; break; }
+		if(doc.namespace != '파일') { content = (error = err('alert', { msg: '업로드는 파일 네임스페이스(파일:) 에서만 가능합니다.' })) + content; break; }
 		if(path.extname(doc.title).toLowerCase() != path.extname(file.originalname).toLowerCase()) {
 			content = (error = err('alert', { msg: '문서 이름과 확장자가 일치하지 않습니다.' })) + content;
 			break;
@@ -115,7 +115,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 					error = err('alert', { code: 'file_not_uploaded' });
 					return response.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 				}
-				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, '']);  // sha224 해시화 필요
+				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, sha224(file.originalname)]);  // sha224 해시화 필요
 				return response.redirect('/w/' + totitle(doc.title, doc.namespace));
 			});
 		}).on('error', async e => {
@@ -126,7 +126,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 			filename: file.originalname,
 			document: title,
 			mimetype: file.mimetype,
-			file: file.buffer.toString('base64'),
+			file: file.buffer.from(file.originalname, 'utf-8').toString('base64'),
 		}));
 		request.end();
 		
