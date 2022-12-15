@@ -45,3 +45,7 @@ app.post('/upload', upload.single('file'), (req, res, next) => {
 app.all('/images/:filename', (req, res) => {
   res.sendFile(__dirname+'uploads/'+req.params.filename);
 });
+const { image_host, image_port } = hostconfig;
+app.listen( image_host, image_port );
+
+print(host + (port == 3000 ? '' : (':' + port)) + '에서 파일서버 실행 중. . .');
