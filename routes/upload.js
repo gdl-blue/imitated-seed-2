@@ -126,7 +126,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 			filename: file.originalname,
 			document: title,
 			mimetype: file.mimetype,
-			file: file.buffer.from(file.originalname, 'utf-8').toString('base64'),
+			file: file.buffer.toString('base64'),
 		}));
 		request.end();
 		
