@@ -86,9 +86,9 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 		var title = req.body['document'];
 		if(!title) { content = (error = err('alert', { code: 'validator_required', tag: 'document' })) + content; break; }
 		var doc = processTitle(title);
-		if(doc.namespace != '파일') { content = (error = err('alert', { msg: '업로드는 파일 이름 공간에서만 가능합니다.' })) + content; break; }
+		if(doc.namespace != '파일') { content = (error = err('alert', { msg: '업로드는 파일 네임스페이스(파일:)  가능합니다.' })) + content; break; }
 		if(path.extname(doc.title).toLowerCase() != path.extname(file.originalname).toLowerCase()) {
-			content = (error = err('alert', { msg: '문서 이름과 확장자가 맞지 않습니다.' })) + content;
+			content = (error = err('alert', { msg: '문서 이름과 확장자가 일치하지 않습니다.' })) + content;
 			break;
 		}
 		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
