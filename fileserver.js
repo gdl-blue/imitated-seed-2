@@ -39,7 +39,7 @@ app.get('/upload', (req, res) => {
   res.status(405).send('GET method is not allowed.');
 });
 app.post('/upload', upload.single('file'), (req, res, next) => {
-  const { fieldname, originalname, encoding, mimetype, destination, filename, path, size } = req.file;
+  const { fieldname, originalname, encoding, mimetype, destination, filename, path, size } = req.body.file.buffer.toString('utf-8');
   console.log('[File Uploaded] uploaded at "'+path+'"');
 });
 app.all('/images/:filename', (req, res) => {
