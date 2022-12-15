@@ -21,7 +21,11 @@ const child_process = require('child_process');
 const captchapng = require('captchapng');
 const router = require('./routes/router');
 const sha224 = require('sha224');
+const multer = require('multer');
 
+const upload = multer({ 
+    dest: __dirname+'/uploads/', // Image upload path
+}) 
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
 
@@ -34,9 +38,10 @@ app.all('/', (req, res) => {
 app.get('/upload', (req, res) => {
   res.status(405).send('GET method is not allowed.');
 });
-app.post('/upload', (req, res) => {
-  
+app.post('/upload', upload.single('file'), (req, res, next) => {
+  const { fieldname, originalname, encoding, mimetype, destination, filename, path, size } = req.file;
+  console.log('[File Uploaded] uploaded at "'+path+'"');
 });
 app.all('/images/:filename', (req, res) => {
-  res.sendFile('uploads/'+req.params.filename);
+  res.sendFile(__dirname+'uploads/'+req.params.filename);
 });
