@@ -12,6 +12,7 @@ const { JSDOM } = require('jsdom');
 const jquery = require('jquery');
 const diff = require('../cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
+const http = require('http');
 const child_process = require('child_process');
 const captchapng = require('captchapng');
 const sha224 = require('sha224');
