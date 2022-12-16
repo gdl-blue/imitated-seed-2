@@ -18,12 +18,12 @@
     "jsdom": "^19.0.0",
     "md5": "^2.3.0",
     "multer": "^1.4.3",
+    "sha224": "^1.0.0",
     "sha3": "^2.1.4",
     "sqlite3": "^5.0.2",
     "stream-json": "^1.7.4",
     "swig": "^1.4.2",
-    "wait-console-input": "^0.1.7",
-    "sha224": "^1.0.2"
+    "wait-console-input": "^0.1.7"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

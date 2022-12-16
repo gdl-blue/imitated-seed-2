@@ -1,5 +1,5 @@
 /* 병아리 엔진 - the seed 모방 프로젝트 */
-
+const sqlite3 = require('sqlite3').verbose();
 const http = require('http');
 const https = require('https');
 const path = require('path');
@@ -19,11 +19,34 @@ const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
 const captchapng = require('captchapng');
-const router = require('./routes/router');
 
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
+function input(prpt) {
+	prt(prpt);
+	return inputReader.readLine('');
+}
 
+
+const curs = {
+	execute(sql, params = []) {
+		return new Promise((resolve, reject) => {
+			if(sql.toUpperCase().startsWith("SELECT")) {
+				conn.all(sql, params, (err, retval) => {
+					if(err) return reject(err);
+					conn.sd = retval;
+					resolve(retval);
+				});
+			} else {
+				conn.run(sql, params, err => {
+					if(err) return reject(err);
+					resolve(0);
+				});
+			}
+		});
+	}
+};
+const conn = new sqlite3.Database('./wikidata.db', () => 0);  // 데이타베이스
 async function init() {
 	print('병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n');
 	
@@ -91,6 +114,7 @@ async function init() {
 if(!fs.existsSync('./config.json')) {
 	init();
 } else {
+const router = require('./routes/router');
 const hostconfig = require('./hostconfig');
 const wiki = express();  // 서버
 
