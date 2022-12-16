@@ -1,0 +1,8 @@
+node_modules/
+skins/
+wikidata.db
+config.json
+node.exe
+js/
+!js/banana.js
+css/

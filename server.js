@@ -19,12 +19,26 @@ const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
 const captchapng = require('captchapng');
-const router = require('./routes/router');
 
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
 
+// 삐
+function beep(cnt = 1) { // 경고음 재생
+	for(var i=1; i<=cnt; i++)
+		prt('');
+}
+
+// 입력받기
+function input(prpt) {
+	prt(prpt); // 일부러 이렇게. 바로하면 한글 깨짐.
+	return inputReader.readLine('');
+}
+
 async function init() {
+	const database = require('./database');
+	for(var item in database) global[item] = database[item];
+	
 	print('병아리 - the seed 모방 엔진에 오신것을 환영합니다.\n');
 	
 	// 호스팅 설정
@@ -89,6 +103,7 @@ async function init() {
 if(!fs.existsSync('./config.json')) {
 	init();
 } else {
+const router = require('./routes/router');
 const hostconfig = require('./hostconfig');
 const wiki = express();  // 서버
 
@@ -209,6 +224,7 @@ wiki.get(/^\/w$/, redirectToFrontPage);
 wiki.get(/^\/w\/$/, redirectToFrontPage);
 wiki.get('/', redirectToFrontPage);
 
+//if(1) wiki.use('/', require('./frontends/nuxt/frontend')); else
 wiki.use('/', router);
 
 // 404 페이지

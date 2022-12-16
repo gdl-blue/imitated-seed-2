@@ -621,7 +621,7 @@ function verrev(v) {
 
 // 위키 설정
 const config = {
-	getString(str, def = '') {
+	getString(str, def) {
 		if(wikiconfig[str] === undefined) {
 			if(def != undefined) {
 				curs.execute("insert into config (key, value) values (?, ?)", [str, def]);
