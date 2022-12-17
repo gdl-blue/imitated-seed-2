@@ -41,6 +41,10 @@ app.get('/upload', (req, res) => {
 app.post('/upload', upload.single('file'), (req, res, next) => {
   const { fieldname, originalname, encoding, mimetype, destination, filename, path, size } = req.body.file.buffer.toString('utf-8');
   console.log('[File Uploaded] uploaded at "'+path+'"');
+  res.send(JSON.stringify({
+      status: 'success',
+      uploaded: path
+  });
 });
 app.all('/images/:filename', (req, res) => {
   res.sendFile(__dirname+'uploads/'+req.params.filename);
