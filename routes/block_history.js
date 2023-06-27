@@ -96,7 +96,7 @@ router.get(/^\/BlockHistory$/, async(req, res) => {
 				)))))))
 			})</i> ${item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' ? `#${item.id}` : ''} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || (item.type == 'suspend_account' && item.duration != '-1')
-				? (major == 4 && ver('4.0.20') ? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})` : `${item.duration} 동안`)
+				? (ver('4.0.20') ? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})` : `${item.duration} 동안`)
 				: ''
 			} ${
 				item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' || item.type == 'ipacl_add' || item.type == 'suspend_account' || item.type == 'grant'
