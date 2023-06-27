@@ -1,15 +1,15 @@
 router.get(/^\/License$/, async(req, res) => {
 	var licepage = `
 		<p>imitated-seed</p>
-		<p>(the seed v${major}.${minor}.${revision})</p>
+		<p>(the seed v${version.major}.${version.minor}.${version.revision})</p>
 	`;
 	
 	if(hostconfig.replicate_theseed_license) {
 		licepage = '';
 		if(ver('4.11.1')) {
-			licepage += `<h2>the seed</h2><p>v${major}.${minor}.${revision}</p>`;
+			licepage += `<h2>the seed</h2><p>v${version.major}.${version.minor}.${version.revision}</p>`;
 		} else {
-			licepage += `<h2>the seed (v${major}.${minor}.${revision})</h2>`;
+			licepage += `<h2>the seed (v${version.major}.${version.minor}.${version.revision})</h2>`;
 		}
 		licepage += `
 			<p>Copyright <a href="https://theseed.io/">theseed.io</a> all rights reserved.</p>
