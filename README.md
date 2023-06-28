@@ -1,6 +1,6 @@
 더시드 엔진 (구 프론트엔드 기준) 모방 프로젝트.  
 < "엔진 내부 UI는 상관없음." ( https://feedback.theseed.io/posts/280 ) >  
-테스트 서버 - ~~[바로가기](https://yurawiki.ga/)~~ theseeduser님의 서버: https://mire-satin-bass.glitch.me
+테스트 서버 - ~~[바로가기](https://yurawiki.ga/)~~ theseeduser님의 서버: https://quill-brawny-belt.glitch.me
 
 나무픽스와 거의 호환된다.
 
