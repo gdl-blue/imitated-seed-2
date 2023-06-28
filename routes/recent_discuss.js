@@ -56,7 +56,7 @@ router.get(/^\/RecentDiscuss$/, async function recentDicsuss(req, res) {
 			<tr>
 				<td>
 					${trd.state
-						? `<a href="/edit_request/${ver('4.16.0') ? trd.slug : trd.id}">편집 요청 ${html.escape(minor >= 16 ? trd.slug : trd.id)}</a> (<a href="/discuss/${encodeURIComponent(title)}">${html.escape(title)}</a>)`
+						? `<a href="/edit_request/${ver('4.16.0') ? trd.slug : trd.id}">편집 요청 ${html.escape(ver('4.16.0') ? trd.slug : trd.id)}</a> (<a href="/discuss/${encodeURIComponent(title)}">${html.escape(title)}</a>)`
 						: `<a href="/thread/${ver('4.16.0') ? trd.slug : trd.tnum}">${html.escape(trd.topic)}</a> (<a href="/discuss/${encodeURIComponent(title)}">${html.escape(title)}</a>)`
 					}
 				</td>
