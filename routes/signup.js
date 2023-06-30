@@ -135,7 +135,7 @@ router.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, nex
 			break;
 		}
 		
-		if((hostconfig.reserved_usernames || []).concat(['namubot']).includes(id)) {
+		if((hostconfig.reserved_usernames || []).map(item => item.toLowerCase()).concat(['namubot']).includes(id.toLowerCase())) {
 			var invalidusername = 1;
 			break;
 		}
