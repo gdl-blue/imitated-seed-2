@@ -20,6 +20,8 @@ router.all(/^\/admin\/grant$/, async(req, res, next) => {
 	if(!data.length) 
 		return res.send(await render(req, '권한 부여', (error = err('alert', { code: 'invalid_username' })) + content, {}, _, error, 'grant'));
 	username = data[0].username;
+	if((hostconfig.owners || []).includes(username) && hostconfig.protect_owners)
+		return res.send(await showError(req, 'permission'));
 	
 	var chkbxs = '';
 	for(var prm of perms) {
@@ -45,6 +47,8 @@ router.all(/^\/admin\/grant$/, async(req, res, next) => {
 		if(!username) return res.send(await showError(req, 'invalid_username'));
 		var data = await curs.execute("select username from users where username = ?", [username]);
 		if(!data.length) return res.send(await showError(req, 'invalid_username'));
+		if((hostconfig.owners || []).includes(username) && hostconfig.protect_owners)
+			return res.send(await showError(req, 'permission'));
 		
 		var prmval = req.body['permissions'];
 		if(!prmval || !prmval.find) prmval = [prmval];
