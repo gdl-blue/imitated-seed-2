@@ -1024,8 +1024,68 @@ async function userblocked(username) {
 	}
 }
 
+// 구 ACL 검사
+async function getacl2(req, title, namespace, type, getmsg) {
+	if(type == 'create_thread' || type == 'write_thread_comment')
+		type = 'discuss';
+	var acl = (await curs.execute("select read, edit, del, discuss, move from classic_acl where title = ? and namespace = ?", [title, namespace]))[0];
+	if(!acl) acl = {
+		read: 'everyone', 
+		edit: 'everyone', 
+		del: 'everyone', 
+		discuss: 'everyone', 
+		move: 'everyone' };
+	acl.delete = acl.del;
+	var ret = 1, msg = '';
+	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+	await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
+	var blocked = 0;
+	if(type != 'read') {
+		for(let row of ipacl) {
+			if(ipRangeCheck(ip_check(req, 1), row.cidr) && !(islogin(req) && row.al == '1')) {
+				ret = 0;
+				if(row.al == '1') msg = '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+				else msg = 'IP가 차단되었습니다.' + (verrev('4.5.9') ? ' <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.' : '') + '<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
+				blocked = 1;
+				break;
+			}
+		}
+		if(islogin(req)) {
+			const bd = await userblocked(ip_check(req));
+			if(bd) {
+				ret = 0;
+				msg = '차단된 계정입니다.<br />차단 만료일 : ' + (bd.expiration == '0' ? '무기한' : new Date(Number(bd.expiration))) + '<br />차단 사유 : ' + bd.note;
+				blocked = 1;
+			}
+		}
+	}
+	if(ret) switch(acl[type]) {
+		case 'everyone':
+			ret = 1;
+		break; case 'member':
+			ret = islogin(req);
+			if(!ret) msg = '로그인된 사용자만 가능합니다.';
+		break; case 'admin':
+			ret = hasperm(req, 'developer') || hasperm(req, 'admin') || hasperm(req, 'arbiter') || hasperm(req, 'tribune');
+			if(!ret) msg = '관리자만 가능합니다.';
+	}
+	if(type == 'edit' && namespace == '사용자' && (!islogin(req) || (islogin(req) && ip_check(req) != title)))
+		// 문구 까먹음. 대충 생각나는 대로...
+		msg = '자신의 사용자 문서만 편집할 수 있습니다.';
+	if(!blocked && type == 'edit' && getmsg != 2 && msg)
+		msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
+	if(!getmsg)
+		return ret;
+	else
+		return msg;
+}
+
 // ACL 검사
 async function getacl(req, title, namespace, type, getmsg) {
+	if(!ver('4.2.0'))
+		return await getacl2(req, title, namespace, type, getmsg);
+	
 	var ns  = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [namespace, type]);
 	var doc = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [title, namespace, type]);
 	var flag = 0;
