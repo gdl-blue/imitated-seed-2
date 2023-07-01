@@ -63,5 +63,5 @@ router.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	
 	res.send(await render(req, doc + ' (삭제)', content, {
 		document: doc,
-	}, '', null, 'delete'));
+	}, '', error, 'delete'));
 });
