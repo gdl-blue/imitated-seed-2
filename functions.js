@@ -864,7 +864,7 @@ const exaclperms = [
 // 오류메시지
 function fetchErrorString(code, ...params) {
 	const codes = {
-		permission: '권한이 부족합니다.',
+		permission: ver('4.0.18') ? '권한이 부족합니다.' : '관리자 권한입니다.',
 		permission_read: '읽기 권한이 부족합니다.',
 		permission_edit: '편집 권한이 부족합니다.',
 		permission_move: '이동 권한이 부족합니다.',
