@@ -6,7 +6,7 @@
 < "엔진 내부 UI는 상관없음." ( https://feedback.theseed.io/posts/280 ) >  
 
 테스트 서버:
-- [내 서버](https://go2021.run-us-west2.goorm.io/w/FrontPage) - the seed 4.5.7
+- [내 서버](https://go2021.run-us-west2.goorm.io/w/FrontPage) - the seed 4.7.2
 - [theseeduser님의 서버](https://quill-brawny-belt.glitch.me) - the seed 4.20.0
 
 나무픽스와 거의 호환된다.
