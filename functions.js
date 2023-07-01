@@ -1070,9 +1070,11 @@ async function getacl2(req, title, namespace, type, getmsg) {
 			ret = hasperm(req, 'developer') || hasperm(req, 'admin') || hasperm(req, 'arbiter') || hasperm(req, 'tribune');
 			if(!ret) msg = '관리자만 가능합니다.';
 	}
-	if(type == 'edit' && namespace == '사용자' && (!islogin(req) || (islogin(req) && ip_check(req) != title)))
+	if(type == 'edit' && namespace == '사용자' && (!islogin(req) || (islogin(req) && ip_check(req) != title)) && !hasperm(req, 'editable_other_user_document')) {
+		ret = 0;
 		// 문구 까먹음. 대충 생각나는 대로...
 		msg = '자신의 사용자 문서만 편집할 수 있습니다.';
+	}
 	if(!blocked && type == 'edit' && getmsg != 2 && msg)
 		msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
 	if(!getmsg)
