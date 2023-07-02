@@ -1036,6 +1036,7 @@ async function getacl2(req, title, namespace, type, getmsg) {
 		discuss: 'everyone', 
 		move: 'everyone' };
 	acl.delete = acl.del;
+	acl.edit_request = 'everyone';
 	var ret = 1, msg = '';
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
