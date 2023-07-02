@@ -849,9 +849,9 @@ const aclperms = {
 	admin: '관리자',
 	member_signup_15days_ago: '가입한지 15일 지난 사용자',
 	suspend_account: (ver('4.18.0') ? undefined : '차단된 사용자'),
-	blocked_ipacl: (ver('4.18.0') >= 18 ? undefined : '차단된 아이피'),
+	blocked_ipacl: (ver('4.18.0') ? undefined : '차단된 아이피'),
 	document_contributor: '해당 문서 기여자',
-	contributor: (ver('4.7.0') >= 7 ? '위키 기여자' : undefined),
+	contributor: (ver('4.7.0') ? '위키 기여자' : undefined),
 	match_username_and_document_title: (ver('4.5.9') ? '문서 제목과 사용자 이름이 일치' : undefined),
 	ip: (ver('4.20.0') ? '아이피' : undefined),
 };
