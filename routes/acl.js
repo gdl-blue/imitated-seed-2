@@ -274,7 +274,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					<select name=read class=form-control>
 						<option value=everyone${dbdata.read == 'everyone' ? ' selected' : ''}>모두</option>
 						<option value=member${dbdata.read == 'member' ? ' selected' : ''}>로그인한 사용자</option>
-						<option value=admin${dbdata.read == 'admin' ? ' selected' : ''}>괸리자</option>
+						<option value=admin${dbdata.read == 'admin' ? ' selected' : ''}>관리자</option>
 					</select>
 				</div>
 				
@@ -283,7 +283,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					<select name=edit class=form-control>
 						<option value=everyone${dbdata.edit == 'everyone' ? ' selected' : ''}>모두</option>
 						<option value=member${dbdata.edit == 'member' ? ' selected' : ''}>로그인한 사용자</option>
-						<option value=admin${dbdata.edit == 'admin' ? ' selected' : ''}>괸리자</option>
+						<option value=admin${dbdata.edit == 'admin' ? ' selected' : ''}>관리자</option>
 					</select>
 				</div>
 				
@@ -292,7 +292,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					<select name=delete class=form-control>
 						<option value=everyone${dbdata.del == 'everyone' ? ' selected' : ''}>모두</option>
 						<option value=member${dbdata.del == 'member' ? ' selected' : ''}>로그인한 사용자</option>
-						<option value=admin${dbdata.del == 'admin' ? ' selected' : ''}>괸리자</option>
+						<option value=admin${dbdata.del == 'admin' ? ' selected' : ''}>관리자</option>
 					</select>
 				</div>
 				
@@ -301,7 +301,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					<select name=discuss class=form-control>
 						<option value=everyone${dbdata.discuss == 'everyone' ? ' selected' : ''}>모두</option>
 						<option value=member${dbdata.discuss == 'member' ? ' selected' : ''}>로그인한 사용자</option>
-						<option value=admin${dbdata.discuss == 'admin' ? ' selected' : ''}>괸리자</option>
+						<option value=admin${dbdata.discuss == 'admin' ? ' selected' : ''}>관리자</option>
 					</select>
 				</div>
 				
@@ -310,7 +310,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					<select name=move class=form-control>
 						<option value=everyone${dbdata.move == 'everyone' ? ' selected' : ''}>모두</option>
 						<option value=member${dbdata.move == 'member' ? ' selected' : ''}>로그인한 사용자</option>
-						<option value=admin${dbdata.move == 'admin' ? ' selected' : ''}>괸리자</option>
+						<option value=admin${dbdata.move == 'admin' ? ' selected' : ''}>관리자</option>
 					</select>
 				</div>
 				
