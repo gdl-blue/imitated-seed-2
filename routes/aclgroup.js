@@ -335,7 +335,7 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 		
 		if(mode == 'ip' && !username.includes('/')) username += '/32';
 		
-		if(mode == 'ip' && !username.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/))
+		if(mode == 'ip' && !username.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([0-9]|[12][0-9]|3[0-2])$/))
 			{ content = (error = err('alert', { code: 'invalid_cidr' })) + content; break; }
 		
 		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
