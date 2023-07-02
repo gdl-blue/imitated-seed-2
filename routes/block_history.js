@@ -1,3 +1,15 @@
+function parses(s) {
+	s = Number(s);
+	var ret = '';
+	if(s && s / 604800 >= 1) (ret += parseInt(s / 604800) + '주 '), s = s % 604800;
+	if(s && s / 86400 >= 1) (ret += parseInt(s / 86400) + '일 '), s = s % 86400;
+	if(s && s / 3600 >= 1) (ret += parseInt(s / 3600) + '시간 '), s = s % 3600;
+	if(s && s / 60 >= 1) (ret += parseInt(s / 60) + '분 '), s = s % 60;
+	if(s && s / 1 >= 1) (ret += parseInt(s / 1) + '초 '), s = s % 1;
+	
+	return ret.replace(/\s$/, '');
+}
+
 router.get(/^\/BlockHistory$/, async(req, res) => {
 	var pa = [];
 	var qq = " where '1' = '1' ";
@@ -52,18 +64,6 @@ router.get(/^\/BlockHistory$/, async(req, res) => {
 		<ul class=wiki-list>
 	`;
 	
-	function parses(s) {
-		s = Number(s);
-		var ret = '';
-		if(s && s / 604800 >= 1) (ret += parseInt(s / 604800) + '주 '), s = s % 604800;
-		if(s && s / 86400 >= 1) (ret += parseInt(s / 86400) + '일 '), s = s % 86400;
-		if(s && s / 3600 >= 1) (ret += parseInt(s / 3600) + '시간 '), s = s % 3600;
-		if(s && s / 60 >= 1) (ret += parseInt(s / 60) + '분 '), s = s % 60;
-		if(s && s / 1 >= 1) (ret += parseInt(s / 1) + '초 '), s = s % 1;
-		
-		return ret.replace(/\s$/, '');
-	}
-	
 	for(var item of data) {
 		if(['aclgroup_add', 'aclgroup_remove'].includes(item.type) && !ver('4.18.0')) continue;
 		
@@ -96,7 +96,7 @@ router.get(/^\/BlockHistory$/, async(req, res) => {
 				)))))))
 			})</i> ${item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' ? `#${item.id}` : ''} ${
 				item.type == 'aclgroup_add' || item.type == 'ipacl_add' || (item.type == 'suspend_account' && item.duration != '-1')
-				? (ver('4.0.20') ? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})` : `${item.duration} 동안`)
+				? (ver('4.0.20') ? `(${item.duration == '0' ? '영구적으로' : `${parses(item.duration)} 동안`})` : `(${item.duration} 동안)`)
 				: ''
 			} ${
 				item.type == 'aclgroup_add' || item.type == 'aclgroup_remove' || item.type == 'ipacl_add' || item.type == 'suspend_account' || item.type == 'grant'
