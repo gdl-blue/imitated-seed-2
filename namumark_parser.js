@@ -843,7 +843,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		break; case 'vimeo': {
 			d = `<iframe allowfullscreen src="//player.vimeo.com/video/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
 		}
-		break; case 'vimeo': {
+		break; case 'navertv': {
 			d = `<iframe allowfullscreen src="//tv.naver.com/embed/${encodeURIComponent(id)}" loading=lazy width="${params.width || 640}" height="${params.height || 360}" frameborder=0></iframe>`;
 		}
 		}
