@@ -746,7 +746,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 			
 			if(islogin(req)) {
 				var user_document_discuss = null;
-				const udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal'", [req.session.username]);
+				const udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
 				if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
 				
 				varlist['member'] = {
