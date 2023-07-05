@@ -86,10 +86,14 @@ if(ver('4.18.0')) router.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
 });
 
 if(ver('4.18.0')) router.post(/^\/aclgroup\/remove$/, async(req, res) => {
-	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'permission'));
+	if(!hasperm(req, 'aclgroup') && !hasperm(req, 'admin')) return res.send(await showError(req, 'permission'));
 	if(!req.body['id']) return res.status(400).send(await showError(req, { code: 'validator_required', tag: 'id' }));
 	var dbdata = await curs.execute("select username, aclgroup from aclgroup where id = ?", [req.body['id']]);
 	if(!dbdata.length) return res.status(400).send(await showError(req, 'invalid_value'));
+	if(dbdata.aclgroup == '차단된 사용자' && !hasperm(req, 'admin'))
+		return res.send(await showError(req, 'permission'));
+	if(dbdata.aclgroup != '차단된 사용자' && !hasperm(req, 'aclgroup'))
+		return res.send(await showError(req, 'permission'));
 	await curs.execute("delete from aclgroup where id = ?", [req.body['id']]);
 	var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');
 	if(data.length) logid = Number(data[0].logid) + 1;
@@ -113,7 +117,9 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 	var data = await curs.execute("select name from aclgroup_groups");
 	var data2 = await curs.execute("select name from aclgroup_groups where not name = '차단된 사용자'");
 	const groups = data.map(item => item.name);
-	const editable = hasperm(req, 'aclgroup');
+	var editable = hasperm(req, 'aclgroup');
+	if(req.query['group'] == '차단된 사용자')
+		editable = hasperm(req, 'admin');
 	
 	var tabs = ``;
 	var group = null;
@@ -327,7 +333,10 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 	var error = null;
 	
 	if(req.method == 'POST') do {
-		if(!hasperm(req, 'aclgroup')) return res.status(403).send(await showError(req, 'permission'));
+		if(group != '차단된 사용자' && !hasperm(req, 'aclgroup'))
+			return res.status(403).send(await showError(req, 'permission'));
+		if(group == '차단된 사용자' && !hasperm(req, 'admin'))
+			return res.status(403).send(await showError(req, 'permission'));
 
 		var { mode, username, expire, note } = req.body;
 		if(!['ip', 'username'].includes(mode) || !username || !expire || note == undefined) 
