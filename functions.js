@@ -106,6 +106,7 @@ if(version.minor >= 18) perms.remove('ipacl'), perms.remove('suspend_account');
 else perms.remove('aclgroup');
 if(version.minor >= 2) perms.remove('acl');
 if(version.minor < 20) perms.remove('api_access');
+if(!(version.minor > 4 || (version.minor == 4 && version.revision >= 3))) { perms.remove('update_thread_document'); perms.remove('update_thread_topic'); }
 if(!(version.minor > 0 || (version.minor == 0 && version.revision >= 20))) perms.push('developer', 'tribune', 'arbiter');
 if(hostconfig.debug) perms.push('debug');
 
