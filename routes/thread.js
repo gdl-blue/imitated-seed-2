@@ -337,7 +337,7 @@ router.get(ver('4.16.0') ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-
 		
 		content += `
 		    <form method=post id=thread-status-form>
-        		[ADMIN] 쓰레드 상태 변경
+        		[ADMIN] ${ver('4.13.0') ? '스레드' : '쓰레드'} 상태 변경
         		<select name=status>${sts}</select>
         		<button id=changeBtn class="d_btn type_blue">변경</button>
         	</form>
@@ -347,7 +347,7 @@ router.get(ver('4.16.0') ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-
 	if(getperm('update_thread_document', ip_check(req)) && ver('4.4.3')) {
 		content += `
         	<form method=post id=thread-document-form>
-        		[ADMIN] 쓰레드 이동
+        		[ADMIN] ${ver('4.13.0') ? '스레드' : '쓰레드'} 이동
         		<input type=text name=document value="${doc}">
         		<button id=changeBtn class="d_btn type_blue">변경</button>
         	</form>
@@ -357,7 +357,7 @@ router.get(ver('4.16.0') ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-
 	if(getperm('update_thread_topic', ip_check(req)) && ver('4.4.3')) {
 		content += `
         	<form method=post id=thread-topic-form>
-        		[ADMIN] 쓰레드 주제 변경
+        		[ADMIN] ${ver('4.13.0') ? '스레드' : '쓰레드'} 주제 변경
         		<input type=text name=topic value="${topic}">
         		<button id=changeBtn class="d_btn type_blue">변경</button>
         	</form>
