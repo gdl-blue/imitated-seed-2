@@ -118,6 +118,7 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 	var data2 = await curs.execute("select name from aclgroup_groups where not name = '차단된 사용자'");
 	const groups = data.map(item => item.name);
 	var editable = hasperm(req, 'aclgroup');
+	var editabled = editable;
 	if(req.query['group'] == '차단된 사용자')
 		editable = hasperm(req, 'admin');
 	
@@ -140,7 +141,7 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 		const delbtn = `<form method=post onsubmit="return confirm('삭제하시겠습니까?');" action="/aclgroup/delete?group=${encodeURIComponent(g.name)}" style="display: inline-block; margin: 0; padding: 0;"><input type=hidden name=group value="${html.escape(g.name)}" /><button type=submit style="background: none; border: none; padding: 0; margin: 0;">×</button></form>`;
 		tabs += `
 			<li class="nav-item" style="display: inline-block;">
-				<a class="nav-link${g.name == group ? ' active' : ''}" href="?group=${encodeURIComponent(g.name)}">${html.escape(g.name)} ${editable ? delbtn : ''}</a>
+				<a class="nav-link${g.name == group ? ' active' : ''}" href="?group=${encodeURIComponent(g.name)}">${html.escape(g.name)} ${editabled ? delbtn : ''}</a>
 			</li>
 		`;
 	}
@@ -175,7 +176,7 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 	
 		<ul class="nav nav-tabs" style="height: 38px; display: initial;">
 			${tabs}
-			${editable ? `
+			${editabled ? `
 				<span data-toggle="modal" data-target="#aclgroup-create-modal">
 					<li class="nav-item" style="display: inline-block;">
 						<a class="nav-link" onclick="return false;" href="/aclgroup/create">+</a>
