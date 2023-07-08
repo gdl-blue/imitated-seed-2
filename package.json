@@ -22,7 +22,8 @@
     "sqlite3": "^5.0.2",
     "stream-json": "^1.7.4",
     "swig": "^1.4.2",
-    "wait-console-input": "^0.1.7"
+    "wait-console-input": "^0.1.7",
+    "nodemailer": "6.9.1"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
