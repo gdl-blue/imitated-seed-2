@@ -56,7 +56,7 @@ async function init() {
 		'documents': ['title', 'content', 'namespace', 'time'],
 		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags', 'isapi'],
 		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
-		'users': ['username', 'password'],
+		'users': ['username', 'password', 'email'],
 		'user_settings': ['username', 'key', 'value'],
 		'nsacl': ['namespace', 'no', 'type', 'content', 'action', 'expire'],
 		'config': ['key', 'value'],
@@ -505,4 +505,3 @@ if(hostconfig.self_request) {
 }
  
 }
-

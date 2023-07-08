@@ -1,3 +1,17 @@
+//위키 이름설정
+const wikiname = config.getString('wiki.site_name', '더 시드');  //위키이름
+const domain = hostconfig.domain;  //도메인
+
+//메일 설정
+const transporter = nodemailer.createTransport({
+  service: 'gmail',  // Gmail
+  auth: {
+    user: hostconfig.email ,  // 발송자 이메일
+    pass: hostconfig.passwd,  // 발송자 이메일 비밀번호
+  },
+});
+
+//라우터 설정
 router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) {
 	if(!['GET', 'POST'].includes(req.method)) return next();
 	
@@ -6,6 +20,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 	
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
+	//이메일 필터
 	var emailfilter = '';
 	if(config.getString('wiki.email_filter_enabled', 'false') == 'true') {
 		emailfilter = `
@@ -55,7 +70,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		
 		<form method=post class=signup-form>
 			<div class=form-group>
-				<label>전자우편 주소</label>
+			<label>${ver('4.13.0') ? '이메일' : '전자우편 주소'}</label>
 				${hostconfig.disable_email ? `
 					<input type=hidden name=email value="" />
 					<div>비활성화됨</div>
@@ -77,13 +92,36 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		</form>
 	`;
 	
+
+
+
+
 	if(req.method == 'POST' && !error) {
 		await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
 		const key = rndval('abcdef1234567890', 64);
 		curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
-		
+
+		//메일 발송
+		const { email } = req.body;
+		const mailOptions = {
+			from: '[' + [wikiname]+']'  + '<' + [email] + '>',
+			to: [email] ,
+			subject: '[' + [wikiname] + ']' + '계정 생성 이메일 주소 인증.',
+			html: `
+			<p>안녕하세요. ${wikiname} 입니다.</p>
+			<p>${wikiname} 계정 생성 이메일 인증 메일입니다.</p>
+			<p>직접 계정 생성을 진행하신 것이 맞다면 아래 링크를 클릭해서 계정 생성을 계속 진행해주세요.</p>
+			<a href="http://${domain}/member/signup/${key}">[인증]</a>
+			<p>이 메일은 24시간동안 유효합니다.</p>
+			<p>요청 아이피: ${ip_check(req)}</p>
+			`,
+  		};
+		transporter.sendMail(mailOptions);
+		console.log(email+'으로 가입인증메일 발송됨.');
+
+		//이메일 사용 안하면
 		if(hostconfig.disable_email) return res.redirect('/member/signup/' + key);
-		
+
 		return res.send(await render(req, '계정 만들기', `
 			<p>
 				이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
@@ -94,11 +132,8 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 				<li>인증 메일은 24시간동안 유효합니다.</li>
 			</ul>
 			
-			${hostconfig.debug ? 
-				`<p style="font-weight: bold; color: red;">
-					[디버그] 가입 주소: <a href="/member/signup/${key}">/member/signup/${key}</a>
-				</p>` : ''}
-		`, {}));
+
+		`, {}));		
 	}
 	
 	res.send(await render(req, '계정 만들기', content, {}, _, error, 'signup'));
@@ -203,8 +238,8 @@ router.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, nex
 		}
 		
 		req.session.username = id;
-		
-		await curs.execute("insert into users (username, password) values (?, ?)", [id, sha3(pw)]);
+		//db 저장
+		await curs.execute("insert into users (username, password, email) values (?, ?, ?)", [id, sha3(pw), credata[0].email]);
 		await curs.execute("insert into user_settings (username, key, value) values (?, 'email', ?)", [id, credata[0].email]);
 		await curs.execute("insert into documents (title, namespace, content) values (?, '사용자', '')", [id]);
 		await curs.execute("insert into history (title, namespace, content, rev, time, username, changes, log, iserq, erqnum, advance, ismember) \
