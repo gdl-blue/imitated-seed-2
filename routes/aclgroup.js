@@ -90,9 +90,9 @@ if(ver('4.18.0')) router.post(/^\/aclgroup\/remove$/, async(req, res) => {
 	if(!req.body['id']) return res.status(400).send(await showError(req, { code: 'validator_required', tag: 'id' }));
 	var dbdata = await curs.execute("select username, aclgroup from aclgroup where id = ?", [req.body['id']]);
 	if(!dbdata.length) return res.status(400).send(await showError(req, 'invalid_value'));
-	if(dbdata.aclgroup == '차단된 사용자' && !hasperm(req, 'admin'))
+	if(dbdata[0].aclgroup == '차단된 사용자' && !hasperm(req, 'admin'))
 		return res.send(await showError(req, 'permission'));
-	if(dbdata.aclgroup != '차단된 사용자' && !hasperm(req, 'aclgroup'))
+	if(dbdata[0].aclgroup != '차단된 사용자' && !hasperm(req, 'aclgroup'))
 		return res.send(await showError(req, 'permission'));
 	await curs.execute("delete from aclgroup where id = ?", [req.body['id']]);
 	var logid = 1, data = await curs.execute('select logid from block_history order by cast(logid as integer) desc limit 1');

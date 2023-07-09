@@ -315,11 +315,21 @@ router.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 					[doc.title, doc.namespace]);
 	if(!data.length) return res.send(await showError(req, 'document_not_found'));
 	
+	var error = null, content = '';
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit_request', 1);
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_edit_request', msg: aclmsg }));
+	
+	if(ver('4.17.2') && req.query['redirected']) {
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
+		if(aclmsg) {
+			content += alertBalloon('[알림] 문서를 편집할 권한이 없기 때문에 편집 요청으로 이동되었습니다.<br />' + aclmsg, 'info', false);
+		} else {
+			return res.redirect('/edit/' + encodeURIComponent(doc + ''));
+		}
+	}
 	
 	var baserev;
 	var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
@@ -332,8 +342,7 @@ router.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 	var rawContent = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	if(!rawContent[0]) rawContent = '';
 	else rawContent = rawContent[0].content;
-	var error = null;
-	var content = `
+	content += `
 		<form method=post id="editForm" enctype="multipart/form-data" data-title="${title}" data-recaptcha="0">
 			<input type="hidden" name="token" value="">
 			<input type="hidden" name="identifier" value="${islogin(req) ? 'm' : 'i'}:${ip_check(req)}">

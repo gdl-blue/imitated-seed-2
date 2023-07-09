@@ -26,6 +26,7 @@ router.all(/^\/admin\/grant$/, async(req, res, next) => {
 	var chkbxs = '';
 	for(var prm of perms) {
 		// if(!getperm('developer', ip_check(req), 1) && 'developer' == (prm)) continue;
+		if(ver('4.20.0') && prm == 'no_force_recaptcha') prm = 'no_force_captcha';
 		chkbxs += `
 			${prm} <input type=checkbox ${getperm(prm, username, 1) ? 'checked' : ''} name=permissions value="${prm}" /><br />
 		`;
@@ -52,16 +53,17 @@ router.all(/^\/admin\/grant$/, async(req, res, next) => {
 		
 		var prmval = req.body['permissions'];
 		if(!prmval || !prmval.find) prmval = [prmval];
+		prmval = prmval.map(item => ver('4.20.0') && item == 'no_force_captcha' ? 'no_force_recaptcha' : item);
 		
 		var logstring = '';
 		for(var prm of perms) {
 			// if(!getperm('developer', ip_check(req), 1) && 'developer' == (prm)) continue;
 			if(getperm(prm, username, 1) && (typeof(prmval.find(item => item == prm)) == 'undefined')) {
-				logstring += '-' + prm + ' ';
+				logstring += '-' + (ver('4.20.0') && item == 'no_force_recaptcha' ? 'no_force_captcha' : prm) + ' ';
 				if(permlist[username]) permlist[username].splice(permlist[username].findIndex(item => item == prm), 1);
 				curs.execute("delete from perms where perm = ? and username = ?", [prm, username]);
 			} else if(!getperm(prm, username, 1) && (typeof(prmval.find(item => item == prm)) != 'undefined')) {
-				logstring += '+' + prm + ' ';
+				logstring += '+' + (ver('4.20.0') && item == 'no_force_recaptcha' ? 'no_force_captcha' : prm) + ' ';
 				if(!permlist[username]) permlist[username] = [prm];
 				else permlist[username].push(prm);
 				curs.execute("insert into perms (perm, username) values (?, ?)", [prm, username]);

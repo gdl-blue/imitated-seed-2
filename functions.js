@@ -106,6 +106,7 @@ if(version.minor >= 18) perms.remove('ipacl'), perms.remove('suspend_account');
 else perms.remove('aclgroup');
 if(version.minor >= 2) perms.remove('acl');
 if(version.minor < 20) perms.remove('api_access');
+if(version.minor >= 18) perms.remove('editable_other_user_document');
 if(!(version.minor > 4 || (version.minor == 4 && version.revision >= 3))) { perms.remove('update_thread_document'); perms.remove('update_thread_topic'); }
 if(!(version.minor > 0 || (version.minor == 0 && version.revision >= 20))) perms.push('developer', 'tribune', 'arbiter');
 if(hostconfig.debug) perms.push('debug');
@@ -647,6 +648,8 @@ function getSkin(req) {
 
 // 권한 보유여부
 function getperm(perm, username) {
+	if(perm == 'member') return true;
+	if(perm == 'no_force_captcha') perm = 'no_force_recaptcha';
 	if(!perms.includes(perm)) return false;
 	if(!permlist[username]) permlist[username] = [];
 	return permlist[username].includes(perm);
@@ -654,7 +657,12 @@ function getperm(perm, username) {
 
 // 내 권한 보유여부
 function hasperm(req, perm) {
-	if(!islogin(req)) return false;
+	if(!islogin(req)) {
+		if(perm == 'ip') return true;
+		return false;
+	}
+	if(perm == 'member') return true;
+	if(perm == 'no_force_captcha') perm = 'no_force_recaptcha';
 	if(!perms.includes(perm)) return false;
 	if(!permlist[ip_check(req)]) permlist[ip_check(req)] = [];
 	return permlist[ip_check(req)].includes(perm);

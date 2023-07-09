@@ -21,7 +21,7 @@ router.all(/^\/admin\/login_history$/, async(req, res, next) => {
 		if(!data.length)
 			return res.send(await render(req, '로그인 내역', (error = err('alert', { code: 'invalid_username' })) + content, {}, _, error, 'login_history'));
 		username = data[0].username;
-		if((hostconfig.owners || []).includes(username) && hostconfig.protect_owners)
+		if((hostconfig.owners || []).includes(username) && hostconfig.protect_owners && username != ip_check(req))
 			return res.send(await showError(req, 'permission'));
 		
 		const id = rndval('abcdef1234567890', 64);

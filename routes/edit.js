@@ -58,8 +58,13 @@ router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	` + content;
 	
 	var httpstat = 200;
-	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
 	if(aclmsg) {
+		if(!ver('4.17.2')) {
+			aclmsg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(doc + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
+		} else if(await getacl(req, doc.title, doc.namespace, 'edit_request')) {
+			return res.redirect('/new_edit_request/' + encodeURIComponent(doc + '') + '?redirected=1');
+		}
 		error = err('alert', { code: 'permission_edit', msg: aclmsg });
 		content = error + content.replace('&<$TEXTAREA>', textarea).replace('<textarea', '<textarea readonly=readonly') + `
 			</form>
