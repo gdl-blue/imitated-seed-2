@@ -685,7 +685,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	
 	// 링크
 	for(let link of (data.match(/\[\[(((?!\]\]).)+)\]\]/g) || [])) {
-		var _dest = link.match(/\[\[(((?!\]\]).)+)\]\]/)[1].replace(/[&]amp[;]/g, '&').replace(/[&]lt[;]/g, '<').replace(/[&]gt[;]/g, '>').replace(/[&]quot[;]/g, '"');
+		var _dest = link.match(/\[\[(((?!\]\]).)+)\]\]/)[1];
 		var dest, disp;
 		if(_dest.includes('|')) {
 			dest = _dest.split('|')[0];
@@ -720,10 +720,10 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
 		const sl = dest == root ? ' wiki-self-link' : '';
-		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? html.escape : encodeURIComponent)(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + html.escape(disp) + '</a>');
+		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? (x => x) : (x => encodeURIComponent(x.replace(/[&]amp[;]/g, '&').replace(/[&]lt[;]/g, '<').replace(/[&]gt[;]/g, '>').replace(/[&]quot[;]/g, '"'))))(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + disp + '</a>');
 		
 		// 역링크
-		if(xref && !external) {
+		if(xref && !external && !self) {
 			var linkdoc = processTitle(dest);
 			if(!xrefl.includes(linkdoc.title + '\n' + linkdoc.namespace)) {
 				xrefl.push(linkdoc.title + '\n' + linkdoc.namespace);
