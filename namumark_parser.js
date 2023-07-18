@@ -19,258 +19,388 @@ const hostconfig = require('./hostconfig');
 const functions = require('./functions');
 for(var item in functions) global[item] = functions[item];
 
-module.exports = async function markdown(req, content, discussion = 0, title = '', flags = '', root = '') {
-	// markdown 아니고 namumark
-	flags = flags.split(' ');
+const rHeadings = 
+	ver('4.7.2') 
+		? /^(=\s(((?!\s=).)*)\s=|==\s(((?!\s==).)*)\s==|===\s(((?!\s===).)*)\s===|====\s(((?!\s====).)*)\s====|=====\s(((?!\s=====).)*)\s=====|======\s(((?!\s======).)*)\s======|=[#]\s(((?!\s[#]=).)*)\s[#]=|==[#]\s(((?!\s[#]==).)*)\s[#]==|===[#]\s(((?!\s[#]===).)*)\s[#]===|====[#]\s(((?!\s[#]====).)*)\s[#]====|=====[#]\s(((?!\s[#]=====).)*)\s[#]=====|======[#]\s(((?!\s[#]======).)*)\s[#]======)$/gm
+		: /^(=\s(((?!\s=).)*)\s=|==\s(((?!\s==).)*)\s==|===\s(((?!\s===).)*)\s===|====\s(((?!\s====).)*)\s====|=====\s(((?!\s=====).)*)\s=====|======\s(((?!\s======).)*)\s======)$/gm ;
+
+const rHeading = [, ];
+for(var i=1; i<=6; i++) {
+	if(ver('4.7.2'))
+		rHeading.push(RegExp(`^${multiply('=', i)}([#]|)\\s(((?!${multiply('=', i)}).)*)\\s([#]|)${multiply('=', i)}$`, 'm'));
+	else
+		rHeading.push(RegExp(`^${multiply('=', i)}(\\s)(((?!${multiply('=', i)}).)*)(\\s)${multiply('=', i)}$`, 'm'));
+}
+
+function parseTable(content) {
+	var data = '\n' + content + '\n';
 	
-	function parseTable(content) {
-		var data = '\n' + content + '\n';
+	// 캡션없는 표의 셀에 <td> 추가
+	for(let _tr of (data.match(/^(\|\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/gim) || [])) {
+		var tr = _tr.match(/^(\|\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/gim)[0];
+		var otr = tr;
+		var ntr = tr
+			.replace(/^[|][|]/g, '<tr norender><td>')
+			.replace(/[|][|]$/g, '</td></tr>')
+			.replace(/[|][|]/g, '</td><td>')
+			.replace(/\n/g, '<br />');
 		
-		// 캡션없는 표의 셀에 <td> 추가
-		for(let _tr of (data.match(/^(\|\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/gim) || [])) {
-			var tr = _tr.match(/^(\|\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/gim)[0];
-			var otr = tr;
-			var ntr = tr
-				.replace(/^[|][|]/g, '<tr norender><td>')
-				.replace(/[|][|]$/g, '</td></tr>')
-				.replace(/[|][|]/g, '</td><td>')
-				.replace(/\n/g, '<br />');
-			
-			data = data.replace(tr, ntr);
-		}
+		data = data.replace(tr, ntr);
+	}
+	
+	var datarows = data.split('\n');
+	
+	// 캡션없는 표의 시작과 끝을 감싸고, 전체에 적용되는 꾸미기 문법 적용
+	for(let _tr of (data.match(/^(<tr norender><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/gim) || [])) {
+		var tr = _tr.match(/^(<tr norender><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im)[0];
 		
-		var datarows = data.split('\n');
-		
-		// 캡션없는 표의 시작과 끝을 감싸고, 전체에 적용되는 꾸미기 문법 적용
-		for(let _tr of (data.match(/^(<tr norender><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/gim) || [])) {
-			var tr = _tr.match(/^(<tr norender><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im)[0];
-			
-			if (  // 표의 시작이라면(위에 || 문법 없음)
-				(!((befrow = (datarows[datarows.findIndex(s => s == tr.split('\n')[0]) - 1] || '')).match(/^(<tr><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))) &&  // 이전 줄이 표가 아니면
-				(!(befrow.match(/^(\|(((?!\|).)+)\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/im)))  // 캡션도 아니면
-			) {
-				const fulloptions = (tr.replace(/&lt;((?!table).)*&gt;/g, '').match(/^<tr norender><td>((&lt;([a-z0-9 ]+)=(((?!&gt;).)+)&gt;)+)/i) || ['', ''])[1];
-				var ts = '', trs = '';
-				
-				var alop, align = ((alop = (fulloptions.match(/&lt;table\s*align=(left|center|right)&gt;/))) || ['', 'left'])[1];
-				if(alop) data = data.replace(tr, tr = tr.replace(alop[0], ''));
-				
-				var wiop, width = ((wiop = (fulloptions.match(/&lt;table\s*width=((\d+)(px|%|))&gt;/))) || ['', ''])[1];
-				if(wiop) {
-					data = data.replace(tr, tr = tr.replace(wiop[0], ''));
-					trs += 'width: ' + width + '; ';
-				}
-				
-				var clop, color = ((clop = (fulloptions.match(/&lt;table\s*color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/))) || ['', ''])[1];
-				if(clop) {
-					data = data.replace(tr, tr = tr.replace(clop[0], ''));
-					trs += 'color: ' + color + '; ';
-				}
-				
-				var bgop, bgcolor = ((bgop = (fulloptions.match(/&lt;table\s*bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/))) || ['', ''])[1];
-				if(bgop) {
-					data = data.replace(tr, tr = tr.replace(bgop[0], ''));
-					trs += 'background-color: ' + bgcolor + '; ';
-				}
-				
-				var brop, border = ((brop = (fulloptions.match(/&lt;table\s*bordercolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/))) || ['', ''])[1];
-				if(brop) {
-					data = data.replace(tr, tr = tr.replace(brop[0], ''));
-					trs += 'border: 2px solid ' + border + '; ';
-				}
-				
-				if(trs) ts = ' style="' + trs + '"';
-				
-				data = data.replace(tr, '<div class="wiki-table-wrap table-' + align + '"><table class=wiki-table' + ts + '><tbody>\n' + tr);
-				datarows = data.split('\n');
-			} if (  // 표의 끝이라면(아래에 || 문법 없음)
-				!((aftrow = (datarows[datarows.findIndex(s => s == (r = tr.split('\n'))[r.length - 1]) + 1] || '')).match(/^(<tr norender><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))  // 다음 줄이 표가 아니면
-			) {
-				data = data.replace(tr, tr + '\n</tbody></table></div>');
-			}
-			
-			data = data.replace(tr, tr.replace('<tr norender>', '<tr>'));
-			datarows = data.split('\n');
-		}
-		
-		// 캡션있는 표 렌더링
-		for(let _tr of (data.match(/^(\|(((?!\|).)+)\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/gim) || [])) {
-			var tr = _tr.match(/^(\|(((?!\|).)+)\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/im);
-			var ec = '';
-			
-			if (  // 표의 시작이 아니면 건너뛰기
-				((befrow = (datarows[datarows.findIndex(s => s == tr[0].split('\n')[0]) - 1] || '')).match(/^(<tr><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))
-			) continue; if (  // 표의 끝
-				!((aftrow = (datarows[datarows.findIndex(s => s == (r = tr[0].split('\n'))[r.length - 1]) + 1] || '')).match(/^(<tr><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))  // 다음 줄이 표가 아니면
-			) {
-				ec = '\n</tbody></table></div>';
-			}
-			
-			ntr = (
-				('||' + tr[4] + '||')
-				.replace(/^[|][|]/g, '<tr><td>')
-				.replace(/[|][|]$/g, '</td></tr>')
-				.replace(/[|][|]/g, '</td><td>')
-				.replace(/\n/g, '<br />')
-				+ ec
-			);
-			
-			const fulloptions = (ntr.replace(/&lt;((?!table).)*&gt;/g, '').match(/^<tr><td>((&lt;([a-z0-9 ]+)=(((?!&gt;).)+)&gt;)+)/i) || ['', ''])[1];
-				
-			var alop, align = ((alop = (fulloptions.match(/&lt;table\s*align=(left|center|right)&gt;/))) || ['', 'left'])[1];
-			if(alop) data = data.replace(ntr, ntr = ntr.replace(alop[0], ''));
-			
+		if (  // 표의 시작이라면(위에 || 문법 없음)
+			(!((befrow = (datarows[datarows.findIndex(s => s == tr.split('\n')[0]) - 1] || '')).match(/^(<tr><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))) &&  // 이전 줄이 표가 아니면
+			(!(befrow.match(/^(\|(((?!\|).)+)\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/im)))  // 캡션도 아니면
+		) {
+			const fulloptions = (tr.replace(/&lt;((?!table).)*&gt;/g, '').match(/^<tr norender><td>((&lt;([a-z0-9 ]+)=(((?!&gt;).)+)&gt;)+)/i) || ['', ''])[1];
 			var ts = '', trs = '';
+			
+			var alop, align = ((alop = (fulloptions.match(/&lt;table\s*align=(left|center|right)&gt;/))) || ['', 'left'])[1];
+			if(alop) data = data.replace(tr, tr = tr.replace(alop[0], ''));
 			
 			var wiop, width = ((wiop = (fulloptions.match(/&lt;table\s*width=((\d+)(px|%|))&gt;/))) || ['', ''])[1];
 			if(wiop) {
-				data = data.replace(ntr, ntr = ntr.replace(wiop[0], ''));
+				data = data.replace(tr, tr = tr.replace(wiop[0], ''));
 				trs += 'width: ' + width + '; ';
 			}
 			
-			var clop, color = ((clop = (fulloptions.match(/&lt;table\s*color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/))) || ['', ''])[1];
+			var clop, color = ((clop = (fulloptions.match(/&lt;table\s*color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
 			if(clop) {
-				data = data.replace(ntr, ntr = ntr.replace(clop[0], ''));
+				data = data.replace(tr, tr = tr.replace(clop[0], ''));
 				trs += 'color: ' + color + '; ';
 			}
 			
-			var bgop, bgcolor = ((bgop = (fulloptions.match(/&lt;table\s*bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/))) || ['', ''])[1];
+			var bgop, bgcolor = ((bgop = (fulloptions.match(/&lt;table\s*bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
 			if(bgop) {
-				data = data.replace(ntr, ntr = ntr.replace(bgop[0], ''));
+				data = data.replace(tr, tr = tr.replace(bgop[0], ''));
 				trs += 'background-color: ' + bgcolor + '; ';
 			}
 			
-			var brop, border = ((brop = (fulloptions.match(/&lt;table\s*bordercolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/))) || ['', ''])[1];
+			var brop, border = ((brop = (fulloptions.match(/&lt;table\s*bordercolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
 			if(brop) {
-				data = data.replace(ntr, ntr = ntr.replace(brop[0], ''));
+				data = data.replace(tr, tr = tr.replace(brop[0], ''));
 				trs += 'border: 2px solid ' + border + '; ';
 			}
-
-			if(trs) ts = ' style="' + trs + '"';			
 			
-			data = data.replace(tr[0], '<div class="wiki-table-wrap table-' + align + '"><table class=wiki-table' + ts + '><caption>' + tr[2] + '</caption><tbody>\n' + ntr);
+			if(trs) ts = ' style="' + trs + '"';
+			
+			data = data.replace(tr, '<div class="wiki-table-wrap table-' + align + '"><table class=wiki-table' + ts + '><tbody>\n' + tr);
 			datarows = data.split('\n');
+		} if (  // 표의 끝이라면(아래에 || 문법 없음)
+			!((aftrow = (datarows[datarows.findIndex(s => s == (r = tr.split('\n'))[r.length - 1]) + 1] || '')).match(/^(<tr norender><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))  // 다음 줄이 표가 아니면
+		) {
+			data = data.replace(tr, tr + '\n</tbody></table></div>');
 		}
 		
-		// 셀 꾸미기
-		for(let _tr of (data.match(/^<tr>(((?!<\/tr>).)*)<\/tr>$/gim) || [])) {
-			var tr = _tr.match(/^<tr>(((?!<\/tr>).)*)<\/tr>$/im)[1], ntr = tr;
-			
-			for(let td of (tr.match(/<td>(((?!<\/td>).)*)<\/td>/g) || [])) {
-				var text = (td.match(/<td>(((?!<\/td>).)*)<\/td>/) || ['', ''])[1], ot = text, ntd = td;
-				var notx = text.replace(/^((&lt;([a-z0-9():\| -]+)((=(((?!&gt;).)+))*)&gt;)+)/i, '');
-				var attr = '', tds = '', cs = '', rs = '';
-				
-				const fulloptions = (td.replace(/(&lt;table([a-z0-9 ]+)=(((?!&gt;).)+)&gt;)/g, '').match(/^<td>((&lt;([a-z0-9():\|\^ -]+)((=(((?!&gt;).)+))*)&gt;)+)/i) || ['', ''])[1];
-				
-				// 정렬1
-				if(notx.startsWith(' ') && notx.endsWith(' ')) {
-					tds += 'text-align: center; ';
-				}
-				else if(notx.startsWith(' ') && !notx.endsWith(' ')) {
-					tds += 'text-align: right; ';
-				}
-				
-				// 정렬2
-				var align = (fulloptions.match(/&lt;([(]|[:]|[)])&gt;/) || ['', ''])[1];
-				
-				if(align) {
-					tds += 'text-align: ' + (
-						align == '(' ? (
-							'left'
-						) : (
-							align == ')' ? (
-								'right'
-							) : (
-								'center'
-							)
-						)
-					) + '; ';
-					ntd = ntd.replace(/&lt;([(]|[:]|[)])&gt;/, '');
-				}
-				
-				// 너비
-				var width = (fulloptions.match(/&lt;width=((\d+)(px|%|))&gt;/) || ['', ''])[1];
-				if(width) {
-					tds += 'width: ' + width + '; ';
-					ntd = ntd.replace(/&lt;width=((\d+)(px|%|))&gt;/, '');
-				}
-				
-				// 높이
-				var height = (fulloptions.match(/&lt;height=((\d+)(px|%|))&gt;/) || ['', ''])[1];
-				if(height) {
-					tds += 'height: ' + height + '; ';
-					ntd = ntd.replace(/&lt;height=((\d+)(px|%|))&gt;/, '');
-				}
-				
-				// 가로 합치기
-				var colspan = (fulloptions.match(/&lt;[-](\d+)&gt;/) || ['', ''])[1];
-				if(colspan) {
-					cs = colspan;
-					ntd = ntd.replace(/&lt;[-](\d+)&gt;/, '');
-				}
-				
-				// 세로 합치기 & 정렬
-				var rowopt = (fulloptions.match(/&lt;([^]|[v]|)[|](\d+)&gt;/) || ['', '', '']);
-				if(rowopt[2]) {
-					rs = rowopt[2];
-					switch(rowopt[1]) {
-						case '^':
-							tds += 'vertical-align: top; ';
-							break; 
-						case 'v':
-							tds += 'vertical-align: bottom; ';
-					}
-					ntd = ntd.replace(/&lt;([^]|[v]|)[|](\d+)&gt;/, '');
-				}
-				
-				// 셀 배경색
-				var bgcolor = (fulloptions.match(/&lt;((#([a-fA-F0-9]{3,6}))|([a-zA-Z]+))&gt;/) || ['', ''])[1];
-				if(bgcolor) {
-					tds += 'background-color: ' + bgcolor + '; ';
-					ntd = ntd.replace(/&lt;((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/, '');
-				}
-				
-				// 셀 배경색 2
-				var bgcolor = (fulloptions.match(/&lt;bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/) || ['', ''])[1];
-				if(bgcolor) {
-					tds += 'background-color: ' + bgcolor + '; ';
-					ntd = ntd.replace(/&lt;bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/, '');
-				}
-				
-				// 글자색
-				var color = (fulloptions.match(/&lt;color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/) || ['', ''])[1];
-				if(color) {
-					tds += 'color: ' + color + '; ';
-					ntd = ntd.replace(/&lt;color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))&gt;/, '');
-				}
-				
-				if(tds) attr += ' style="' + tds + '"';
-				if(cs)  attr += ' colspan=' + cs;
-				if(rs)  attr += ' rowspan=' + rs;
-				ntd = ntd.replace(/<td>/, '<td' + attr + '>');
-				
-				ntr = ntr.replace(td, ntd);
-			}
-			data = data.replace(tr, ntr)
-		}
-		
-		return data
-			.replace(/^\n/, '')
-			.replace(/\n$/, '')
-			.replace(/<tbody>\n/g, '<tbody>')
-			.replace(/\n<\/tbody>/g, '<tbody>')
-			.replace(/<\/tr>\n/g, '</tr>')
-			.replace(/\n<tr>/g, '</tr>')
-			.replace(/<\/tbody><tbody><\/tbody>/g, '</tbody>');
+		data = data.replace(tr, tr.replace('<tr norender>', '<tr>'));
+		datarows = data.split('\n');
 	}
 	
-	function multiply(a, b) {
-		if(typeof a == 'number') return a * b;
-		var ret = '';
-		for(let i=0; i<b; i++) ret += a;
-		return ret;
+	// 캡션있는 표 렌더링
+	for(let _tr of (data.match(/^(\|(((?!\|).)+)\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/gim) || [])) {
+		var tr = _tr.match(/^(\|(((?!\|).)+)\|(((?!\|\|($|\n))[\s\S])*)\|\|)$/im);
+		var ec = '';
+		
+		if (  // 표의 시작이 아니면 건너뛰기
+			((befrow = (datarows[datarows.findIndex(s => s == tr[0].split('\n')[0]) - 1] || '')).match(/^(<tr><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))
+		) continue; if (  // 표의 끝
+			!((aftrow = (datarows[datarows.findIndex(s => s == (r = tr[0].split('\n'))[r.length - 1]) + 1] || '')).match(/^(<tr><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))  // 다음 줄이 표가 아니면
+		) {
+			ec = '\n</tbody></table></div>';
+		}
+		
+		ntr = (
+			('||' + tr[4] + '||')
+			.replace(/^[|][|]/g, '<tr><td>')
+			.replace(/[|][|]$/g, '</td></tr>')
+			.replace(/[|][|]/g, '</td><td>')
+			.replace(/\n/g, '<br />')
+			+ ec
+		);
+		
+		const fulloptions = (ntr.replace(/&lt;((?!table).)*&gt;/g, '').match(/^<tr><td>((&lt;([a-z0-9 ]+)=(((?!&gt;).)+)&gt;)+)/i) || ['', ''])[1];
+			
+		var alop, align = ((alop = (fulloptions.match(/&lt;table\s*align=(left|center|right)&gt;/))) || ['', 'left'])[1];
+		if(alop) data = data.replace(ntr, ntr = ntr.replace(alop[0], ''));
+		
+		var ts = '', trs = '';
+		
+		var wiop, width = ((wiop = (fulloptions.match(/&lt;table\s*width=((\d+)(px|%|))&gt;/))) || ['', ''])[1];
+		if(wiop) {
+			data = data.replace(tr, tr = tr.replace(wiop[0], ''));
+			trs += 'width: ' + width + '; ';
+		}
+		
+		var clop, color = ((clop = (fulloptions.match(/&lt;table\s*color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
+		if(clop) {
+			data = data.replace(tr, tr = tr.replace(clop[0], ''));
+			trs += 'color: ' + color + '; ';
+		}
+		
+		var bgop, bgcolor = ((bgop = (fulloptions.match(/&lt;table\s*bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
+		if(bgop) {
+			data = data.replace(tr, tr = tr.replace(bgop[0], ''));
+			trs += 'background-color: ' + bgcolor + '; ';
+		}
+		
+		var brop, border = ((brop = (fulloptions.match(/&lt;table\s*bordercolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
+		if(brop) {
+			data = data.replace(tr, tr = tr.replace(brop[0], ''));
+			trs += 'border: 2px solid ' + border + '; ';
+		}
+
+		if(trs) ts = ' style="' + trs + '"';			
+		
+		data = data.replace(tr[0], '<div class="wiki-table-wrap table-' + align + '"><table class=wiki-table' + ts + '><caption>' + tr[2] + '</caption><tbody>\n' + ntr);
+		datarows = data.split('\n');
 	}
+	
+	// 셀 꾸미기
+	for(let _tr of (data.match(/^<tr>(((?!<\/tr>).)*)<\/tr>$/gim) || [])) {
+		var tr = _tr.match(/^<tr>(((?!<\/tr>).)*)<\/tr>$/im)[1], ntr = tr;
+		var rowstyle = '';
+		
+		for(let td of (tr.match(/<td>(((?!<\/td>).)*)<\/td>/g) || [])) {
+			var text = (td.match(/<td>(((?!<\/td>).)*)<\/td>/) || ['', ''])[1], ot = text, ntd = td;
+			var notx = text.replace(/^((&lt;([a-z0-9():\| -]+)((=(((?!&gt;).)+))*)&gt;)+)/i, '');
+			var attr = '', tds = '', cs = '', rs = '';
+			
+			const fulloptions = (td.replace(/(&lt;table([a-z0-9 ]+)=(((?!&gt;).)+)&gt;)/g, '').match(/^<td>((&lt;([a-z0-9():\|\^ -]+)((=(((?!&gt;).)+))*)&gt;)+)/i) || ['', ''])[1];
+			
+			// 정렬1
+			if(notx.startsWith(' ') && notx.endsWith(' ')) {
+				tds += 'text-align: center; ';
+			}
+			else if(notx.startsWith(' ') && !notx.endsWith(' ')) {
+				tds += 'text-align: right; ';
+			}
+			
+			// 정렬2
+			var align = (fulloptions.match(/&lt;([(]|[:]|[)])&gt;/) || ['', ''])[1];
+			
+			if(align) {
+				tds += 'text-align: ' + (
+					align == '(' ? (
+						'left'
+					) : (
+						align == ')' ? (
+							'right'
+						) : (
+							'center'
+						)
+					)
+				) + '; ';
+				ntd = ntd.replace(/&lt;([(]|[:]|[)])&gt;/, '');
+			}
+			
+			// 너비
+			var width = (fulloptions.match(/&lt;width=((\d+)(px|%|))&gt;/) || ['', ''])[1];
+			if(width) {
+				tds += 'width: ' + width + '; ';
+				ntd = ntd.replace(/&lt;width=((\d+)(px|%|))&gt;/, '');
+			}
+			
+			// 높이
+			var height = (fulloptions.match(/&lt;height=((\d+)(px|%|))&gt;/) || ['', ''])[1];
+			if(height) {
+				tds += 'height: ' + height + '; ';
+				ntd = ntd.replace(/&lt;height=((\d+)(px|%|))&gt;/, '');
+			}
+			
+			// 가로 합치기
+			var colspan = (fulloptions.match(/&lt;[-](\d+)&gt;/) || ['', ''])[1];
+			if(colspan) {
+				cs = colspan;
+				ntd = ntd.replace(/&lt;[-](\d+)&gt;/, '');
+			}
+			
+			// 세로 합치기 & 정렬
+			var rowopt = (fulloptions.match(/&lt;([^]|[v]|)[|](\d+)&gt;/) || ['', '', '']);
+			if(rowopt[2]) {
+				rs = rowopt[2];
+				switch(rowopt[1]) {
+					case '^':
+						tds += 'vertical-align: top; ';
+						break; 
+					case 'v':
+						tds += 'vertical-align: bottom; ';
+				}
+				ntd = ntd.replace(/&lt;([^]|[v]|)[|](\d+)&gt;/, '');
+			}
+			
+			// 셀 배경색
+			var bgcolor = (fulloptions.match(/&lt;((#([a-fA-F0-9]{3,6}))|([a-zA-Z]+))(([,]((#([a-fA-F0-9]{3,6}))|([a-zA-Z]+)))|)&gt;/) || ['', ''])[1];
+			if(bgcolor) {
+				tds += 'background-color: ' + bgcolor + '; ';
+				ntd = ntd.replace(/&lt;((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/, '');
+			}
+			
+			// 셀 배경색 2
+			var bgcolor = (fulloptions.match(/&lt;bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/) || ['', ''])[1];
+			if(bgcolor) {
+				tds += 'background-color: ' + bgcolor + '; ';
+				ntd = ntd.replace(/&lt;bgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/, '');
+			}
+			
+			// 글자색
+			var color = (fulloptions.match(/&lt;color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/) || ['', ''])[1];
+			if(color) {
+				tds += 'color: ' + color + '; ';
+				ntd = ntd.replace(/&lt;color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/, '');
+			}
+			
+			// 줄 배경색
+			var rowbgcolor = (fulloptions.match(/&lt;rowbgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/) || ['', ''])[1];
+			if(rowbgcolor) {
+				rowstyle += 'background-color: ' + rowbgcolor + '; ';
+				ntd = ntd.replace(/&lt;rowbgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/, '');
+			}
+			
+			// 줄 글자색
+			var rowcolor = (fulloptions.match(/&lt;rowcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/) || ['', ''])[1];
+			if(rowcolor) {
+				rowstyle += 'color: ' + rowcolor + '; ';
+				ntd = ntd.replace(/&lt;rowcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/, '');
+			}
+			
+			// 열 배경색 (추후 구현)
+			var colbgcolor = (fulloptions.match(/&lt;colbgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/) || ['', ''])[1];
+			if(colbgcolor) {
+				ntd = ntd.replace(/&lt;colbgcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/, '');
+			}
+			
+			// 열 글자색 (추후 구현)
+			var colcolor = (fulloptions.match(/&lt;colcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/) || ['', ''])[1];
+			if(colcolor) {
+				ntd = ntd.replace(/&lt;colcolor=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/, '');
+			}
+			
+			if(tds) attr += ' style="' + tds + '"';
+			if(cs)  attr += ' colspan=' + cs;
+			if(rs)  attr += ' rowspan=' + rs;
+			ntd = ntd.replace(/<td>/, '<td' + attr + '>');
+			ntr = ntr.replace(td, ntd);
+		}
+		ntr = '<tr>' + ntr + '</tr>';
+		if(rowstyle)
+			ntr = ntr.replace('<tr>', '<tr style="' + rowstyle.replace(/\"/g, '&quot;') + '">');
+		data = data.replace(_tr, ntr)
+	}
+	
+	return data
+		.replace(/^\n/, '')
+		.replace(/\n$/, '')
+		.replace(/<tbody>\n/g, '<tbody>')
+		.replace(/\n<\/tbody>/g, '<tbody>')
+		.replace(/<\/tr>\n/g, '</tr>')
+		.replace(/\n<tr>/g, '</tr>')
+		.replace(/<\/tbody><tbody><\/tbody>/g, '</tbody>');
+}
+	
+function multiply(a, b) {
+	if(typeof a == 'number') return a * b;
+	var ret = '';
+	for(let i=0; i<b; i++) ret += a;
+	return ret;
+}
+
+function parseQuotes(data) {
+	const rows = data.split(/\n/);
+	const rl = rows.length;
+	var inquote = 0;
+	for(let i=0; i<rl; i++) {
+		let row = rows[i];
+		if(!row.startsWith('&gt;')) {
+			if(inquote) {
+				row = '</blockquotewikiquote>\n' + row;
+				inquote = 0;
+			}
+			rows[i] = row;
+			continue;
+		}
+		if(row.startsWith('&gt;') && !inquote) {
+			row = row.replace(/^[&]gt;(\s*)/, '<blockquotewikiquote class=wiki-quote>\n');
+			inquote = 1;
+		} else {
+			row = row.replace(/^[&]gt;(\s*)/, '');
+			inquote = 1;
+		}
+		rows[i] = row;
+	}
+	if(inquote) rows.push('</blockquotewikiquote>');
+	return rows.join('\n');
+}
+
+function parseList(data) {
+	const rows = ('\n' + data + '\n').split(/\n/);
+	const rl = rows.length;
+	var inlist = 0;
+	for(let i=0; i<rl; i++) {
+		let row = rows[i];
+		if(!row.match(/^(\s+)[*]/) && !row.startsWith(' ')) {
+			if(inlist) {
+				row = '</liwikilist></ulwikilist>\n' + row;
+				inlist = 0;
+			}
+			rows[i] = row;
+			continue;
+		}
+		if(row.match(/^(\s{2,})[*]/)) {
+			rows[i] = row.replace(/^(\s{2,})[*]/, ' *');
+			continue;
+		}
+		if(row.startsWith(' *') && !inlist) {
+			row = row.replace(/^\s[*](\s*)/, '<ulwikilist class=wiki-list>\n<liwikilist>\n');
+			inlist = 1;
+		} else {
+			row = row.replace(/^\s/, '');
+			row = row.replace(/^[*](\s*)/, '</liwikilist><liwikilist>\n');
+			inlist = 1;
+		}
+		rows[i] = row;
+	}
+	rows.splice(0, 1);
+	rows.pop();
+	if(inlist) rows.push('</liwikilist>\n</ulwikilist>');
+	return rows.join('\n');
+}
+
+function parseIndent(data) {
+	const rows = data.split(/\n/);
+	const rl = rows.length;
+	var inindent = 0;
+	for(let i=0; i<rl; i++) {
+		let row = rows[i];
+		if(!row.startsWith(' ') || row.replace(/^\s/, '').startsWith('*')) {
+			if(inindent) {
+				row = '</divwikiindent>\n' + row;
+				inindent = 0;
+			}
+			rows[i] = row;
+			continue;
+		}
+		if(row.startsWith(' ') && !inindent) {
+			row = row.replace(/^\s/, '<divwikiindent class=wiki-indent>\n');
+			inindent = 1;
+		} else {
+			row = row.replace(/^\s/, '');
+			inindent = 1;
+		}
+		rows[i] = row;
+	}
+	if(inindent) rows.push('</divwikiindent>');
+	return rows.join('\n');
+}
+
+module.exports = async function markdown(req, content, discussion = 0, title = '', flags = '', root = '') {
+	// markdown 아니고 namumark
+	flags = flags.split(' ');
 	
 	var footnotes = new Stack();
 	var blocks    = new Stack();
@@ -355,7 +485,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 				var isColor = false;
 				var color = null;
 				var match = null;
-				if(match = data.substr(pos + 3, 8).match(/^[#]([a-fA-F0-9]{3,6})\s/i))
+				if(match = data.substr(pos + 3, 8).match(/^[#]([a-fA-F0-9]{3,6})(([,][#]([a-fA-F0-9]{3,6}))|)\s/i))
 					isColor = true, color = '#' + match[1];
 				for(var cc of cssColorMatches)
 					if(data.substr(pos + 3, cc.length).toLowerCase() == cc)
@@ -568,32 +698,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	data = parseFootnotes(data);
 	
 	// 인용문
-	function parseQuotes(data) {
-		const rows = data.split(/\n/);
-		const rl = rows.length;
-		var inquote = 0;
-		for(let i=0; i<rl; i++) {
-			let row = rows[i];
-			if(!row.startsWith('&gt;')) {
-				if(inquote) {
-					row = '</blockquotewikiquote>\n' + row;
-					inquote = 0;
-				}
-				rows[i] = row;
-				continue;
-			}
-			if(row.startsWith('&gt;') && !inquote) {
-				row = row.replace(/^[&]gt;(\s*)/, '<blockquotewikiquote class=wiki-quote>\n');
-				inquote = 1;
-			} else {
-				row = row.replace(/^[&]gt;(\s*)/, '');
-				inquote = 1;
-			}
-			rows[i] = row;
-		}
-		if(inquote) rows.push('</blockquotewikiquote>');
-		return rows.join('\n');
-	} do {
+	do {
 		data = parseQuotes(data);
 	} while(data.match(/^[&]gt;/gim));
 	
@@ -606,39 +711,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	data = data.replace(/\n<\/blockquotewikiquote>/g, '</blockquote>');
 	
 	// 목록
-	function parseList(data) {
-		const rows = ('\n' + data + '\n').split(/\n/);
-		const rl = rows.length;
-		var inlist = 0;
-		for(let i=0; i<rl; i++) {
-			let row = rows[i];
-			if(!row.match(/^(\s+)[*]/) && !row.startsWith(' ')) {
-				if(inlist) {
-					row = '</liwikilist></ulwikilist>\n' + row;
-					inlist = 0;
-				}
-				rows[i] = row;
-				continue;
-			}
-			if(row.match(/^(\s{2,})[*]/)) {
-				rows[i] = row.replace(/^(\s{2,})[*]/, ' *');
-				continue;
-			}
-			if(row.startsWith(' *') && !inlist) {
-				row = row.replace(/^\s[*](\s*)/, '<ulwikilist class=wiki-list>\n<liwikilist>\n');
-				inlist = 1;
-			} else {
-				row = row.replace(/^\s/, '');
-				row = row.replace(/^[*](\s*)/, '</liwikilist><liwikilist>\n');
-				inlist = 1;
-			}
-			rows[i] = row;
-		}
-		rows.splice(0, 1);
-		rows.pop();
-		if(inlist) rows.push('</liwikilist>\n</ulwikilist>');
-		return rows.join('\n');
-	} do {
+	do {
 		data = parseList(data);
 	} while(data.match(/^\s[*]/gim));
 	data = data.replace(/<ulwikilist\sclass[=]wiki[-]list>\n/g, '<ul class=wiki-list>');
@@ -652,32 +725,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	data = data.replace(/<\/liwikilist>/g, '</li>');
 	
 	// 들여쓰기
-	function parseIndent(data) {
-		const rows = data.split(/\n/);
-		const rl = rows.length;
-		var inindent = 0;
-		for(let i=0; i<rl; i++) {
-			let row = rows[i];
-			if(!row.startsWith(' ') || row.replace(/^\s/, '').startsWith('*')) {
-				if(inindent) {
-					row = '</divwikiindent>\n' + row;
-					inindent = 0;
-				}
-				rows[i] = row;
-				continue;
-			}
-			if(row.startsWith(' ') && !inindent) {
-				row = row.replace(/^\s/, '<divwikiindent class=wiki-indent>\n');
-				inindent = 1;
-			} else {
-				row = row.replace(/^\s/, '');
-				inindent = 1;
-			}
-			rows[i] = row;
-		}
-		if(inindent) rows.push('</divwikiindent>');
-		return rows.join('\n');
-	} do {
+	do {
 		data = parseIndent(data);
 	} while((data.match(/^(\s+)/gim) || []).filter(item => item.replace(/\n/g, '') && item).length);
 	data = data.replace(/<divwikiindent\sclass[=]wiki[-]indent>\n/g, '<div class=wiki-indent>');
@@ -749,18 +797,18 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	var tochtml = '<div class=wiki-macro-toc id=toc>';
 	var cnum = 2;
 	var sec = 1;
-	for(let i=6; i; i--) {
-		if(data.match(RegExp(`^${multiply('=', i)}\\s.*\\s${multiply('=', i)}$`, 'm')))
+	for(let i=6; i; i--)
+		if(data.match(rHeading[i]))
 			maxszz = i;
-	}
-	for(let heading of (data.match(/^(=\s(((?!=).)*)\s=|==\s(((?!==).)*)\s==|===\s(((?!===).)*)\s===|====\s(((?!====).)*)\s====|=====\s(((?!=====).)*)\s=====|======\s(((?!======).)*)\s======)$/gm) || [])) {
+	for(let heading of (data.match(rHeadings) || [])) {
 		const hr = {};
 		for(let i=1; i<=6; i++) {
-			hr[i] = heading.match(RegExp(`^${multiply('=', i)}\\s(((?!${multiply('=', i)}).)*)\\s${multiply('=', i)}$`, 'm'));
+			hr[i] = heading.match(rHeading[i]);
 		} for(let i=6; i; i--) if(hr[i]) {
 			if(i < cnum) for(let j=i+1; j<=6; j++) headnum[j] = 0;
 			cnum = i;
-			const title = hr[i][1];
+			const title = hr[i][2];
+			const folded = hr[i][1] == '#';
 			var snum = '';
 			for(let j=i; j; j--) if(maxszz == j) {
 				for(let k=j; k<i; k++)
@@ -771,7 +819,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 			var edlnk = '';
 			if(!discussion)
 				edlnk = `<span class=wiki-edit-section><a href="/edit/${encodeURIComponent(doc + '')}?section=${sec++}" rel=nofollow>[편집]</a></span>`;
-			data = data.replace(heading, '</div><h' + i + ' class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + edlnk + '</h' + i + '><div class=wiki-heading-content>');
+			data = data.replace(heading, '</div><h' + i + ' class=wiki-heading><a href="#toc" id="s-' + snum + '">' + snum + '.</a> ' + title + edlnk + '</h' + i + '><div class="wiki-heading-content' + (folded ? ' namufix-folded-heading' : '') + '"' + (folded ? ' style="display: none;"' : '') + '>');
 			var mt = i;
 			tochtml += multiply('<div class=toc-indent>', mt - maxszz + 1) + '<span class=toc-item><a href="#s-' + snum + '">' + snum + '</a>. ' + title + '</span>' + multiply('</div>', mt - maxszz + 1);
 			break;
