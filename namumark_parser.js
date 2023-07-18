@@ -453,7 +453,6 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 			if(cssProperties.includes(prop.toLowerCase()))
 				ret += `${prop}: ${value}; `;
 		}
-		ret = ret.split('').map(item => '<spannw>' + item + '</spannw>').join('');
 		return ret;
 	}
 	for(var pos=0; ; pos++) {
