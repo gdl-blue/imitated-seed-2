@@ -21,6 +21,7 @@ const router = express.Router();
 const hostconfig = require('../hostconfig');
 const functions = require('../functions');
 const markdown = require('../namumark');
+const http = require('http');
 for(var item in functions) global[item] = functions[item];
 
 for(var src of fs.readdirSync('./routes', { withFileTypes: true }).filter(dirent => !dirent.isDirectory()).map(dirent => dirent.name)) {
