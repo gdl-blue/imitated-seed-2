@@ -485,13 +485,16 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 				var isColor = false;
 				var color = null;
 				var match = null;
-				if(match = data.substr(pos + 3, 8).match(/^[#]([a-fA-F0-9]{3,6})(([,][#]([a-fA-F0-9]{3,6}))|)\s/i))
-					isColor = true, color = '#' + match[1];
+				var ph = 0;
+				if(match = (data.substr(pos + 3, 8).match(/^[#]([a-fA-F0-9]{3,6})\s/i) || data.substr(pos + 3, 16).match(/^[#]([a-fA-F0-9]{3,6})([,][#]([a-zA-Z0-9]+))\s/i)))
+					isColor = true, color = ('#' + match[1]), ph = (match[2] ? match[2].length : 0);
 				for(var cc of cssColorMatches)
 					if(data.substr(pos + 3, cc.length).toLowerCase() == cc)
 						isColor = true, color = cc.slice(1, cc.length - 1);
+					else if(match = data.substr(pos + 3, 64).match(RegExp(cc.replace('#', '[#]').replace(' ', ',#') + '([a-zA-Z0-9]+)\\s', 'i')))
+						isColor = true, color = cc.slice(1, cc.length - 1), ph = match[1].length + 3;
 				if(isColor) {
-					bopen.pushBack({ index: pos, replace: '<font color=' + color + '>', length: 3 + (color[0] == '#' ? 0 : 1) + color.length + 1 });
+					bopen.pushBack({ index: pos, replace: '<font color=' + color + '>', length: 3 + (color[0] == '#' ? 0 : 1) + color.length + ph + 1 });
 					dq.pushBack({ close: '</font>', bopenIndex: bopen.size() - 1 });
 				} else {  // 리터럴
 					bopen.pushBack({ index: pos, replace: '<nowikiblock><pre>', length: 3, line });
