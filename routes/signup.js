@@ -1,5 +1,5 @@
 //위키 이름설정
-const wikiname = config.getString('wiki.site_name', '더 시드');  //위키이름
+const wikiname = config.getString('wiki.site_name');  //위키이름
 const domain = hostconfig.domain;  //도메인
 
 //메일 설정
