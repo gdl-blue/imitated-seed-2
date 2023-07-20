@@ -93,6 +93,16 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
 			</div>
 			
+			<div class=form-group>
+				<label class=control-label>이메일 주소(gmail)</label>
+				<input class=form-control type=text name=wiki.email value="${html.escape(config.getString('wiki.email', ''))}" />
+			</div>
+
+			<div class=form-group>
+				<label class=control-label>이메일 비밀번호(gmail)</label>
+				<input class=form-control type=text name=wiki.passwd value="${html.escape(config.getString('wiki.passwd', ''))}" />
+			</div>
+
 			<div class=btns>
 				<button type=submit style="width: 100px;" class="btn btn-primary">저장</button>
 			</div>
@@ -119,7 +129,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				curs.execute("insert into email_filters (address) values (?)", [f]);
 			}
 		}
-		for(var item of ['wiki.site_name', 'wiki.front_page', 'wiki.default_skin', 'filters', 'wiki.sitenotice', 'wiki.editagree_text', 'wiki.canonical_url', 'wiki.copyright_url', 'wiki.copyright_text', 'wiki.footer_text', 'wiki.logo_url']) {
+		for(var item of ['wiki.site_name', 'wiki.front_page', 'wiki.default_skin', 'filters', 'wiki.sitenotice', 'wiki.editagree_text', 'wiki.canonical_url', 'wiki.copyright_url', 'wiki.copyright_text', 'wiki.footer_text', 'wiki.logo_url', 'wiki.email', 'wiki.passwd']) {
 			wikiconfig[item] = req.body[item];
 			await curs.execute("delete from config where key = ?", [item]);
 			await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);
