@@ -1,5 +1,6 @@
-if(ver('4.18.0') && hostconfig.namuwiki_exclusive)
-router.get(/^\/self_unblock$/, async(req, res) => {
+if(ver('4.18.0')) {
+
+if(hostconfig.namuwiki_exclusive) router.get(/^\/self_unblock$/, async(req, res) => {
 	const id = req.query['id'];
 	var dbdata = await curs.execute("select type, username, aclgroup from aclgroup where id = ?", [id || '-1']);
 	if(!dbdata.length) return res.status(400).send(await showError(req, 'aclgroup_not_found'));
@@ -30,7 +31,7 @@ router.get(/^\/self_unblock$/, async(req, res) => {
 	return res.redirect('/edit/' + encodeURIComponent(req.query['document']));
 });
 
-if(ver('4.18.0')) router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
+router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'permission'));
 	
@@ -77,7 +78,7 @@ if(ver('4.18.0')) router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 	res.send(await render(req, 'ACL그룹 생성', content, {}, '', error, _));
 });
 
-if(ver('4.18.0')) router.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
+router.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
 	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'permission'));
 	const { group } = req.body;
 	if(!group) return res.redirect('/aclgroup');  // 귀찮음
@@ -85,7 +86,7 @@ if(ver('4.18.0')) router.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
 	res.redirect('/aclgroup');
 });
 
-if(ver('4.18.0')) router.post(/^\/aclgroup\/remove$/, async(req, res) => {
+router.post(/^\/aclgroup\/remove$/, async(req, res) => {
 	if(!hasperm(req, 'aclgroup') && !hasperm(req, 'admin')) return res.send(await showError(req, 'permission'));
 	if(!req.body['id']) return res.status(400).send(await showError(req, { code: 'validator_required', tag: 'id' }));
 	var dbdata = await curs.execute("select username, aclgroup from aclgroup where id = ?", [req.body['id']]);
@@ -111,7 +112,7 @@ if(ver('4.18.0')) router.post(/^\/aclgroup\/remove$/, async(req, res) => {
 	return res.redirect('/aclgroup?group=' + encodeURIComponent(dbdata[0].aclgroup));
 });
 
-if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
+router.all(/^\/aclgroup$/, async(req, res) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
 	var data = await curs.execute("select name from aclgroup_groups");
@@ -243,7 +244,7 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 			</form>
 			
 			<div class="table-wrap">
-				<table class="table" style="margin-top: 7px;">
+				<table style="margin-top: 7px;">
 					<colgroup>
 						<col style="width: 150px;">
 						<col style="width: 150px;">
@@ -381,3 +382,5 @@ if(ver('4.18.0')) router.all(/^\/aclgroup$/, async(req, res) => {
 	res.send(await render(req, 'ACLGroup', content, {
 	}, '', error, 'aclgroup'));
 });
+
+}

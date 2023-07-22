@@ -127,7 +127,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '16';
+const updatecode = '17';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -438,6 +438,10 @@ wiki.use(function(req, res, next) {
 			try {
 				await curs.execute("alter table aclgroup_groups\nADD css text;");
 				await curs.execute("alter table aclgroup_groups\nADD warning_description text;");
+			} catch(e) {}
+		} case 16: {
+			try {
+				await curs.execute("alter table users\nADD email text;");
 			} catch(e) {}
 		}
 	}

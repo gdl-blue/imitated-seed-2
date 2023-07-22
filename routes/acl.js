@@ -155,6 +155,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 			
 			return res.status(400).send('');
 		} else {
+			const scrollable = ver('4.13.0');
 			var content = ``;
 			for(var isns of [false, true]) {
 				content += `
@@ -167,7 +168,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					content += `
 						<h4 class="wiki-heading">${acltype[type]}</h4>
 						<div class="seed-acl-div" data-type="${type}" data-editable="${edit}" data-isns="${isns}">
-							<div class="table-wrap">
+							<div class=table-wrap${scrollable ? ' style="overflow-x: auto;"' : ''}>
 								<table class="table" style="width:100%">
 									<colgroup>
 										<col style="width: 60px">
