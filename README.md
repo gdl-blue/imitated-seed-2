@@ -28,8 +28,8 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
 ## 이메일 설정법
 - 먼저 "자신사이트주소/admin/config" 에 접속해 `사이트 주소`란에 자신의 사이트주소를 입력한다.
 - config.json 파일을 열고 `"disable_email":"true"`를 제거한다.
-- `"email":"인증메일을 보낼 지메일주소","passwd":"구글 앱 비밀번호"`를 추가한다.
-### 구글 앱 비밀번호 설정링크(https://myaccount.google.com/u/3/apppasswords)
+- `"email":"인증메일을 보낼 Gmail 주소","passwd":"구글 앱 비밀번호"`를 추가한다.
+- [[구글 앱 비밀번호 설정링크]](https://myaccount.google.com/apppasswords)
 
 ## 추가 도구
 - undelete-thread.js: 삭제된 토론 복구
