@@ -92,7 +92,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				<label class=control-label>사용자정의 이름공간</label>
 				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
 			</div>
-			
+
 			<div class=btns>
 				<button type=submit style="width: 100px;" class="btn btn-primary">저장</button>
 			</div>

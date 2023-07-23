@@ -1,13 +1,10 @@
-//위키 이름설정
-const wikiname = config.getString('wiki.site_name', '더 시드');  //위키이름
-const domain = hostconfig.domain;  //도메인
-
 //메일 설정
 const transporter = nodemailer.createTransport({
   service: 'gmail',  // Gmail
+  port: 465,
   auth: {
-    user: hostconfig.email ,  // 발송자 이메일
-    pass: hostconfig.passwd,  // 발송자 이메일 비밀번호
+    user: hostconfig.email,
+    pass: hostconfig.passwd
   },
 });
 
@@ -79,6 +76,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 				${req.method == 'POST' && !error && userduplicate ? (error = err('p', { msg: '이메일이 이미 존재합니다.' })) : ''}
 				${req.method == 'POST' && !error && invalidemail ? (error = err('p', { msg: '이메일의 값을 형식에 맞게 입력해주세요.' })) : ''}
 				${emailfilter}
+
 			</div>
 			
 			<p>
@@ -101,28 +99,30 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		const key = rndval('abcdef1234567890', 64);
 		curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
 
-		//메일 발송
-		const { email } = req.body;
-		const mailOptions = {
-			from: '[' + [wikiname]+']'  + '<' + [email] + '>',
-			to: [email] ,
-			subject: '[' + [wikiname] + ']' + '계정 생성 이메일 주소 인증.',
-			html: `
-			<p>안녕하세요. ${wikiname} 입니다.</p>
-			<p>${wikiname} 계정 생성 이메일 인증 메일입니다.</p>
-			<p>직접 계정 생성을 진행하신 것이 맞다면 아래 링크를 클릭해서 계정 생성을 계속 진행해주세요.</p>
-			<a href="http://${domain}/member/signup/${key}">[인증]</a>
-			<p>이 메일은 24시간동안 유효합니다.</p>
-			<p>요청 아이피: ${ip_check(req)}</p>
-			`,
-  		};
-		transporter.sendMail(mailOptions);
-		console.log(email+'으로 가입인증메일 발송됨.');
-
 		//이메일 사용 안하면
 		if(hostconfig.disable_email) return res.redirect('/member/signup/' + key);
 
-		return res.send(await render(req, '계정 만들기', `
+		//사용하면
+		else {
+			//메일 발송
+			const { email } = req.body;
+			const mailOptions = {
+			from: [config.getString('wiki.site_name')] + '<' + [email] + '>',
+			to: [email] ,
+			subject: '[' + [config.getString('wiki.site_name')] + ']' + '계정 생성 이메일 주소 인증.',
+			html: `
+				<p>안녕하세요. ${config.getString('wiki.site_name')} 입니다.</p>
+				<p>${config.getString('wiki.site_name')} 계정 생성 이메일 인증 메일입니다.</p>
+				<p>직접 계정 생성을 진행하신 것이 맞다면 아래 링크를 클릭해서 계정 생성을 계속 진행해주세요.</p>
+				<a href="http://${config.getString('wiki.canonical_url')}/member/signup/${key}">[인증]</a>
+				<p>이 메일은 24시간동안 유효합니다.</p>
+				<p>요청 아이피: ${ip_check(req)}</p>
+			`,};
+
+			transporter.sendMail(mailOptions);
+			console.log(email+'으로 가입인증메일 발송됨.');
+			//.
+			return res.send(await render(req, '계정 만들기', `
 			<p>
 				이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
 			</p>
@@ -132,10 +132,11 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 				<li>인증 메일은 24시간동안 유효합니다.</li>
 			</ul>
 			
-
-		`, {}));		
+			
+		`, {}));
+		}
 	}
-	
+
 	res.send(await render(req, '계정 만들기', content, {}, _, error, 'signup'));
 });
 
