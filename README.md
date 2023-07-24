@@ -54,6 +54,9 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
   - `namuwiki_exclusive`: (기본값 false) 나무위키 전용 기능(경고 ACL 그룹, 문서 이전 판 경고 등)을 활성화한다.
   - `enable_captcha`: (기본값 false) 보안문자를 쓰게 한다.
   - `block_ip`: (기본값 []) 접속을 차단할 IP를 지정한다. CIDR는 지원하지 않는다.
+  - `protect_owner`: (기본값 false) 소유자 보호 기능을 활성화한다.
+  - `disable_multithread`: (기본값 false) 멀티쓰레딩을 비활성화한다.
+  - `custom_namespaces`: (기본값 []) 사용자 지정 이름공간 배열
 
 ## 라이선스
 자유롭게 쓰기 바란다. ()
