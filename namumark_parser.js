@@ -945,8 +945,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	} ft(document);
 	data = document.body.innerHTML.replace(/<br>/g, '\n');
 	
-	// 각주 마무리
-{
+{	// 각주 마무리
 	var { document } = (new JSDOM(data.replace(/\n/g, '<br>'))).window;
 	for(var item of document.querySelectorAll('a.wiki-fn-content')) {
 		item.setAttribute('title', tdata[item.getAttribute('data-numeric-id')] || tdata2[item.getAttribute('data-title')]);
@@ -955,8 +954,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		item.removeAttribute('data-numeric-id');
 	}
 	data = document.body.innerHTML.replace(/<br>/g, '\n');
-}
-	
+}	
 	data = document.querySelector('body').innerHTML;
 	data = data.replace(/\r/g, '');
 	data = data.replace(/<br>/g, '\n');
@@ -967,6 +965,9 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	if(!discussion) data = '<div class=wiki-inner-content>' + data + '</div>';
 	
 	data = data.replace(/<div>\n/, '<div>').replace(/\n<\/div><h(\d)/g, '</div><h$1').replace(/\n/g, '<br />');
+	data = data.replace(/<br\s\/><ul\sclass=\"wiki[-]list\">/g, '<ul class=wiki-list>').replace(/<\/ul><br\s\/>/g, '</ul>');
+	data = data.replace(/<br\s\/><blockquote class=\"wiki[-]quote\">/g, '<blockquote class=wiki-quote>').replace(/<\/blockquote><br\s\/>/g, '</blockquote>');
+	data = data.replace(/<div\sclass=\"wiki[-]heading[-]content\"><br\s\/>/g, '<div class=wiki-heading-content>').replace(/<\/blockquote><br\s\/>/g, '</blockquote>');
 	
 	// 사용자 문서 틀
 	if(!discussion && !flags.includes('preview') && doc.namespace == '사용자') {
