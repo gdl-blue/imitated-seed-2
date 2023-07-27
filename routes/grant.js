@@ -1,7 +1,7 @@
 router.all(/^\/admin\/grant$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	var username = req.query['username'];
-	if(!hasperm(req, 'grant')) return res.send(await showError(req, 'permission'));
+	if(!hasperm(req, 'grant') && !hasperm(req, 'owner')) return res.send(await showError(req, 'permission'));
 	
 	var error = null;
 	var content = `
