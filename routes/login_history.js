@@ -1,6 +1,6 @@
 router.all(/^\/admin\/login_history$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
-	if(!getperm('grant', ip_check(req)) && !getperm('developer', ip_check(req))) return res.send(await showError(req, 'permission'));
+	if(!hasperm(req, 'login_history') && !hasperm(req, 'developer')) return res.send(await showError(req, 'permission'));
 	
 	var error = null;
 	var content = `
