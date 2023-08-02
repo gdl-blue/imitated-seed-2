@@ -7,7 +7,7 @@
 
 테스트 서버:
 - [내 서버](https://go2021.run-us-west2.goorm.io/w/FrontPage) - the seed 4.7.2
-- [theseeduser님의 서버](https://testwiki.noderun.repl.co) - the seed 4.20.0
+- [theseeduser님의 서버](https://testwiki.xyz) - the seed 4.20.0
 
 나무픽스와 거의 호환된다.
 
