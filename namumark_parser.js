@@ -970,7 +970,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	data = data.replace(/<div\sclass=\"wiki[-]heading[-]content\"><br\s\/>/g, '<div class=wiki-heading-content>').replace(/<\/blockquote><br\s\/>/g, '</blockquote>');
 	
 	// 사용자 문서 틀
-	if(!discussion && !flags.includes('preview') && doc.namespace == '사용자') {
+	if(!discussion && && !flags.includes('include') && !flags.includes('preview') && doc.namespace == '사용자') {
 		const blockdata = await userblocked(doc.title);
 		if(blockdata) {
 			data = `
@@ -1018,7 +1018,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		}
 	}
 	
-	if(!flags.includes('noframe') && !discussion && doc.namespace == '분류') {
+	if(!flags.includes('include') && !flags.includes('noframe') && !discussion && doc.namespace == '분류') {
 		let content = '';
 		
 		const dbdata = await curs.execute("select title, namespace, type from backlink where type = 'category' and link = ? and linkns = ?", [doc.title, doc.namespace]);
@@ -1080,10 +1080,10 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		data += content;
 	}
 	
-	if(!discussion && !flags.includes('noframe')) data = '<div class="wiki-content clearfix">' + data + '</div>';
+	if(!discussion && !flags.includes('noframe') && !flags.includes('include')) data = '<div class="wiki-content clearfix">' + data + '</div>';
 	
 	// 분류
-	if(!flags.includes('noframe')) {
+	if(!flags.includes('noframe') && !flags.includes('include')) {
 		if(cates) {
 			data = `
 				<div class=wiki-category>
