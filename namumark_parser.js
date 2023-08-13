@@ -970,7 +970,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	data = data.replace(/<div\sclass=\"wiki[-]heading[-]content\"><br\s\/>/g, '<div class=wiki-heading-content>').replace(/<\/blockquote><br\s\/>/g, '</blockquote>');
 	
 	// 사용자 문서 틀
-	if(!discussion && && !flags.includes('include') && !flags.includes('preview') && doc.namespace == '사용자') {
+	if(!discussion && !flags.includes('include') && !flags.includes('preview') && doc.namespace == '사용자') {
 		const blockdata = await userblocked(doc.title);
 		if(blockdata) {
 			data = `
