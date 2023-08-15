@@ -127,7 +127,7 @@ wiki.use(session({
 		samesite: "lax"
 	},
 	resave: false,
-    saveUninitialized: false,
+	saveUninitialized: false,
 }));
 wiki.use(cookieParser());
 
