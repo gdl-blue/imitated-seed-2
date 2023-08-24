@@ -82,6 +82,7 @@ async function init() {
 		'autologin_tokens': ['username', 'token'],
 		'trusted_devices': ['username', 'id'],
 		'api_tokens': ['username', 'token'],
+		'recover_account': ['key', 'username', 'email', 'time']
 	};
 	
 	// 테이블 만들기
