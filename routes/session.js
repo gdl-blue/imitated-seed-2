@@ -1,7 +1,7 @@
 router.get(/^\/member\/logout$/, async(req, res, next) => {
 	var autologin;
 	if(autologin = req.cookies['honoka']) {
-		await curs.execute("delete from autologin_tokens where token = ?", [autologin]);
+		await curs.execute("delete from autologin_tokens where token = ?", [sha3(autologin)]);
 		res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
 	}
 	var desturl = req.query['redirect'];
@@ -75,8 +75,10 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 			res.cookie('honoka', key, {
 				expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360),
 				httpOnly: true,
+				secure: true,
+				samesite: "lax"
 			});
-			await curs.execute("insert into autologin_tokens (username, token) values (?, ?)", [id, key]);
+			await curs.execute("insert into autologin_tokens (username, token) values (?, ?)", [id, sha3(key)]);
 		}
 		
 		if(!hostconfig.disable_login_history) {

@@ -120,9 +120,14 @@ wiki.use(express.static('public'));
 wiki.use(session({
 	key: 'kotori',
 	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
-	cookie: { expires: false },
+	cookie: {
+		expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
+		httpOnly: true,
+		secure: true,
+		samesite: "lax"
+	},
 	resave: false,
-    saveUninitialized: true,
+	saveUninitialized: false,
 }));
 wiki.use(cookieParser());
 
@@ -174,7 +179,7 @@ wiki.all('*', async function(req, res, next) {
 	}
 	var autologin;
 	if(autologin = req.cookies['honoka']) {
-		const d = await curs.execute("select username, token from autologin_tokens where token = ?", [autologin]);
+		const d = await curs.execute("select username, token from autologin_tokens where token = ?", [sha3(autologin)]);
 		if(!d.length) {
 			delete req.session.username;
 			res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
