@@ -7,7 +7,7 @@
 
 테스트 서버:
 - [내 서버](https://go2021.run-us-west2.goorm.io/w/FrontPage) - the seed 4.7.2
-- [theseeduser님의 서버](https://quill-brawny-belt.glitch.me) - the seed 4.20.0
+- [theseeduser님의 서버](https://testwiki.xyz) - the seed 4.20.0
 
 나무픽스와 거의 호환된다.
 
@@ -55,7 +55,7 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
   - `enable_captcha`: (기본값 false) 보안문자를 쓰게 한다.
   - `block_ip`: (기본값 []) 접속을 차단할 IP를 지정한다. CIDR는 지원하지 않는다.
   - `protect_owner`: (기본값 false) 소유자 보호 기능을 활성화한다.
-  - `disable_multithread`: (기본값 false) 멀티쓰레딩을 비활성화한다.
+  - `disable_multithreading`: (기본값 false) 멀티쓰레딩을 비활성화한다.
   - `custom_namespaces`: (기본값 []) 사용자 지정 이름공간 배열
 
 ## 라이선스
