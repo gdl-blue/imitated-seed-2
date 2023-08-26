@@ -82,6 +82,7 @@ async function init() {
 		'autologin_tokens': ['username', 'token'],
 		'trusted_devices': ['username', 'id'],
 		'api_tokens': ['username', 'token'],
+		'recover_account': ['key', 'username', 'email', 'time']
 	};
 	
 	// 테이블 만들기
@@ -132,7 +133,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '17';
+const updatecode = '18';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -447,6 +448,10 @@ wiki.use(function(req, res, next) {
 		} case 16: {
 			try {
 				await curs.execute("alter table users\nADD email text;");
+			} catch(e) {}
+		} case 17: {
+			try {
+				await curs.execute("create table recover_account (key text default '', username text default '', email text default '', time text default '')");
 			} catch(e) {}
 		}
 	}
