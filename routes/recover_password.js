@@ -145,20 +145,15 @@ router.all(/^\/member\/recover_password\/(.*)$/, async function signupScreen(req
     var desturl = req.query['redirect'];
     if (!desturl) desturl = '/';
 
-    if (islogin(req)) { res.redirect(desturl); return; }
+    if (islogin(req)) return res.redirect(desturl);
 
-    var pw = '1', pw2 = '1';
+    if (req.method === 'POST'){
+        let pw = req.body['password'] || '';
+        let pw2 = req.body['password_check'] || '';
+    }
 
     var content = '';
     var error = null;
-
-    if (req.method == 'POST' && !error) do {
-        const pw = req.body['password'] || '';
-        const pw2 = req.body['password_check'] || '';
-        await curs.execute("update users set password = ? where username = username", [sha3(req.body['password'])]);
-        await curs.execute("delete from recover_account where key = ?", [req.body['key']]);
-        return res.redirect('/member/login');
-    } while (0);
 
     content = `
           <form class=signup-form method=post>         
@@ -180,7 +175,13 @@ router.all(/^\/member\/recover_password\/(.*)$/, async function signupScreen(req
                   <button type=submit class="btn btn-primary">변경</button>
               </div>
           </form>
-      `;
+    `;
+
+    if (req.method == 'POST' && !error) {
+        await curs.execute("update users set password = ? where username = ?", [sha3(req.body['password']), username]);
+        await curs.execute("delete from recover_account where key = ?", [key]);
+        return res.redirect('/member/login');
+    }
 
     res.send(await render(req, '계정 찾기', content, {}, _, error, 'recover_password'));
 });
