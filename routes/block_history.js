@@ -17,7 +17,7 @@ router.get(/^\/BlockHistory$/, async(req, res) => {
 		const com = req.query['query'].startsWith('"') && req.query['query'].endsWith('"');
 		const query = com ? req.query['query'].replace(/^\"/, '').replace(/\"$/, '') : req.query['query'];
 		if(req.query['target'] == 'author') {
-			qq = 'where executer' + (com ? ' = ? ' : "like '%' || ? || '%' ");
+			qq = 'where executer ' + (com ? ' = ? ' : "like '%' || ? || '%' ");
 			pa = [query];
 		} else {
 			qq = 'where note ' + (com ? ' = ? ' : "like '%' || ? || '%' ") + ' or target ' + (com ? ' = ? ' : "like '%' || ? || '%' ");
