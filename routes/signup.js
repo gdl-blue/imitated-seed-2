@@ -1,14 +1,3 @@
-//메일 설정
-const transporter = nodemailer.createTransport({
-  service: 'gmail',  // Gmail
-  port: 465,
-  auth: {
-    user: hostconfig.email,
-    pass: hostconfig.passwd
-  },
-});
-
-//라우터 설정
 router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) {
 	if(!['GET', 'POST'].includes(req.method)) return next();
 	
@@ -90,10 +79,6 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		</form>
 	`;
 	
-
-
-
-
 	if(req.method == 'POST' && !error) {
 		await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
 		const key = rndval('abcdef1234567890', 64);
@@ -106,21 +91,18 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		else {
 			//메일 발송
 			const { email } = req.body;
-			const mailOptions = {
-			from: [config.getString('wiki.site_name')] + '<' + [email] + '>',
-			to: [email] ,
-			subject: '[' + [config.getString('wiki.site_name')] + ']' + '계정 생성 이메일 주소 인증.',
-			html: `
+			mailer(
+				email, 
+				'[' + [config.getString('wiki.site_name')] + ']' + '계정 생성 이메일 주소 인증.',
+				`
 				<p>안녕하세요. ${config.getString('wiki.site_name')} 입니다.</p>
 				<p>${config.getString('wiki.site_name')} 계정 생성 이메일 인증 메일입니다.</p>
 				<p>직접 계정 생성을 진행하신 것이 맞다면 아래 링크를 클릭해서 계정 생성을 계속 진행해주세요.</p>
 				<a href="http://${config.getString('wiki.canonical_url')}/member/signup/${key}">[인증]</a>
 				<p>이 메일은 24시간동안 유효합니다.</p>
 				<p>요청 아이피: ${ip_check(req)}</p>
-			`,};
+			`)
 
-			transporter.sendMail(mailOptions);
-			console.log(email+'으로 가입인증메일 발송됨.');
 			//.
 			return res.send(await render(req, '계정 만들기', `
 			<p>

@@ -1580,6 +1580,28 @@ function log(thread, msg) {
 	console.log(`[${toTime(getTime())}] [${thread} 쓰레드]: ${msg}`);
 }
 
+//메일 설정
+const transporter = nodemailer.createTransport({
+	host: hostconfig.mailhost,
+	port: 465,
+	secure: true,
+	auth: {
+	  user: hostconfig.email,
+	  pass: hostconfig.passwd
+	},
+  });
+
+function mailer(to, subject, content) {
+	const mailOptions = {
+		from: [config.getString('wiki.site_name')] + '<' + [to] + '>',
+        to: to ,
+        subject: subject,
+        html: content
+	};
+	transporter.sendMail(mailOptions);
+	console.log(to+'으로 가입인증메일 발송됨.');
+}
+
 module.exports = {
 	version,
 	ver,
@@ -1638,4 +1660,5 @@ module.exports = {
 	
 	simplifyRequest,
 	log,
+	mailer
 };

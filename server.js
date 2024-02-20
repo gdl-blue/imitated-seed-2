@@ -49,7 +49,8 @@ async function init() {
 		search_host: '127.5.5.5',
 		search_port: '25005',
 		owners: [input('소유자 닉네임: ')],
-		disable_email: true
+		disable_email: true,
+		sessionhttps: false
 	};
 	
 	// 만들 테이블
