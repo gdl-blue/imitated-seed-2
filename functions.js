@@ -16,6 +16,7 @@ const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
 const captchapng = require('captchapng');
 const multer = require('multer');
+const nodemailer = require('nodemailer');
 const upload = multer();  // 파일 올리기 모듈
 
 const database = require('./database');
