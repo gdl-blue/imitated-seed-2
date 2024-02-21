@@ -25,11 +25,12 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
 - `npm i`를 실행한다.
 - `node server`를 실행한다.
 
-## 이메일 설정법
+## 이메일 설정법 [Gmail]
 - 먼저 "자신사이트주소/admin/config" 에 접속해 `사이트 주소`란에 자신의 사이트주소를 입력한다.
 - config.json 파일을 열고 `"disable_email":"true"`를 제거한다.
-- `"email":"인증메일을 보낼 Gmail 주소","passwd":"구글 앱 비밀번호"`를 추가한다.
+- `"mailhost":"smtp.gmail.com","email":"인증메일을 보낼 Gmail 주소","passwd":"구글 앱 비밀번호"`를 추가한다.
 - [[구글 앱 비밀번호 설정링크]](https://myaccount.google.com/apppasswords)
+- 타사메일의 경우 smtp.gmail.com을 타사메일의 smtp주소로 변경해야함.
 
 ## 추가 도구
 - undelete-thread.js: 삭제된 토론 복구
@@ -57,6 +58,10 @@ Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바�
   - `protect_owner`: (기본값 false) 소유자 보호 기능을 활성화한다.
   - `disable_multithread`: (기본값 false) 멀티쓰레딩을 비활성화한다.
   - `custom_namespaces`: (기본값 []) 사용자 지정 이름공간 배열
+  - `sessionhttp`: (기본값 false) true로 설정시, https접속시에만 로그인이 유지된다.
+  - `mailhost`: (기본값 []) 이메일 호스트 설정.
+  - `email`: (기본값 []) 이메일 주소.
+  - `passwd`: (기본값 []) 이메일 주소의 비밀번호(gmail의 경우 앱 비밀번호).
 
 ## 라이선스
 자유롭게 쓰기 바란다. ()
