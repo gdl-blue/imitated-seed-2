@@ -480,6 +480,16 @@ wiki.use(function(req, res, next) {
 	}
 	setInterval(cacheNeededPages, 86400000);
 	cacheNeededPages();
+
+	var dbdata = await curs.execute("select name, css from aclgroup_groups");
+	for(var item of dbdata)
+		aclgroupCache.css[item.name] = item.css;
+	var dbdata = await curs.execute("select aclgroup, username from aclgroup");
+	for(var item of dbdata) {
+		if(!aclgroupCache.group[item.username])
+			aclgroupCache.group[item.username] = [];
+		aclgroupCache.group[item.username].push(item.aclgroup);
+	}
 	
 	// 서버실행
 	const { host, port } = hostconfig;
