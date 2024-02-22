@@ -66,6 +66,7 @@ var apiTokens = {};  // API 편집 토큰
 
 var loginHistory = {};
 var neededPages = {};
+var aclgroupCache = { css: {}, group: {} };
 
 // https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
 // 무작위 문자열 생성
