@@ -975,15 +975,9 @@ async function showError(req, code, ...params) {
 // 닉네임/아이피 파싱
 function ip_pas(ip = '', ismember = '', nobold) {
 	var style = '';
-	/*if(ver('4.18.0')) {
-		var dbdata = await curs.execute("select aclgroup from aclgroup where type = ? and username = ?", (ismember == 'author' ? 'username' : 'ip'), ip);
-		if(dbdata.length) {
-			var dbdata2 = await curs.execute("select css from aclgroup_groups where name = ?", [dbdata[0].aclgroup]);
-			if(dbdata2.length) {
-				style = ' style="' + html.escape(dbdata2[0].css) + '"';
-			}
-		}
-	}*/
+	if(aclgroupCache.group[ip])
+		for(var grp of aclgroupCache.group[ip])
+			style += aclgroupCache.css[grp] + '; ';
 	
 	if(ismember == 'author') {
 		return `${nobold ? '' : '<strong>'}<a${style} href="/w/사용자:${encodeURIComponent(ip)}">${html.escape(ip)}</a>${nobold ? '' : '</strong>'}`;
