@@ -48,6 +48,16 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 				<input class=form-control name="warning_description" type="text" /> 
 			</div>
 			` : ''}
+   
+			<div class=form-group>
+				<label>사용자 이름 CSS: </label>
+				<input class=form-control name="css" type="text" /> 
+			</div>
+   
+			<div class=form-group>
+				<label>가입 불가능: </label>
+				<input class=form-control name="disallow_signup" type=checkbox value=Y /> 
+			</div>
 			
 			<div class=btns>
 				<button type=submit class="btn btn-primary" style="width: 100px;">생성</button>
@@ -69,7 +79,7 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 				break;
 			}
 			else {
-				await curs.execute("insert into aclgroup_groups (name, css, warning_description) values (?, ?, ?)", [group, req.body['css'] || '', req.body['warning_description'] || '']);
+				await curs.execute("insert into aclgroup_groups (name, css, warning_description, disallow_signup) values (?, ?, ?, ?)", [group, req.body['css'] || (group == '차단된 사용자' ? 'text-decoration: line-through !important;' : ''), req.body['warning_description'] || '', req.body.disallow_signup == 'Y' ? '1' : '0']);
 				return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 			}
 		}
@@ -168,6 +178,16 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 								<input name="warning_description" type="text" /> 
 							</div>
 							` : ''}
+   
+			<div class=form-group>
+				<label>사용자 이름 CSS: </label>
+				<input class=form-control name="css" type="text" /> 
+			</div>
+   
+			<div class=form-group>
+				<label>가입 불가능: </label>
+				<input class=form-control name="disallow_signup" type=checkbox value=Y /> 
+			</div>
 						</div>
 						<div class="modal-footer"> <button type="submit" class="btn btn-primary" style="width:auto">확인</button> <button type="button" class="btn btn-default" data-dismiss="modal" style="background:#efefef">취소</button> </div>
 					</div>
