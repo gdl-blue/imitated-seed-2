@@ -49,7 +49,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 			}
 		}
 		var blocked = 0;
-		var data = await curs.execute("select aclgroup from aclgroup where username = ?", [ip_check(req]);
+		var data = await curs.execute("select aclgroup from aclgroup where username = ?", [ip_check(req)]);
 		for(var item of data) {
 			var dbdata = await curs.execute("select disallow_signup from aclgroup where name = ?", [item.aclgroup]);
 			if(data.length) {
