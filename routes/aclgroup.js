@@ -288,7 +288,10 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 		
 		var tr = '';
 		
-		
+		var dbdata = await curs.execute("select username, aclgroup from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+		for(var item of dbdata) 
+			if(aclgroupCache.group[item.username])
+				aclgroupCache.group[item.username].remove(item.aclgroup);
 		await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		var data = await curs.execute("select id, type, username, expiration, note, date from aclgroup where aclgroup = ? order by cast(id as integer) desc limit 50", [group]);
 		for(var row of data) {
