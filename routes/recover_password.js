@@ -134,8 +134,8 @@ router.all(/^\/member\/recover_password\/(.*)$/, async function signupScreen(req
     var content = '';
     var error = null;
 
-    var pw = req.body.password
-    var pw2 = req.body.password_check
+    var pw =  req.body['password'] || '';
+    var pw2 =  req.body['password_check'] || '';
 
     content = `
         <form class=signup-form method=post>         
