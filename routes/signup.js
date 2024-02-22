@@ -48,11 +48,21 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 				break;
 			}
 		}
+		var blocked = 0;
+		var data = await curs.execute("select aclgroup from aclgroup where username = ?", [ip_check(req]);
+		for(var item of data) {
+			var dbdata = await curs.execute("select disallow_signup from aclgroup where name = ?", [item.aclgroup]);
+			if(data.length) {
+				blocked = 1;
+				break;
+			}
+		}
 	} while(0);
 	
 	var content = `
 		${req.method == 'POST' && !error && filteredemail ? (error = err('alert', { msg: '이메일 허용 목록에 있는 이메일이 아닙니다.' })) : ''}
 		${req.method == 'POST' && !error && blockmsg ? (error = err('alert', { msg: blockmsg })) : ''}
+		${req.method == 'POST' && !error && blocked ? (error = err('alert', { msg: '해당 IP는 반달 행위가 자주 발생하는 공용 아이피이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)' })) : ''}
 		
 		<form method=post class=signup-form>
 			<div class=form-group>
