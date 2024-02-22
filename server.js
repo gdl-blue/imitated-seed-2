@@ -134,7 +134,7 @@ wiki.use(session({
 wiki.use(cookieParser());
 
 // 업데이트 수준
-const updatecode = '18';
+const updatecode = '19';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -453,6 +453,11 @@ wiki.use(function(req, res, next) {
 		} case 17: {
 			try {
 				await curs.execute("create table recover_account (key text default '', username text default '', email text default '', time text default '')");
+			} catch(e) {}
+		} case 18: {
+			try {
+				await curs.execute("alter table aclgroup_groups\nADD disallow_signup text;");
+				await curs.execute("update aclgroup_groups set css = ? where name = ?", ['text-decoration: line-through !important;', '차단된 사용자']);
 			} catch(e) {}
 		}
 	}
