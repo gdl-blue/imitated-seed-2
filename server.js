@@ -481,6 +481,11 @@ wiki.use(function(req, res, next) {
 	setInterval(cacheNeededPages, 86400000);
 	cacheNeededPages();
 
+	var aclgroupCache = {
+		css: {},
+		group: {}
+	};
+	
 	var dbdata = await curs.execute("select name, css from aclgroup_groups");
 	for(var item of dbdata)
 		aclgroupCache.css[item.name] = item.css;
