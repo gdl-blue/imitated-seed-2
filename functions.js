@@ -1643,6 +1643,7 @@ module.exports = {
 
 	loginHistory,
 	neededPages,
+	aclgroupCache,
 	
 	rndval,
 	beep, 
