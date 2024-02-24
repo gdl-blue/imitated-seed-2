@@ -1,4 +1,5 @@
 const request = require('request');
+const sizeOf = require('image-size');
 
 router.all(/^\/Upload$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
@@ -120,16 +121,20 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 						return response.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 					}
 					
+					var baserev = 0;
+					var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
+					if(data.length) baserev = Number(data[0].rev);
+					
 					await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, text]);
 					const ismember = islogin(req) ? 'author' : 'ip';
 					curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 					curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
 									values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-						doc.title, doc.namespace, req.body.text || '', '1', ip_check(req), getTime(), req.body.text.length ? ('+' + req.body.text.length) : '0', req.body.log || '파일 ' + file.name + '을 올림', '0', '-1', ismember, 'create'
+						doc.title, doc.namespace, req.body.text || '', String(baserev + 1), ip_check(req), getTime(), req.body.text.length ? ('+' + req.body.text.length) : '0', req.body.log || '파일 ' + file.name + '을 올림', '0', '-1', ismember, 'create'
 					]);
 
 					
-					await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, body.hash, 'http://' + hostconfig.file_host + ':' + hostconfig.file_port + '/' + body.hash.slice(0, 2) + '/' + body.hash]);
+					await curs.execute("insert into files (title, namespace, hash, url, size, width, height) values (?, ?, ?, ?, ?, ?, ?)", [doc.title, doc.namespace, body.hash, 'http://' + hostconfig.file_host + ':' + hostconfig.file_port + '/' + body.hash.slice(0, 2) + '/' + body.hash, body.size || '0', body.width, body.height]);
 					return response.redirect('/w/' + totitle(doc.title, doc.namespace));
 				}
 			});
@@ -148,16 +153,23 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 							return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 						}
 						
+						var baserev = 0;
+						var data = await curs.execute("select rev from history where title = ? and namespace = ? order by CAST(rev AS INTEGER) desc limit 1", [doc.title, doc.namespace]);
+						if(data.length) baserev = Number(data[0].rev);
+						
 						await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, req.body.text]);
 						const ismember = islogin(req) ? 'author' : 'ip';
 						curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 						curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
 										values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-							doc.title, doc.namespace, req.body.text || '', '1', ip_check(req), getTime(), req.body.text.length ? ('+' + req.body.text.length) : '0', req.body.log || '파일 ' + file.name + '을 올림', '0', '-1', ismember, 'create'
+							doc.title, doc.namespace, req.body.text || '', String(baserev + 1), ip_check(req), getTime(), req.body.text.length ? ('+' + req.body.text.length) : '0', req.body.log || '파일 ' + file.name + '을 올림', '0', '-1', ismember, 'create'
 						]);
-						
-						await curs.execute("insert into files (title, namespace, hash, url) values (?, ?, ?, ?)", [doc.title, doc.namespace, hash, '/images/' + hash.slice(0, 2) + '/' + hash]);
-						return res.redirect('/w/' + totitle(doc.title, doc.namespace));
+						var w = 0, h = 0;
+						sizeOf(`./images/${hash.slice(0, 2)}/${hash}`, async function (err, dimensions) {
+							if(!err) w = dimensions.width, h = dimensions.height;
+							await curs.execute("insert into files (title, namespace, hash, url, size, width, height) values (?, ?, ?, ?, ?, ?, ?)", [doc.title, doc.namespace, hash, '/images/' + hash.slice(0, 2) + '/' + hash, file.data.length, w, h]);
+							return res.redirect('/w/' + totitle(doc.title, doc.namespace));
+						});
 					});
 				});
 			});

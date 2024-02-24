@@ -11,6 +11,7 @@ const fs = require('fs');
 const fileUpload = require('express-fileupload');
 
 const { sha256 } = require('js-sha256');
+const sizeOf = require('image-size');
 
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
@@ -34,7 +35,11 @@ server.post('/upload', function(req, res) {
 	file.mv(`./images/${hash.slice(0, 2)}/${hash}`, err => {
 		if(err)
 			return res.json({ status: 'error' });
-		return res.json({ status: 'success', name: file.name, hash });
+		var w = 0, h = 0;
+		sizeOf(`./images/${hash.slice(0, 2)}/${hash}`, function (err, dimensions) {
+			if(!err) w = dimensions.width, h = dimensions.height;
+			return res.json({ status: 'success', name: file.name, hash, size: file.data.length, width: w, height: h });
+		});
 	});
 });
 

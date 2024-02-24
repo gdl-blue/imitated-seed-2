@@ -79,7 +79,7 @@ async function init() {
 		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
 		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
 		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
-		'files': ['title', 'namespace', 'hash', 'url'],
+		'files': ['title', 'namespace', 'hash', 'url', 'size', 'width', 'height'],
 		'backlink': ['title', 'namespace', 'link', 'linkns', 'type', 'exist'],
 		'classic_acl': ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
 		'autologin_tokens': ['username', 'token'],
@@ -140,7 +140,7 @@ if(hostconfig.disable_file_server)
 	wiki.use('/images', express.static('images'));
 
 // 업데이트 수준
-const updatecode = '20';
+const updatecode = '22';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -470,6 +470,15 @@ wiki.use(function(req, res, next) {
 				await curs.execute("alter table files\nADD url text;");
 				hostconfig.disable_file_server = true;
 				fs.writeFile('config.json', JSON.stringify(hostconfig), 'utf8', () => 1);
+			} catch(e) {}
+		} case 20: {
+			try {
+				await curs.execute("alter table files\nADD size text;");
+			} catch(e) {}
+		} case 21: {
+			try {
+				await curs.execute("alter table files\nADD width text;");
+				await curs.execute("alter table files\nADD height text;");
 			} catch(e) {}
 		}
 	}

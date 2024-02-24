@@ -407,8 +407,6 @@ function parseIndent(data) {
 }
 
 module.exports = async function markdown(req, content, discussion = 0, title = '', flags = '', root = '') {
-	var doc = processTitle(title);
-	
 	// markdown 아니고 namumark
 	flags = flags.split(' ');
 	
@@ -771,10 +769,54 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 			}
 			data = data.replace(link, '');
 			continue;
-		} if(dest.startsWith('파일:') && !discussion && !notexist) {  // 그림
-			// 나중에 구현할랭
-			data = data.replace(link, '');
-			continue;
+		} 
+		if(dest.startsWith('파일:') && !discussion && !notexist) {  // 그림
+			var linkdoc = processTitle(dest);
+			var filedata = await curs.execute("select url, size, width, height from files where title = ? and namespace = ?", [linkdoc.title, linkdoc.namespace]);
+			if(filedata.length) {
+				filedata = filedata[0];
+				var align = 'normal', width, height, bgcolor, borderRadius, rendering;
+				if(disp != dest) {
+					var args = disp.replace(/\s/g, '').replace(/\'/g, '').replace(/\"/g, '').replace(/[;]/g, '').split('|');
+					console.log(args);
+					for(var ia of args) {
+						ia = ia.toLowerCase();
+						if(ia.split('=')[0] == 'width')
+							width = ia.replace(ia.split('=')[0] + '=', '');
+						else if(ia.split('=')[0] == 'height')
+							height = ia.replace(ia.split('=')[0] + '=', '');
+						else if(ia.split('=')[0] == 'align')
+							align = ia.replace(ia.split('=')[0] + '=', '');
+						else if(ia.split('=')[0] == 'bgcolor')
+							bgcolor = ia.replace(ia.split('=')[0] + '=', '');
+						else if(ia.split('=')[0] == 'border-radius')
+							borderRadius = ia.replace(ia.split('=')[0] + '=', '');
+						else if(ia.split('=')[0] == 'rendering')
+							rendering = ia.replace(ia.split('=')[0] + '=', '');
+					}
+				}
+				if(align != 'normal' && align != 'top' && align != 'right' && align != 'center' && align != 'top' && align != 'middle' && align != 'bottom')
+					align = 'normal';
+				if(rendering != 'pixelated')
+					rendering = undefined;
+				data = data.replace(link, `
+					<a class=wiki-link-internal href="/w/${encodeURIComponent(dest)}" title="${dest}">
+						<span class=wiki-image-align-${align} style="${width ? `width:${width};` : ''}${height ? `height:${height};` : ''}${bgcolor ? `background-color:${bgcolor};` : ''}${borderRadius ? `border-radius:${borderRadius};` : ''}${rendering ? `image-rendering:${rendering};` : ''}">
+							<span class=wiki-image-wrapper style="height: 100%;">
+								<img class=wiki-image-space height="100%" src="data:image/svg+xml;base64,${Buffer.from(`<svg width="${filedata.width}" height="${filedata.height}" xmlns="http://www.w3.org/2000/svg"></svg>`).toString('base64')}" />
+								<img class=wiki-image height="100%" src="${filedata.url}" data-filesize=${filedata.size || 0} data-src="${filedata.url}" alt="${html.escape(dest)}" />
+								<noscript>
+									<img class=wiki-image height="100%" src="${filedata.url}" alt="${html.escape(dest)}" />
+								</noscript>
+							</span>
+						</span>
+					</a>
+				`.replace(/\n/g, '').replace(/\t/g, ''));
+				if(xref) {
+					curs.execute("insert into backlink (title, namespace, link, linkns, type, exist) values (?, ?, ?, ?, 'file', ?)", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace, '1']);
+				}
+				continue;
+			}
 		}
 		
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
@@ -975,20 +1017,20 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	if(!discussion) data = '<div class=wiki-inner-content>' + data + '</div>';
 	
 	if(doc.namespace == '파일') {
-		var filedata = await curs.execute("select url from files where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		var filedata = await curs.execute("select url, width, height from files where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		if(filedata.length) {
 			filedata = filedata[0];
 			data = `
 				<span class=wiki-image-align-normal>
 					<span class=wiki-image-wrapper>
-						<img class=wiki-image-space src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQ0IiBoZWlnaHQ9IjI1NyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48L3N2Zz4=" />
+						<img class=wiki-image-space src="data:image/svg+xml;base64,${Buffer.from(`<svg width="${filedata.width}" height="${filedata.height}" xmlns="http://www.w3.org/2000/svg"></svg>`).toString('base64')}" />
 						<img class=wiki-image src="${filedata.url}" alt="${html.escape(title)}" />
 						<noscript>
 							<img class=wiki-image src="${filedata.url}" alt="${html.escape(title)}" />
 						</noscript>
 					</span>
 				</span>
-			` + data;
+			`.replace(/\n/g, '').replace(/\t/g, '') + data;
 		}
 	}
 	
