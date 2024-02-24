@@ -323,7 +323,7 @@ router.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_edit_request', msg: aclmsg }));
 	
 	if(ver('4.17.2') && req.query['redirected']) {
-		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
+		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2, 1);
 		if(aclmsg) {
 			content += alertBalloon('[알림] 문서를 편집할 권한이 없기 때문에 편집 요청으로 이동되었습니다.<br />' + aclmsg, 'info', false);
 		} else {
