@@ -13,12 +13,11 @@ const swig = require('swig');
 const ipRangeCheck = require('ip-range-check');
 const bodyParser = require('body-parser');
 const fs = require('fs');
-const { JSDOM } = require('jsdom');
-const jquery = require('jquery');
 const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
 const captchapng = require('captchapng');
+const fileUpload = require('express-fileupload');
 
 function print(x) { console.log(x); }
 function prt(x) { process.stdout.write(x); }
@@ -48,6 +47,9 @@ async function init() {
 		skin: input('기본 스킨 이름: '),
 		search_host: '127.5.5.5',
 		search_port: '25005',
+		file_host: '127.5.5.5',
+		file_port: '27775',
+		disable_file_server: true,
 		owners: [input('소유자 닉네임: ')],
 		disable_email: true,
 		sessionhttps: false
@@ -77,7 +79,7 @@ async function init() {
 		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
 		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
 		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
-		'files': ['title', 'namespace', 'hash'],
+		'files': ['title', 'namespace', 'hash', 'url'],
 		'backlink': ['title', 'namespace', 'link', 'linkns', 'type', 'exist'],
 		'classic_acl': ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
 		'autologin_tokens': ['username', 'token'],
@@ -117,8 +119,10 @@ cacheSkinList();
 // 모듈 사용
 wiki.use(bodyParser.json());
 wiki.use(bodyParser.urlencoded({ extended: true }));
-wiki.use(upload.any()); 
-wiki.use(express.static('public'));
+wiki.use(fileUpload({
+	limits: { fileSize: hostconfig.max_file_size || 2000000 },
+    abortOnLimit: true,
+}));
 wiki.use(session({
 	key: 'kotori',
 	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
@@ -132,9 +136,11 @@ wiki.use(session({
 	saveUninitialized: false,
 }));
 wiki.use(cookieParser());
+if(hostconfig.disable_file_server)
+	wiki.use('/images', express.static('images'));
 
 // 업데이트 수준
-const updatecode = '19';
+const updatecode = '20';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -458,6 +464,12 @@ wiki.use(function(req, res, next) {
 			try {
 				await curs.execute("alter table aclgroup_groups\nADD disallow_signup text;");
 				await curs.execute("update aclgroup_groups set css = ? where name = ?", ['text-decoration: line-through !important;', '차단된 사용자']);
+			} catch(e) {}
+		} case 19: {
+			try {
+				await curs.execute("alter table files\nADD url text;");
+				hostconfig.disable_file_server = true;
+				fs.writeFile('config.json', JSON.stringify(hostconfig), 'utf8', () => 1);
 			} catch(e) {}
 		}
 	}

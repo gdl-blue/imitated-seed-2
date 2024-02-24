@@ -2,6 +2,7 @@ const path = require('path');
 const geoip = require('geoip-lite');
 const inputReader = require('wait-console-input');
 const { SHA3 } = require('sha3');
+const { sha256 } = require('js-sha256');
 const md5 = require('md5');
 const express = require('express');
 const session = require('express-session');
@@ -9,15 +10,11 @@ const swig = require('swig');
 const ipRangeCheck = require('ip-range-check');
 const bodyParser = require('body-parser');
 const fs = require('fs');
-const { JSDOM } = require('jsdom');
-const jquery = require('jquery');
 const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
 const captchapng = require('captchapng');
-const multer = require('multer');
 const nodemailer = require('nodemailer');
-const upload = multer();  // 파일 올리기 모듈
 
 const database = require('./database');
 for(var item in database) global[item] = database[item];
@@ -1406,7 +1403,7 @@ function cacheSkinList() {
     skinList.length = 0;
 	for(var prop of Object.getOwnPropertyNames(skincfgs))
 		delete skincfgs[prop];
-    for(var dir of fs.readdirSync('./skins', { withFileTypes: true }).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name)) {
+    for(var dir of fs.readdirSync('./skins', { withFileTypes: true }).filter(f => fs.statSync('./skins/' + f).isDirectory()).map(dirent => dirent.name || dirent)) {
         skinList.push(dir);
 		skincfgs[dir] = require('./skins/' + dir + '/config.json');
     }
@@ -1650,6 +1647,7 @@ module.exports = {
 	beep, 
 	input, 
 	sha3, 
+	sha256,
 	random, 
 	findAll, 
 	getTime, 
@@ -1673,7 +1671,7 @@ module.exports = {
 	
 	timeFormat, _, floorof, randint,
 	
-	upload,
+	upload: null,
 	
 	simplifyRequest,
 	log,

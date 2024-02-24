@@ -1,3 +1,5 @@
+const request = require('request');
+
 router.all(/^\/Upload$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
@@ -81,54 +83,85 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 	var error = null;
 	
 	if(req.method == 'POST') do {
-		var file = req.files[0];
-		if(!file) { content = (error = err('alert', { code: 'file_not_uploaded' })) + content; break; }
+		if(!req.files || !req.files.file) { content = (error = err('alert', { code: 'file_not_uploaded' })) + content; break; }
+		var file = req.files.file;
 		var title = req.body['document'];
 		if(!title) { content = (error = err('alert', { code: 'validator_required', tag: 'document' })) + content; break; }
 		var doc = processTitle(title);
 		if(doc.namespace != '파일') { content = (error = err('alert', { msg: '업로드는 파일 이름 공간에서만 가능합니다.' })) + content; break; }
-		if(path.extname(doc.title).toLowerCase() != path.extname(file.originalname).toLowerCase()) {
-			content = (error = err('alert', { msg: '문서 이름과 확장자가 맞지 않습니다.' })) + content;
+		const ext = path.extname(file.name).toLowerCase().replace('.', '');
+		if(path.extname(doc.title).toLowerCase() != '.' + ext) {
+			content = (error = err('alert', { msg: '문서 이름과 확장자가 맞지 않습니다. (파일 확장자: ' + ext + ')' })) + content;
 			break;
 		}
 		var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 1);
 		if(aclmsg) { content = (error = err('alert', { code: 'permission_edit', msg: aclmsg })) + content; break; }
 		
+		var data = await curs.execute("select title from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		if(data.length) {
+			content = (error = err('alert', { msg: '문서가 이미 존재합니다.' })) + content;
+			break;
+		}
+		
 		if(error) break;
 		
-		const response = res;
-		
-		var request = http.request({
-			method: 'POST', 
-			host: hostconfig.image_host,
-			port: hostconfig.image_port,
-			path: '/upload',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-		}, async res => {
-			var data = '';
-			res.on('data', d => data += d);
-			res.on('end', async () => {
-				data = JSON.parse(data);
-				if(data.status != 'success') {
-					error = err('alert', { code: 'file_not_uploaded' });
-					return response.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+		if(!hostconfig.disable_file_server) {
+			const response = res;
+			
+			var freq = request.post('http://' + hostconfig.file_host + ':' + hostconfig.file_port + '/upload', async function(e, resp, body) {
+				if(e) {
+					error = err('alert', { msg: '파일 서버가 사용가능하지 않습니다.' });
+					return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+				} else {
+					if(typeof body == 'string')
+						body = JSON.parse(body);
+					if(body.status != 'success') {
+						error = err('alert', { code: 'file_not_uploaded' });
+						return response.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+					}
+					
+					await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, text]);
+					const ismember = islogin(req) ? 'author' : 'ip';
+					curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
+					curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
+									values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+						doc.title, doc.namespace, req.body.text || '', '1', ip_check(req), getTime(), req.body.text.length ? ('+' + req.body.text.length) : '0', req.body.log || '파일 ' + file.name + '을 올림', '0', '-1', ismember, 'create'
+					]);
+
+					
+					await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, body.hash, 'http://' + hostconfig.file_host + ':' + hostconfig.file_port + '/' + body.hash.slice(0, 2) + '/' + body.hash]);
+					return response.redirect('/w/' + totitle(doc.title, doc.namespace));
 				}
-				await curs.execute("insert into files (title, namespace, hash) values (?, ?, ?)", [doc.title, doc.namespace, '']);  // sha224 해시화 필요
-				return response.redirect('/w/' + totitle(doc.title, doc.namespace));
 			});
-		}).on('error', async e => {
-			error = err('alert', { msg: '파일 서버가 사용가능하지 않습니다.' });
-			return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
-		});
-		request.write(JSON.stringify({
-			filename: file.originalname,
-			document: title,
-			mimetype: file.mimetype,
-			file: file.buffer.toString('base64'),
-		}));
-		request.end();
+			freq.form().append('file', req.files.file.data, {
+				filename: file.name,
+				contentType: 'image/' + (ext == 'jpg' ? 'jpeg' : ext),
+			});
+		} else {
+			const hash = sha256(file.data);
+			fs.mkdir('./images', function() {
+				fs.mkdir('./images/' + hash.slice(0, 2), function() {
+					file.mv(`./images/${hash.slice(0, 2)}/${hash}`, async e => {
+						if(e) {
+							console.log(e);
+							error = err('alert', { code: 'file_not_uploaded' });
+							return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+						}
+						
+						await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [doc.title, doc.namespace, req.body.text]);
+						const ismember = islogin(req) ? 'author' : 'ip';
+						curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
+						curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
+										values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+							doc.title, doc.namespace, req.body.text || '', '1', ip_check(req), getTime(), req.body.text.length ? ('+' + req.body.text.length) : '0', req.body.log || '파일 ' + file.name + '을 올림', '0', '-1', ismember, 'create'
+						]);
+						
+						await curs.execute("insert into files (title, namespace, hash, url) values (?, ?, ?, ?)", [doc.title, doc.namespace, hash, '/images/' + hash.slice(0, 2) + '/' + hash]);
+						return res.redirect('/w/' + totitle(doc.title, doc.namespace));
+					});
+				});
+			});
+		}
 		
 		return;
 	} while(0);

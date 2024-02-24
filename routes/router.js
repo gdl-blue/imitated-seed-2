@@ -8,8 +8,6 @@ const swig = require('swig');
 const ipRangeCheck = require('ip-range-check');
 const bodyParser = require('body-parser');
 const fs = require('fs');
-const { JSDOM } = require('jsdom');
-const jquery = require('jquery');
 const diff = require('../cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
@@ -24,7 +22,7 @@ const markdown = require('../namumark');
 const http = require('http');
 for(var item in functions) global[item] = functions[item];
 
-for(var src of fs.readdirSync('./routes', { withFileTypes: true }).filter(dirent => !dirent.isDirectory()).map(dirent => dirent.name)) {
+for(var src of fs.readdirSync('./routes', { withFileTypes: true }).filter(f => !(fs.statSync('./routes/' + f).isDirectory())).map(dirent => dirent.name || dirent)) {
 	if(src.toLowerCase() == 'router.js') continue;
     eval(fs.readFileSync('./routes/' + src).toString());
 }
