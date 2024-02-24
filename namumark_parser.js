@@ -775,7 +775,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 			var filedata = await curs.execute("select url, size, width, height from files where title = ? and namespace = ?", [linkdoc.title, linkdoc.namespace]);
 			if(filedata.length) {
 				filedata = filedata[0];
-				var align = 'normal', width, height, bgcolor, borderRadius, rendering;
+				let align = 'normal', width, height, bgcolor, borderRadius, rendering;
 				if(disp != dest) {
 					var args = disp.replace(/\s/g, '').replace(/\'/g, '').replace(/\"/g, '').replace(/[;]/g, '').split('|');
 					for(var ia of args) {
