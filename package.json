@@ -14,6 +14,7 @@
     "express-fileupload": "^1.1.10",
     "express-session": "^1.17.2",
     "geoip-lite": "^1.4.5",
+    "image-size": "^0.5.5",
     "ip-range-check": "^0.2.0",
     "js-sha256": "^0.11.0",
     "jsdom": "^9.12.0",
