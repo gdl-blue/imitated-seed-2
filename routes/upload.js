@@ -134,6 +134,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 					]);
 
 					
+					await curs.execute("delete from files where title = ? and namespace = ?", [doc.title, doc.namespace]);
 					await curs.execute("insert into files (title, namespace, hash, url, size, width, height) values (?, ?, ?, ?, ?, ?, ?)", [doc.title, doc.namespace, body.hash, 'http://' + hostconfig.file_host + ':' + hostconfig.file_port + '/' + body.hash.slice(0, 2) + '/' + body.hash, body.size || '0', body.width, body.height]);
 					return response.redirect('/w/' + totitle(doc.title, doc.namespace));
 				}
@@ -167,6 +168,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 						var w = 0, h = 0;
 						sizeOf(`./images/${hash.slice(0, 2)}/${hash}`, async function (err, dimensions) {
 							if(!err) w = dimensions.width, h = dimensions.height;
+							await curs.execute("delete from files where title = ? and namespace = ?", [doc.title, doc.namespace]);
 							await curs.execute("insert into files (title, namespace, hash, url, size, width, height) values (?, ?, ?, ?, ?, ?, ?)", [doc.title, doc.namespace, hash, '/images/' + hash.slice(0, 2) + '/' + hash, file.data.length, w, h]);
 							return res.redirect('/w/' + totitle(doc.title, doc.namespace));
 						});
