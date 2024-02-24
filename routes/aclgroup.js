@@ -149,7 +149,7 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 	}
 	for(var g of data) {
 		if(g.name == '차단된 사용자' && !editable) continue;
-		const delbtn = `<form method=post onsubmit="return confirm('삭제하시겠습니까?');" action="/aclgroup/delete?group=${encodeURIComponent(g.name)}" style="display: inline-block; margin: 0; padding: 0;"><input type=hidden name=group value="${html.escape(g.name)}" /><button type=submit style="background: none; border: none; padding: 0; margin: 0;">×</button></form>`;
+		const delbtn = `<form method=post onsubmit="return confirm('${g.name.replace(/\\/g, '\\\\').replace(/\'/g, '\\\'')} 그룹을 삭제하시겠습니까?');" action="/aclgroup/delete?group=${encodeURIComponent(g.name)}" style="display: inline-block; margin: 0; padding: 0;"><input type=hidden name=group value="${html.escape(g.name)}" /><button type=submit style="background: none; border: none; padding: 0; margin: 0;">×</button></form>`;
 		tabs += `
 			<li class="nav-item" style="display: inline-block;">
 				<a class="nav-link${g.name == group ? ' active' : ''}" href="?group=${encodeURIComponent(g.name)}">${html.escape(g.name)} ${editabled ? delbtn : ''}</a>
