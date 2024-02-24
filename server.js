@@ -140,7 +140,7 @@ if(hostconfig.disable_file_server)
 	wiki.use('/images', express.static('images'));
 
 // 업데이트 수준
-const updatecode = '22';
+const updatecode = '23';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -479,6 +479,10 @@ wiki.use(function(req, res, next) {
 			try {
 				await curs.execute("alter table files\nADD width text;");
 				await curs.execute("alter table files\nADD height text;");
+			} catch(e) {}
+		} case 22: {
+			try {
+				await curs.execute("update aclgroup_groups set css = ? where name = ?", ['text-decoration: line-through !important; color: gray !important;', '차단된 사용자']);
 			} catch(e) {}
 		}
 	}

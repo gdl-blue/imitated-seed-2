@@ -976,7 +976,8 @@ function ip_pas(ip = '', ismember = '', nobold) {
 	if(aclgroupCache.group[ip])
 		for(var grp of aclgroupCache.group[ip])
 			style += aclgroupCache.css[grp] + '; ';
-	
+	if(style)
+		style = ' style="' + style + '"';
 	if(ismember == 'author') {
 		return `${nobold ? '' : '<strong>'}<a${style} href="/w/사용자:${encodeURIComponent(ip)}">${html.escape(ip)}</a>${nobold ? '' : '</strong>'}`;
 	} else {

@@ -79,7 +79,7 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 				break;
 			}
 			else {
-				await curs.execute("insert into aclgroup_groups (name, css, warning_description, disallow_signup) values (?, ?, ?, ?)", [group, req.body['css'] || (group == '차단된 사용자' ? 'text-decoration: line-through !important;' : ''), req.body['warning_description'] || '', req.body.disallow_signup == 'Y' ? '1' : '0']);
+				await curs.execute("insert into aclgroup_groups (name, css, warning_description, disallow_signup) values (?, ?, ?, ?)", [group, req.body['css'] || (group == '차단된 사용자' ? 'text-decoration: line-through !important; color: gray !important;' : ''), req.body['warning_description'] || '', req.body.disallow_signup == 'Y' ? '1' : '0']);
 				return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 			}
 		}

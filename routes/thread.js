@@ -573,7 +573,7 @@ router.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadD
 					<div class="r-head${rs.username == fstusr ? ' first-author' : ''}">
 						<span class=num>
 							<a id="${rs.id}">#${rs.id}</a>&nbsp;
-						</span> ${ip_pas(rs.username, rs.ismember, 1).replace('<a ', rs.isadmin == '1' ? '<a style="font-weight: bold;" ' : '<a ')}${rs['ismember'] == 'author' && await userblocked(rs.username) && !ver('4.13.0') ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 사용자'})</small>` : ''}${rs.ismember == 'ip' && await ipblocked(rs.username) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 아이피'})</small>` : ''}
+						</span> ${ip_pas(rs.username, rs.ismember, 1).replace('<a h', rs.isadmin == '1' ? '<a style="font-weight: bold;" h' : '<a h').replace('<a style="', rs.isadmin == '1' ? '<a style="font-weight: bold; ' : '<a style="')}${rs['ismember'] == 'author' && await userblocked(rs.username) && !ver('4.13.0') ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 사용자'})</small>` : ''}${rs.ismember == 'ip' && await ipblocked(rs.username) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 아이피'})</small>` : ''}
 						<span class=pull-right>
 							${generateTime(toDate(rs.time), timeFormat)}
 							${menu}
