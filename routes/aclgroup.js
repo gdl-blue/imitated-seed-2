@@ -39,7 +39,7 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 		<form method=post>
 			<div class=form-group>
 				<label>그룹 이름: </label>
-				<input type=text name=group class=form-control />
+				<input type=text name=group class=form-control type=text />
 			</div>
 			
 			${hostconfig.namuwiki_exclusive ? `
@@ -56,7 +56,7 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
    
 			<div class=form-group>
 				<label>가입 불가능: </label>
-				<input class=form-control name="disallow_signup" type=checkbox value=Y /> 
+				<input name="disallow_signup" type=checkbox value=Y /> 
 			</div>
 			
 			<div class=btns>
@@ -169,13 +169,13 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 						<div class="modal-body">
 							<div>
 								<p>그룹 이름: </p>
-								<input name="group" type="text" /> 
+								<input class=form-control name="group" type="text" /> 
 							</div>
 							
 							${hostconfig.namuwiki_exclusive ? `
 							<div>
 								<p>경고 그룹용 문구: </p>
-								<input name="warning_description" type="text" /> 
+								<input class=form-control name="warning_description" type="text" /> 
 							</div>
 							` : ''}
    
@@ -186,7 +186,7 @@ router.all(/^\/aclgroup$/, async(req, res) => {
    
 			<div class=form-group>
 				<label>가입 불가능: </label>
-				<input class=form-control name="disallow_signup" type=checkbox value=Y /> 
+				<input name="disallow_signup" type=checkbox value=Y /> 
 			</div>
 						</div>
 						<div class="modal-footer"> <button type="submit" class="btn btn-primary" style="width:auto">확인</button> <button type="button" class="btn btn-default" data-dismiss="modal" style="background:#efefef">취소</button> </div>
