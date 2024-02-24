@@ -5,6 +5,8 @@
 더시드 엔진 (구 프론트엔드 기준) 모방 프로젝트.  
 < "엔진 내부 UI는 상관없음." ( https://feedback.theseed.io/posts/280 ) >  
 
+이 엔진이 정상 작동하는 것으로 확인된 Node.js 버전은 8.6.0, 12.16.2, 12.18.1, 16.6.2이다.
+
 테스트 서버:
 - ~~[내 서버](https://go2021.run-us-west2.goorm.io/w/FrontPage) - the seed 4.7.2~~
 - ~~[test님의 서버](https://seore.org) - the seed 4.20.0, Nuxt.js로 포팅됨~~
