@@ -778,7 +778,6 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 				var align = 'normal', width, height, bgcolor, borderRadius, rendering;
 				if(disp != dest) {
 					var args = disp.replace(/\s/g, '').replace(/\'/g, '').replace(/\"/g, '').replace(/[;]/g, '').split('|');
-					console.log(args);
 					for(var ia of args) {
 						ia = ia.toLowerCase();
 						if(ia.split('=')[0] == 'width')
