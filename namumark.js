@@ -8,7 +8,7 @@ try {
 	if(!hostconfig.force_enable_multithreading) throw 1;
 	if(os.cpus().length < 2) throw 1;
 	if(process.versions.node.split('.')[0] < 16) throw 1;
-	if(hostconfig.disable_multithreading) throw 1;
+	if(hostconfig.disable_multithreading && !hostconfig.force_enable_multithreading) throw 1;
 	require('worker_threads');
 } catch(e) {
 	available = false;
