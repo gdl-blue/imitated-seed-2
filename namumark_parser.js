@@ -803,7 +803,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 						<span class=wiki-image-align-${align} style="${width ? `width:${width};` : ''}${height ? `height:${height};` : ''}${bgcolor ? `background-color:${bgcolor};` : ''}${borderRadius ? `border-radius:${borderRadius};` : ''}${rendering ? `image-rendering:${rendering};` : ''}">
 							<span class=wiki-image-wrapper style="height: 100%;">
 								<img class=wiki-image-space height="100%" src="data:image/svg+xml;base64,${Buffer.from(`<svg width="${filedata.width}" height="${filedata.height}" xmlns="http://www.w3.org/2000/svg"></svg>`).toString('base64')}" />
-								<img class=wiki-image height="100%" src="${filedata.url}" data-filesize=${filedata.size || 0} data-src="${filedata.url}" alt="${html.escape(dest)}" />
+								<img class="wiki-image wiki-image-loading" height="100%" data-filesize=${filedata.size || 0} data-src="${filedata.url}" alt="${html.escape(dest)}" />
 								<noscript>
 									<img class=wiki-image height="100%" src="${filedata.url}" alt="${html.escape(dest)}" />
 								</noscript>
