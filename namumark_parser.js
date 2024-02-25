@@ -75,7 +75,8 @@ function parseTable(content) {
 			var wiop, width = ((wiop = (fulloptions.match(/&lt;table\s*width=((\d+)(px|%|))&gt;/))) || ['', ''])[1];
 			if(wiop) {
 				data = data.replace(tr, tr = tr.replace(wiop[0], ''));
-				trs += 'width: ' + width + '; ';
+				if(width && !width.replace(/\d+/, ''))
+					width += 'px';
 			}
 			
 			var clop, color = ((clop = (fulloptions.match(/&lt;table\s*color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
@@ -98,7 +99,7 @@ function parseTable(content) {
 			
 			if(trs) ts = ' style="' + trs + '"';
 			
-			data = data.replace(tr, '<div class="wiki-table-wrap table-' + align + '"><table class=wiki-table' + ts + '><tbody>\n' + tr);
+			data = data.replace(tr, '<div class="wiki-table-wrap table-' + align + '"' + (width ? (' style="width: ' + width + ';"') : '') + '><table class=wiki-table' + ts + '><tbody>\n' + tr);
 			datarows = data.split('\n');
 		} if (  // 표의 끝이라면(아래에 || 문법 없음)
 			!((aftrow = (datarows[datarows.findIndex(s => s == (r = tr.split('\n'))[r.length - 1]) + 1] || '')).match(/^(<tr norender><td>(((?!<\/td><\/tr>($|\n))[\s\S])*)<\/td><\/tr>)$/im))  // 다음 줄이 표가 아니면
@@ -903,7 +904,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 					<a class=wiki-link-internal href="/w/${encodeURIComponent(dest)}" title="${dest}">
 						<span class=wiki-image-align-${align} style="${width ? `width:${width};` : ''}${height ? `height:${height};` : ''}${bgcolor ? `background-color:${bgcolor};` : ''}${borderRadius ? `border-radius:${borderRadius};` : ''}${rendering ? `image-rendering:${rendering};` : ''}">
 							<span class=wiki-image-wrapper style="height: 100%;">
-								<img class=wiki-image-space height="100%" src="data:image/svg+xml;base64,${Buffer.from(`<svg width="${filedata.width}" height="${filedata.height}" xmlns="http://www.w3.org/2000/svg"></svg>`).toString('base64')}" />
+								<img class=wiki-image-space height="100%" src="data:image/svg+xml;base64,${Buffer.from(`<svg width="${filedata.width}" height="${filedata.height}" xmlns="http://www.w3.org/2000/svg"></svg>`).toString('base64')}" style="max-width: 100% !important;" />
 								<img class="wiki-image wiki-image-loading" height="100%" data-filesize=${filedata.size || 0} data-src="${filedata.url}" alt="${html.escape(dest)}" />
 								<noscript>
 									<img class=wiki-image height="100%" src="${filedata.url}" alt="${html.escape(dest)}" />
