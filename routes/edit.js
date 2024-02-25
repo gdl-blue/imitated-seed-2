@@ -61,7 +61,9 @@ router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
 	if(aclmsg) {
 		if(ver('4.17.2')) {
-			return res.redirect('/new_edit_request/' + encodeURIComponent(doc + '') + '?redirected=1');
+			var aclmsg2 = await getacl(req, doc.title, doc.namespace, 'edit_request', 1);
+			if(!aclmsg2)
+				return res.redirect('/new_edit_request/' + encodeURIComponent(doc + '') + '?redirected=1');
 		}
 		error = err('alert', { code: 'permission_edit', msg: aclmsg });
 		content = error + content.replace('&<$TEXTAREA>', textarea).replace('<textarea', '<textarea readonly=readonly') + `
