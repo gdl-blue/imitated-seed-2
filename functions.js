@@ -225,6 +225,7 @@ function getUserset(req, str, def = '') {
     if(!userset[username] || !userset[username][str]) {
         if(!userset[username]) userset[username] = {};
         userset[username][str] = def;
+		curs.execute("delete from user_settings where username = ? and key = ?", [username, str]);
 		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
         return def;
     }
