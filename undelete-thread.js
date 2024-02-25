@@ -45,10 +45,22 @@ curs.execute("select title, namespace, topic, tnum from threads where deleted = 
 			with(item)
 				print(`[${num++}] ${namespace != '문서' ? (namespace + ':' + title) : title} - ${topic} (${tnum})`);
 		}
-		var sel = Number(input('토론 번호: '));
-		if(!sel || !d[sel-1]) print('토론이 올바르지 않습니다.'), process.exit(1);
-		curs.execute("update threads set deleted = '0' where tnum = ?", [d[sel-1].tnum])
-			.then(() => {
-				print('복구됨.');
-			});
+		var sel = input('토론 번호 또는 좌표: ');
+		var seln = Number(sel);
+		if(!seln) {
+			curs.execute("update threads set deleted = '0' where tnum = ?", [sel])
+				.then(() => {
+					print('복구됨.');
+				})
+				.catch(() => {
+					print('복구할 수 없습니다');
+				});
+		} else if(!d[seln-1]) {
+			print('복구할 수 없습니다');
+		} else {
+			curs.execute("update threads set deleted = '0' where tnum = ?", [d[seln-1].tnum])
+				.then(() => {
+					print('복구됨.');
+				});
+		}
 	});
