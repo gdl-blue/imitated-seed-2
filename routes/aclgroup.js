@@ -121,6 +121,8 @@ router.post(/^\/aclgroup\/remove$/, async(req, res) => {
 		aclgroup: dbdata[0].aclgroup,
 		logid,
 	});
+	if(aclgroupCache.group[dbdata[0].username])
+		aclgroupCache.group[dbdata[0].username].remove(dbdata[0].aclgroup);
 	return res.redirect('/aclgroup?group=' + encodeURIComponent(dbdata[0].aclgroup));
 });
 
@@ -400,7 +402,9 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 			target: username,
 			logid,
 		});
-		
+		if(!aclgroupCache.group[username])
+			aclgroupCache.group[username] = {};
+		aclgroupCache.group[username].push(group);
 		return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 	} while(0);
 	
