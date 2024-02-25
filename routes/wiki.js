@@ -95,7 +95,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		var dd = await curs.execute("select count(title) from stars where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		star_count = dd[0]['count(title)'];
 	}
-	
+
 	const edit_acl_message = await getacl(req, doc.title, doc.namespace, 'edit', 1) || null;
 	const editable = !edit_acl_message ? true : !(await getacl(req, doc.title, doc.namespace, 'edit_request', 1));
 
@@ -107,7 +107,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		rev,
 		user: doc.namespace == '사용자' ? true : false,
 		discuss_progress: dpg.length ? true : false,
-		editable,
-		edit_acl_message
+		editable: ver('4.22.7') ? editable : undefined,
+		edit_acl_message: ver('4.22.7') ? edit_acl_message : undefined
 	}, _, error, viewname));
 });
