@@ -349,12 +349,32 @@ function parseList(data) {
 	const rows = ('\n' + data + '\n').split(/\n/);
 	const rl = rows.length;
 	var inlist = 0;
+	var inol1list = 0;
+	var inolalist = 0;
+	var inolAlist = 0;
+	var inolilist = 0;
+	var inolIlist = 0;
 	for(let i=0; i<rl; i++) {
 		let row = rows[i];
-		if(!row.match(/^(\s+)[*]/) && !row.startsWith(' ')) {
+		if(!row.match(/^(\s+)[*]/) && !row.match(/^(\s+)1[.]/) && !row.match(/^(\s+)i[.]/) && !row.match(/^(\s+)I[.]/) && !row.match(/^(\s+)a[.]/) && !row.match(/^(\s+)A[.]/) && !row.startsWith(' ')) {
 			if(inlist) {
 				row = '</liwikilist></ulwikilist>\n' + row;
 				inlist = 0;
+			} else if(inol1list) {
+				row = '</liwikilist></olwikilist>\n' + row;
+				inol1list = 0;
+			} else if(inolalist) {
+				row = '</liwikilist></olwikilist>\n' + row;
+				inolalist = 0;
+			} else if(inolAlist) {
+				row = '</liwikilist></olwikilist>\n' + row;
+				inolAlist = 0;
+			} else if(inolilist) {
+				row = '</liwikilist></olwikilist>\n' + row;
+				inolilist = 0;
+			} else if(inolIlist) {
+				row = '</liwikilist></olwikilist>\n' + row;
+				inolIlist = 0;
 			}
 			rows[i] = row;
 			continue;
@@ -363,19 +383,84 @@ function parseList(data) {
 			rows[i] = row.replace(/^(\s{2,})[*]/, ' *');
 			continue;
 		}
+		if(row.match(/^(\s{2,})1[.]/)) {
+			rows[i] = row.replace(/^(\s{2,})1[.]/, ' 1.');
+			continue;
+		}
+		if(row.match(/^(\s{2,})a[.]/)) {
+			rows[i] = row.replace(/^(\s{2,})a[.]/, ' a.');
+			continue;
+		}
+		if(row.match(/^(\s{2,})A[.]/)) {
+			rows[i] = row.replace(/^(\s{2,})A[.]/, ' A.');
+			continue;
+		}
+		if(row.match(/^(\s{2,})i[.]/)) {
+			rows[i] = row.replace(/^(\s{2,})i[.]/, ' i.');
+			continue;
+		}
+		if(row.match(/^(\s{2,})I[.]/)) {
+			rows[i] = row.replace(/^(\s{2,})I[.]/, ' I.');
+			continue;
+		}
 		if(row.startsWith(' *') && !inlist) {
 			row = row.replace(/^\s[*](\s*)/, '<ulwikilist class=wiki-list>\n<liwikilist>\n');
 			inlist = 1;
-		} else {
+		} else if(row.startsWith(' *')) {
 			row = row.replace(/^\s/, '');
 			row = row.replace(/^[*](\s*)/, '</liwikilist><liwikilist>\n');
 			inlist = 1;
+		}
+		if(row.startsWith(' 1.') && !inol1list) {
+			row = row.replace(/^\s1[.](\s*)/, '<olwikilist class=wiki-list>\n<liwikilist>\n');
+			inol1list = 1;
+		} else if(row.startsWith(' 1.')) {
+			row = row.replace(/^\s/, '');
+			row = row.replace(/^1[.](\s*)/, '</liwikilist><liwikilist>\n');
+			inol1list = 1;
+		}
+		if(row.startsWith(' a.') && !inolalist) {
+			row = row.replace(/^\sa[.](\s*)/, '<olwikilist class="wiki-list wiki-list-alpha">\n<liwikilist>\n');
+			inolalist = 1;
+		} else if(row.startsWith(' a.')) {
+			row = row.replace(/^\s/, '');
+			row = row.replace(/^a[.](\s*)/, '</liwikilist><liwikilist>\n');
+			inolalist = 1;
+		}
+		if(row.startsWith(' A.') && !inolAlist) {
+			row = row.replace(/^\sa[.](\s*)/, '<olwikilist class="wiki-list wiki-list-upper-alpha">\n<liwikilist>\n');
+			inolAlist = 1;
+		} else if(row.startsWith(' A.')) {
+			row = row.replace(/^\s/, '');
+			row = row.replace(/^A[.](\s*)/, '</liwikilist><liwikilist>\n');
+			inolAlist = 1;
+		}
+		if(row.startsWith(' i.') && !inolAlist) {
+			row = row.replace(/^\si[.](\s*)/, '<olwikilist class="wiki-list wiki-list-roman">\n<liwikilist>\n');
+			inolilist = 1;
+		} else if(row.startsWith(' A.')) {
+			row = row.replace(/^\s/, '');
+			row = row.replace(/^i[.](\s*)/, '</liwikilist><liwikilist>\n');
+			inolilist = 1;
+		}
+		if(row.startsWith(' I.') && !inolAlist) {
+			row = row.replace(/^\sI[.](\s*)/, '<olwikilist class="wiki-list wiki-list-upper-roman">\n<liwikilist>\n');
+			inolIlist = 1;
+		} else if(row.startsWith(' A.')) {
+			row = row.replace(/^\s/, '');
+			row = row.replace(/^I[.](\s*)/, '</liwikilist><liwikilist>\n');
+			inolIlist = 1;
 		}
 		rows[i] = row;
 	}
 	rows.splice(0, 1);
 	rows.pop();
 	if(inlist) rows.push('</liwikilist>\n</ulwikilist>');
+	if(inol1list) rows.push('</liwikilist>\n</olwikilist>');
+	if(inolalist) rows.push('</liwikilist>\n</olwikilist>');
+	if(inolAlist) rows.push('</liwikilist>\n</olwikilist>');
+	if(inolilist) rows.push('</liwikilist>\n</olwikilist>');
+	if(inolIlist) rows.push('</liwikilist>\n</olwikilist>');
 	return rows.join('\n');
 }
 
@@ -734,6 +819,18 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	data = data.replace(/<liwikilist>/g, '<li>');
 	data = data.replace(/<\/liwikilist>/g, '</li>');
 	
+	data = data.replace(/<olwikilist\sclass[=]wiki[-]list>/g, '<ol class=wiki-list>');
+	data = data.replace(/<olwikilist\sclass[=]wiki[-]list>\n/g, '<ol class=wiki-list>');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]alpha\">/g, '<ol class="wiki-list wiki-list-alpha">');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]alpha\">\n/g, '<ol class="wiki-list wiki-list-alpha">');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]upper[-]alpha\">/g, '<ol class="wiki-list wiki-list-upper-alpha">');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]upper[-]alpha\">\n/g, '<ol class="wiki-list wiki-list-upper-alpha">');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]roman\">/g, '<ol class="wiki-list wiki-list-roman">');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]roman\">\n/g, '<ol class="wiki-list wiki-list-roman">');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]upper[-]roman\">/g, '<ol class="wiki-list wiki-list-upper-roman">');
+	data = data.replace(/<olwikilist\sclass[=]\"wiki[-]list\swiki[-]list[-]upper[-]roman\">\n/g, '<ol class="wiki-list wiki-list-upper-roman">');
+	data = data.replace(/<\/olwikilist>/g, '</ol>');
+	
 	// 들여쓰기
 	do {
 		data = parseIndent(data);
@@ -759,7 +856,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 			dest = dd[0];
 		}
 		
-		var ddata = await curs.execute("select content from documents where title = ? and namespace = ?", [processTitle(dest).title, processTitle(dest).namespace]);
+		var ddata = await curs.execute("select content from documents where title = ? and namespace = ?", [processTitle(dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2')).title, processTitle(dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2')).namespace]);
 		const notexist = !ddata.length ? ' not-exist' : '';
 		
 		if(dest.startsWith('분류:') && !discussion) {  // 분류
@@ -818,6 +915,8 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 			}
 		}
 		
+		if(dest == disp)
+			disp = disp.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
 		const sl = dest == root ? ' wiki-self-link' : '';
@@ -1197,7 +1296,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		data = data.replace(item, nwdata);
 	}
 	
-	log('렌더러', (title || '문서') + ' 파싱 완료.');
+	// log('렌더러', (title || '문서') + ' 파싱 완료.');
 	
 	return data;
 }
