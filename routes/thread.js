@@ -284,7 +284,7 @@ router.get(ver('4.16.0') ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-
 			${html.escape(topic)}
 			${
 				getperm('delete_thread', ip_check(req))
-				? '<span class=pull-right><a onclick="return confirm(\'삭제하시겠습니까?\');" href="/admin/thread/' + tnum + '/delete" class="btn btn-danger btn-sm">[ADMIN] 삭제</a></span>'
+				? `<span class=pull-right><a onclick="return confirm(\'삭제하시겠습니까?\');" href="/admin/thread/${tnum}/delete" class="btn btn-danger btn-sm">[ADMIN] ${ver('4.18.4') ? '스레드 ' : ''}삭제</a></span>`
 				: ''
 			}
 		</h2>
