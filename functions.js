@@ -1408,7 +1408,7 @@ function cacheSkinList() {
     skinList.length = 0;
 	for(var prop of Object.getOwnPropertyNames(skincfgs))
 		delete skincfgs[prop];
-    for(var dir of fs.readdirSync('./skins', { withFileTypes: true }).filter(f => fs.statSync('./skins/' + f).isDirectory()).map(dirent => dirent.name || dirent)) {
+    for(var dir of fs.readdirSync('./skins', { withFileTypes: true }).filter(f => fs.statSync('./skins/' + (f.name || f)).isDirectory()).map(dirent => dirent.name || dirent)) {
         skinList.push(dir);
 		skincfgs[dir] = require('./skins/' + dir + '/config.json');
     }
