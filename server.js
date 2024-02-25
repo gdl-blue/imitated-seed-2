@@ -85,7 +85,9 @@ async function init() {
 		'autologin_tokens': ['username', 'token'],
 		'trusted_devices': ['username', 'id'],
 		'api_tokens': ['username', 'token'],
-		'recover_account': ['key', 'username', 'email', 'time']
+		'recover_account': ['key', 'username', 'email', 'time'],
+		'boardipacl': ['cidr', 'expiration', 'note', 'date'],
+		'boardsuspendaccount': ['username', 'expiration', 'note', 'date'],
 	};
 	
 	// 테이블 만들기
@@ -140,7 +142,7 @@ if(hostconfig.disable_file_server)
 	wiki.use('/images', express.static('images'));
 
 // 업데이트 수준
-const updatecode = '23';
+const updatecode = '24';
 
 // 보안을 위해...
 wiki.disable('x-powered-by');
@@ -483,6 +485,11 @@ wiki.use(function(req, res, next) {
 		} case 22: {
 			try {
 				await curs.execute("update aclgroup_groups set css = ? where name = ?", ['text-decoration: line-through !important; color: gray !important;', '차단된 사용자']);
+			} catch(e) {}
+		} case 23: {
+			try {
+				await curs.execute("create table boardipacl (cidr text default '', expiration text default '', note text default '', date text default '')");
+				await curs.execute("create table boardsuspendaccount (username text default '', expiration text default '', note text default '', date text default '')");
 			} catch(e) {}
 		}
 	}
