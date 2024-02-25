@@ -42,7 +42,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				<label class=control-label>이메일 허용 목록 활성화</label>
 				<div class=checkbox>
 					<label>
-						<input type=checkbox name=wiki.email_filter_enabled value=true${config.getString('wiki.email_filter_enabled', 'false') == 'true' ? ' checked' : ''} />
+						<input type=checkbox name=wiki.email_filter_enabled value=1${config.getString('wiki.email_filter_enabled', '0') == '1' ? ' checked' : ''} />
 						사용
 					</label>
 				</div>
@@ -110,7 +110,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 		}
 		
 		if(!req.body['wiki.email_filter_enabled'])
-			req.body['wiki.email_filter_enabled'] = 'false';
+			req.body['wiki.email_filter_enabled'] = '0';
 		if(req.body['custom_namespaces'])
 			hostconfig.custom_namespaces = req.body['custom_namespaces'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
 		if(req.body['filters']) {
@@ -119,7 +119,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				curs.execute("insert into email_filters (address) values (?)", [f]);
 			}
 		}
-		for(var item of ['wiki.site_name', 'wiki.front_page', 'wiki.default_skin', 'filters', 'wiki.sitenotice', 'wiki.editagree_text', 'wiki.canonical_url', 'wiki.copyright_url', 'wiki.copyright_text', 'wiki.footer_text', 'wiki.logo_url']) {
+		for(var item of ['wiki.site_name', 'wiki.front_page', 'wiki.default_skin', 'filters', 'wiki.sitenotice', 'wiki.editagree_text', 'wiki.canonical_url', 'wiki.copyright_url', 'wiki.copyright_text', 'wiki.footer_text', 'wiki.logo_url', 'wiki.email_filter_enabled']) {
 			wikiconfig[item] = req.body[item];
 			await curs.execute("delete from config where key = ?", [item]);
 			await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);

@@ -8,9 +8,9 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 	
 	//이메일 필터
 	var emailfilter = '';
-	if(config.getString('wiki.email_filter_enabled', 'false') == 'true') {
+	if(config.getString('wiki.email_filter_enabled', '0') == '1' || config.getString('wiki.email_filter_enabled', '0') == 'true') {
 		emailfilter = `
-			<p>이메일 허용 목록이 활성화 되어 있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
+			<p>이메일 허용 목록이 활성화 되${ver('4.7.1') ? '어 ' : ''}있습니다.<br />이메일 허용 목록에 존재하는 메일만 사용할 수 있습니다.</p>
 			<ul class=wiki-list>
 		`;
 		for(var item of await curs.execute("select address from email_filters")) {
