@@ -1436,8 +1436,10 @@ function generateCaptcha(req, num) {
         fullnum += i;
         caps.push(new captchapng(120, 45, i));
     }
+	
+	var id = Math.round(Math.random() * 100000);
     
-    req.session.captcha = fullnum;
+    req.session['captcha-' + id] = fullnum;
     
     for(i of caps) {
         switch(randint(1, 6)) {
@@ -1469,14 +1471,15 @@ function generateCaptcha(req, num) {
     }
     
     return `
-        <div class="captcha-frame" style="margin: 20px 0 20px 0; border-color: #000; border-width: 1px 1px 1px; border-style: solid; border-radius: 6px; display: table; padding: 10px; background: rgb(153, 208, 249); background: linear-gradient(rgb(153, 208, 249) 0%, rgb(13, 120, 200) 31%, rgb(43, 157, 242) 30%, rgb(202, 233, 255));">
+        <div class=captcha-frame style="margin: 20px 0 20px 0; border-color: #000; border-width: 1px 1px 1px; border-style: solid; border-radius: 6px; display: table; padding: 10px; background: rgb(153, 208, 249); background: linear-gradient(rgb(153, 208, 249) 0%, rgb(13, 120, 200) 31%, rgb(43, 157, 242) 30%, rgb(202, 233, 255));">
             <div class=captcha-images>
                 ${retHTML}
             </div>
             
             <div class=captcha-input>
-                <label style="color: white;">보이는 숫자 입력: </label><br>
-                <input type=text class=form-control name=captcha>
+                <label style="color: white;">보이는 숫자 입력: </label><br />
+				<input type=hidden name=captcha-id value=${id} />
+                <input type=text class=form-control name=captcha />
             </div>
         </div>
     `;
@@ -1487,7 +1490,7 @@ function validateCaptcha(req) {
     if(hasperm(req, 'no_force_recaptcha') || hasperm(req, 'no_force_captcha')) return true;
     
     try {
-        if(req.body['captcha'].replace(/\s/g, '') != req.session.captcha) {
+        if(req.body['captcha'].replace(/\s/g, '') != req.session['captcha-' + req.body['captcha-id']]) {
             return false;
         }
     } catch(e) {
