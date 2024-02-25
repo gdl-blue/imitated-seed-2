@@ -92,6 +92,10 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				<label class=control-label>사용자정의 이름공간 (구분자는 ;)</label>
 				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
 			</div>
+			<div class=form-group>
+			<label class=control-label>아이피 차단</label>
+			<input class=form-control type=text name=block_ip value="${html.escape((hostconfig.block_ip || []).join(';'))}" />
+		    </div>
 
 			<div style="padding-top: 1rem;border-top: 0.0625rem solid #ccc;">
                 <h3>etc setting</h3>
