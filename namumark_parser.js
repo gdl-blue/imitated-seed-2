@@ -915,7 +915,10 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 					</a>
 				`.replace(/\n/g, '').replace(/\t/g, ''));
 				if(xref) {
-					curs.execute("insert into backlink (title, namespace, link, linkns, type, exist) values (?, ?, ?, ?, 'file', ?)", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace, '1']);
+					if(!xrefl.includes(linkdoc.title + '\n' + linkdoc.namespace)) {
+						xrefl.push(linkdoc.title + '\n' + linkdoc.namespace);
+						curs.execute("insert into backlink (title, namespace, link, linkns, type, exist) values (?, ?, ?, ?, 'file', ?)", [doc.title, doc.namespace, linkdoc.title, linkdoc.namespace, '1']);
+					}
 				}
 				continue;
 			}
