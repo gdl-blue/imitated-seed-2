@@ -49,7 +49,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>이메일 허용 목록</label>
+				<label class=control-label>이메일 허용 목록 (구분자는 ;)</label>
 				<input class=form-control type=text name=filters value="${html.escape(filters.join(';'))}" />
 			</div>
 			
@@ -89,7 +89,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 			</div>
 			
 			<div class=form-group>
-				<label class=control-label>사용자정의 이름공간</label>
+				<label class=control-label>사용자정의 이름공간 (구분자는 ;)</label>
 				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
 			</div>
 
