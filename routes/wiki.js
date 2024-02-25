@@ -96,6 +96,9 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		star_count = dd[0]['count(title)'];
 	}
 	
+	const edit_acl_message = await getacl(req, doc.title, doc.namespace, 'edit', 1) || null;
+	const editable = !edit_acl_message ? true : !(await getacl(req, doc.title, doc.namespace, 'edit_request', 1));
+
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
 		star_count: ver('4.9.0') && rawContent.length ? star_count : undefined,
 		starred: ver('4.9.0') && rawContent.length ? starred : undefined,
@@ -104,5 +107,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		rev,
 		user: doc.namespace == '사용자' ? true : false,
 		discuss_progress: dpg.length ? true : false,
+		editable,
+		edit_acl_message
 	}, _, error, viewname));
 });
