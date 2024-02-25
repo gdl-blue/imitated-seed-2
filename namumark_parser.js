@@ -656,7 +656,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 	}
 	data = document.querySelector('body').innerHTML.replace(/<br>/g, '\n');
 	
-	// 새각주
+	// 각주
 	var rdata = {}, tdata = {}, tdata2 = {};
 	function parseFootnotes() {
 		var dq = new Deque(), bopen = new Deque(), close = new Queue;
@@ -1307,7 +1307,8 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		data = data.replace(item, nwdata);
 	}
 	
-	// log('렌더러', (title || '문서') + ' 파싱 완료.');
+	if(hostconfig.log_renderer)
+		log('렌더러', (title || '문서') + ' 파싱 완료.');
 	
 	return data;
 }
