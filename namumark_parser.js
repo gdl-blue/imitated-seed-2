@@ -1279,7 +1279,9 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 			dom.innerHTML = dom.textContent.replace(/\n/g, '<br>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 			for(var el of dom.getElementsByTagName('*')) {
 				if(whtags.includes(el.tagName.toLowerCase())) {
-					for(var attr of el.attributes) {
+					var atl = el.attributes.length, attr;
+					for(let i=0; i<atl; i++) {
+						attr = el.attributes[i];
 						if(((whattr[el.tagName.toLowerCase()] || []).concat(whattr['*'])).includes(attr.name)) {
 							if(attr.name == 'style')
 								el.setAttribute('style', filterCSS(attr.value));
