@@ -1615,13 +1615,13 @@ const transporter = nodemailer.createTransport({
 
 function mailer(to, subject, content) {
 	const mailOptions = {
-		from: [config.getString('wiki.site_name')] + '<' + [to] + '>',
+		from: [config.getString('wiki.site_name')] + '<' + [hostconfig.email] + '>',
         to: to ,
         subject: subject,
         html: content
 	};
 	transporter.sendMail(mailOptions);
-	console.log(to+'으로 가입인증메일 발송됨.');
+	log('메일러', to+'으로 가입인증메일 발송됨.');
 }
 
 module.exports = {
