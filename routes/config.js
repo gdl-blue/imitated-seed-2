@@ -93,6 +93,22 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
 			</div>
 
+			<div style="padding-top: 1rem;border-top: 0.0625rem solid #ccc;">
+                <h3>etc setting</h3>
+                <div class="form-group row">
+                    <label for="etc_name" class="col-sm-2 col-form-label">name</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="etc_name" name="etc_name">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label for="etc_value" class="col-sm-2 col-form-label">value</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="etc_value" name="etc_value">
+                    </div>
+                </div>
+            </div>
+
 			<div class=btns>
 				<button type=submit style="width: 100px;" class="btn btn-primary">저장</button>
 			</div>
@@ -124,6 +140,13 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 			await curs.execute("delete from config where key = ?", [item]);
 			await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);
 		}
+
+		if (req.body['etc_name'] && req.body['etc_value']){
+			wikiconfig[req.body['etc_name']] = req.body['etc_value'];
+			await curs.execute("delete from config where key = ?", [req.body['etc_name']]);
+			await curs.execute("insert into config (key, value) values (?, ?)", [req.body['etc_name'], req.body['etc_value']]);
+        }
+
 		fs.writeFile('config.json', JSON.stringify(hostconfig), 'utf8', () => 1);
 		
 		return res.redirect('/admin/config');
