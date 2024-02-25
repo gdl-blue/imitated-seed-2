@@ -77,6 +77,7 @@ function parseTable(content) {
 				data = data.replace(tr, tr = tr.replace(wiop[0], ''));
 				if(width && !width.replace(/\d+/, ''))
 					width += 'px';
+				trs += 'width: 100%;';
 			}
 			
 			var clop, color = ((clop = (fulloptions.match(/&lt;table\s*color=((#[a-fA-F0-9]{3,6})|([a-zA-Z]+))(([,]((#[a-fA-F0-9]{3,6})|([a-zA-Z]+)))|)&gt;/))) || ['', ''])[1];
