@@ -6,7 +6,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 	
 	if(islogin(req)) { res.redirect(desturl); return; }
 	
-	//이메일 필터
+	// 이메일 필터
 	var emailfilter = '';
 	if(config.getString('wiki.email_filter_enabled', '0') == '1' || config.getString('wiki.email_filter_enabled', '0') == 'true') {
 		emailfilter = `
