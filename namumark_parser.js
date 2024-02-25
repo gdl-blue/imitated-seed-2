@@ -874,7 +874,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 				filedata = filedata[0];
 				let align = 'normal', width, height, bgcolor, borderRadius, rendering;
 				if(disp != dest) {
-					var args = disp.replace(/\s/g, '').replace(/\'/g, '').replace(/\"/g, '').replace(/[;]/g, '').split('|');
+					var args = disp.replace(/\s/g, '').replace(/\'/g, '').replace(/\"/g, '').replace(/[;]/g, '').split('&');
 					for(var ia of args) {
 						ia = ia.toLowerCase();
 						if(ia.split('=')[0] == 'width')
@@ -890,6 +890,10 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 						else if(ia.split('=')[0] == 'rendering')
 							rendering = ia.replace(ia.split('=')[0] + '=', '');
 					}
+					if(width && !width.replace(/\d+/, ''))
+						width += 'px';
+					if(height && !height.replace(/\d+/, ''))
+						height += 'px';
 				}
 				if(align != 'normal' && align != 'top' && align != 'right' && align != 'center' && align != 'top' && align != 'middle' && align != 'bottom')
 					align = 'normal';
