@@ -5,6 +5,8 @@
 더시드 엔진 (구 프론트엔드 기준) 모방 프로젝트.  
 < "엔진 내부 UI는 상관없음." ( https://feedback.theseed.io/posts/280 ) >  
 
+[onamu-theseed](https://github.com/gdl-blue/onamu-theseed)의 후속이다.
+
 이 엔진이 정상 작동하는 것으로 확인된 Node.js 버전은 8.6.0, 12.16.2, 12.18.1, 16.6.2이다.
 
 테스트 서버:
