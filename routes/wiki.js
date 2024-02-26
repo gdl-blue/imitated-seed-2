@@ -69,11 +69,11 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		if(rawContent[0].content.startsWith('#redirect ')) {
 			const nd = rawContent[0].content.split('\n')[0].replace('#redirect ', '').split('#');
 			const ntitle = nd[0];
-			
-			if(req.query['noredirect'] != '1' && !req.query['from']) {
+			var extd = await curs.execute("select title from documents where title = ? and namespace = ?", [processTitle(ntitle).title, processTitle(ntitle).namespace]);
+			if(req.query['noredirect'] != '1' && !req.query['from'] && extd.length) {
 				return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title + (nd[1] ? ('#' + nd[1]) : ''));
 			} else {
-				content = '#redirect <a class=wiki-link-internal href="' + encodeURIComponent(ntitle) + (nd[1] ? ('#' + nd[1]) : '') + '">' + html.escape(ntitle) + '</a>';
+				content = '#redirect <a class="wiki-link-internal' + (extd.length ? '' : ' not-exist') + '" href="' + encodeURIComponent(ntitle) + (nd[1] ? ('#' + nd[1]) : '') + '">' + html.escape(ntitle) + '</a>';
 			}
 		} else content = await markdown(req, rawContent[0].content, 0, doc + '');
 		
