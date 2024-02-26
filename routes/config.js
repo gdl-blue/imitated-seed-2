@@ -133,6 +133,8 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 			req.body['wiki.email_filter_enabled'] = '0';
 		if(req.body['custom_namespaces'])
 			hostconfig.custom_namespaces = req.body['custom_namespaces'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
+		if(req.body['block_ip'])
+			hostconfig.block_ip = req.body['block_ip'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
 		if(req.body['filters']) {
 			await curs.execute("delete from email_filters");
 			for(var f of req.body['filters'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item)) {
