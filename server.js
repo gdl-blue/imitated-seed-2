@@ -155,7 +155,7 @@ swig.setFilter('encode_doc', function encodeDocURL(input) {
 	return encodeURIComponent(input);
 });
 swig.setFilter('avatar_url', function(input) {
-	return 'https://www.gravatar.com/avatar/' + md5(getUserSetting(input.username, 'email', '')) + '?d=retro';
+	return 'https://www.gravatar.com/avatar/' + md5(getUserSetting(input.username, 'email') || '') + '?d=retro';
 });
 swig.setFilter('md5', function(input, l) {
 	return md5(input).slice(0, (l || 33));
@@ -315,6 +315,8 @@ wiki.use(function(req, res, next) {
 	var data = await curs.execute("select username, key, value from user_settings");
 	for(var set of data) {
 		if(!userset[set.username]) userset[set.username] = {};
+		if(set.key == 'email' && !set.value)
+			continue;
 		userset[set.username][set.key] = set.value;
 	}
 	

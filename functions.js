@@ -217,29 +217,33 @@ function ip_check(req, forceIP) {
 }
 
 // 사용자설정 가져오기
-function getUserset(req, str, def = '') {
+function getUserset(req, str, def) {
     str = str.replace(/^wiki[.]/, '');
-	if(!islogin(req)) return def;
+	if(!islogin(req)) return def === undefined ? '' : def;
 	const username = ip_check(req);
 	
     if(!userset[username] || !userset[username][str]) {
-        if(!userset[username]) userset[username] = {};
-        userset[username][str] = def;
-		curs.execute("delete from user_settings where username = ? and key = ?", [username, str]);
-		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
-        return def;
+		if(def !== undefined) {
+			if(!userset[username]) userset[username] = {};
+			userset[username][str] = def;
+			curs.execute("delete from user_settings where username = ? and key = ?", [username, str]);
+			curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
+		}
+        return def === undefined ? '' : def;
     }
     return userset[username][str];
 }
 
-function getUserSetting(username, str, def = '') {
+function getUserSetting(username, str, def) {
     str = str.replace(/^wiki[.]/, '');
 	
     if(!userset[username] || !userset[username][str]) {
-        if(!userset[username]) userset[username] = {};
-        userset[username][str] = def;
-		curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
-        return def;
+		if(def !== undefined) {
+			if(!userset[username]) userset[username] = {};
+			userset[username][str] = def;
+			curs.execute("insert into user_settings (username, key, value) values (?, ?, ?)", [username, str, def]);
+		}
+        return def === undefined ? '' : def;
     }
     return userset[username][str];
 }

@@ -60,7 +60,7 @@ router.get(/^\/admin\/login_history\/(.+)$/, async(req, res) => {
 	
 	var content = `
 		<p>마지막 로그인 UA : ${html.escape(useragent)}</p>
-		<p>이메일 : ${getUserSetting(username, 'email', '')}
+		<p>이메일 : ${getUserSetting(username, 'email') || ''}
 		
 		${navbtn(0, 0, 0, 0)}
 		

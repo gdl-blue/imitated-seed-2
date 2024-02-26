@@ -85,7 +85,7 @@ if(ver('4.18.6')) {
 				<div class=form-group>
 					<label>이메일</label>
 					<p>
-						${html.escape(getUserset(req, 'email', ''))}
+						${html.escape(getUserset(req, 'email') || '')}
 						<a class="btn btn-info" href="/member/change_email">이메일 변경</a>
 					</p>
 				</div>
@@ -174,7 +174,7 @@ if(ver('4.18.6')) {
 				
 				<div class=form-group>
 					<label>이메일</label>
-					<p>${html.escape(getUserset(req, 'email', ''))}</p>
+					<p>${html.escape(getUserset(req, 'email') || '')}</p>
 				</div>
 				
 				<div class=form-group>
@@ -336,7 +336,7 @@ else router.all(/^\/member\/mypage$/, async(req, res, next) => {
 			
 			<div class=form-group>
 				<label>전자우편 주소</label>
-				<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email', ''))}" />
+				<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email') || '')}" />
 				${emailfilter}
 			</div>
 			
