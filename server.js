@@ -516,7 +516,7 @@ wiki.use(function(req, res, next) {
 	cacheNeededPages();
 	
 	if(ver('4.18.0'))
-		setInterval(function clearExpiredAclgroups() {
+		setInterval(async function clearExpiredAclgroups() {
 			var dbdata = await curs.execute("select username, aclgroup from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 			for(var item of dbdata) 
 				if(aclgroupCache.group[item.username.toLowerCase()])
