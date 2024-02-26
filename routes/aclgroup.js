@@ -121,8 +121,8 @@ router.post(/^\/aclgroup\/remove$/, async(req, res) => {
 		aclgroup: dbdata[0].aclgroup,
 		logid,
 	});
-	if(aclgroupCache.group[dbdata[0].username])
-		aclgroupCache.group[dbdata[0].username].remove(dbdata[0].aclgroup);
+	if(aclgroupCache.group[dbdata[0].username.toLowerCase()])
+		aclgroupCache.group[dbdata[0].username.toLowerCase()].remove(dbdata[0].aclgroup);
 	return res.redirect('/aclgroup?group=' + encodeURIComponent(dbdata[0].aclgroup));
 });
 
@@ -294,8 +294,8 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 		
 		var dbdata = await curs.execute("select username, aclgroup from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		for(var item of dbdata) 
-			if(aclgroupCache.group[item.username])
-				aclgroupCache.group[item.username].remove(item.aclgroup);
+			if(aclgroupCache.group[item.username.toLowerCase()])
+				aclgroupCache.group[item.username.toLowerCase()].remove(item.aclgroup);
 		await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		var data = await curs.execute("select id, type, username, expiration, note, date from aclgroup where aclgroup = ? order by cast(id as integer) desc limit 50", [group]);
 		for(var row of data) {
@@ -402,9 +402,9 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 			target: username,
 			logid,
 		});
-		if(!aclgroupCache.group[username])
-			aclgroupCache.group[username] = {};
-		aclgroupCache.group[username].push(group);
+		if(!aclgroupCache.group[username.toLowerCase()])
+			aclgroupCache.group[username.toLowerCase()] = {};
+		aclgroupCache.group[username.toLowerCase()].push(group);
 		return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 	} while(0);
 	

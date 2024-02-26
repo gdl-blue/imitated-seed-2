@@ -976,10 +976,10 @@ async function showError(req, code, ...params) {
 }
 
 // 닉네임/아이피 파싱
-function ip_pas(ip = '', ismember = '', nobold) {
+function ip_pas(ip = '', ismember = '', nobold, noagcss) {
 	var style = '';
-	if(aclgroupCache.group[ip])
-		for(var grp of aclgroupCache.group[ip])
+	if(ver('4.18.0') && !noagcss && aclgroupCache.group[ip.toLowerCase()])
+		for(var grp of aclgroupCache.group[ip.toLowerCase()])
 			style += aclgroupCache.css[grp] + '; ';
 	if(style)
 		style = ' style="' + style + '"';
@@ -1017,8 +1017,8 @@ async function userblocked(username) {
 	if(ver('4.18.0')) {
 		var dbdata = await curs.execute("select username, aclgroup from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		for(var item of dbdata) 
-			if(aclgroupCache.group[item.username])
-				aclgroupCache.group[item.username].remove(item.aclgroup);
+			if(aclgroupCache.group[item.username.toLowerCase()])
+				aclgroupCache.group[item.username.toLowerCase()].remove(item.aclgroup);
 		await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		var data = await curs.execute("select id, type, username, note, expiration, date from aclgroup where aclgroup = ? and username = ?", ['차단된 사용자', username]);
 		if(data.length) {
@@ -1061,8 +1061,8 @@ async function getacl2(req, title, namespace, type, getmsg) {
 	await curs.execute("delete from ipacl where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var dbdata = await curs.execute("select username, aclgroup from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		for(var item of dbdata) 
-			if(aclgroupCache.group[item.username])
-				aclgroupCache.group[item.username].remove(item.aclgroup);
+			if(aclgroupCache.group[item.username.toLowerCase()])
+				aclgroupCache.group[item.username.toLowerCase()].remove(item.aclgroup);
 	await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
 	var blocked = 0;
@@ -1121,8 +1121,8 @@ async function getacl(req, title, namespace, type, getmsg, noeq) {
 	await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 	var dbdata = await curs.execute("select username, aclgroup from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		for(var item of dbdata) 
-			if(aclgroupCache.group[item.username])
-				aclgroupCache.group[item.username].remove(item.aclgroup);
+			if(aclgroupCache.group[item.username.toLowerCase()])
+				aclgroupCache.group[item.username.toLowerCase()].remove(item.aclgroup);
 	var ipacl = await curs.execute("select cidr, al, expiration, note from ipacl order by cidr asc limit 50");
 	var data = await curs.execute("select name, warning_description from aclgroup_groups");
 	var aclgroup = {};

@@ -149,7 +149,7 @@ router.get(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)$/ : /^\/edit_request\/(
 		} break; case 'accepted': {
 			card = `
 				<h4 class=card-title>편집 요청이 승인되었습니다.</h4>
-				<p class=card-text>${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1)}가 r${item.rev}으로 승인함.</p>
+				<p class=card-text>${generateTime(toDate(item.processtime), timeFormat)}에 ${ip_pas(item.processor, item.processortype, 1, 1)}가 r${item.rev}으로 승인함.</p>
 			`;
 		}
 	}

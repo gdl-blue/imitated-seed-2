@@ -520,9 +520,9 @@ wiki.use(function(req, res, next) {
 		aclgroupCache.css[item.name] = item.css;
 	var dbdata = await curs.execute("select aclgroup, username from aclgroup");
 	for(var item of dbdata) {
-		if(!aclgroupCache.group[item.username])
-			aclgroupCache.group[item.username] = [];
-		aclgroupCache.group[item.username].push(item.aclgroup);
+		if(!aclgroupCache.group[item.username.toLowerCase()])
+			aclgroupCache.group[item.username.toLowerCase()] = [];
+		aclgroupCache.group[item.username.toLowerCase()].push(item.aclgroup);
 	}
 	
 	// 서버실행
