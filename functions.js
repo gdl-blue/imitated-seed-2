@@ -1599,7 +1599,7 @@ function simplifyRequest(req) {
 }
 
 function log(thread, msg) {
-	console.log(`[${toTime(getTime())}] [${thread} 쓰레드]: ${msg}`);
+	console.log(`[${toTime(getTime())}] [${thread}]: ${msg}`);
 }
 
 //메일 설정
