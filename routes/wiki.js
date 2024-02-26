@@ -70,7 +70,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			const nd = rawContent[0].content.split('\n')[0].replace('#redirect ', '').split('#');
 			const ntitle = nd[0];
 			var extd = await curs.execute("select title from documents where title = ? and namespace = ?", [processTitle(ntitle).title, processTitle(ntitle).namespace]);
-			if((req.query['noredirect'] != '1' && !req.query['from'] && extd.length) || (rev && ver('4.20.0'))) {
+			if((req.query['noredirect'] != '1' && !req.query['from'] && extd.length) && (!ver('4.20.0') || (!rev && ver('4.20.0')))) {
 				return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title + (nd[1] ? ('#' + nd[1]) : ''));
 			} else {
 				content = '#redirect <a class="wiki-link-internal' + (extd.length ? '' : ' not-exist') + '" href="' + encodeURIComponent(ntitle) + (nd[1] ? ('#' + nd[1]) : '') + '">' + html.escape(ntitle) + '</a>';
