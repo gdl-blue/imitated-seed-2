@@ -10,7 +10,7 @@
 이 엔진이 정상 작동하는 것으로 확인된 Node.js 버전은 8.6.0, 12.16.2, 12.18.1, 16.6.2이다.
 
 테스트 서버:
-- [내 서버](https://go2021.run-us-west2.goorm.io/w/FrontPage) - the seed 4.7.2
+- [내 서버](https://go2021.glitch.me) - the seed 4.7.2
 - ~~[test님의 서버](https://seore.org) - the seed 4.20.0, Nuxt.js로 포팅됨~~
 - [테스트위키](https://testwiki.kr) - the seed 4.20.0
 
