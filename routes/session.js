@@ -75,7 +75,7 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 			res.cookie('honoka', key, {
 				expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360),
 				httpOnly: true,
-				secure: true,
+				secure: hostconfig.sessionhttps,
 				samesite: "lax"
 			});
 			await curs.execute("insert into autologin_tokens (username, token) values (?, ?)", [id, sha3(key)]);

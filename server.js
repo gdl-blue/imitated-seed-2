@@ -52,7 +52,7 @@ async function init() {
 		disable_file_server: true,
 		owners: [input('소유자 닉네임: ')],
 		disable_email: true,
-		sessionhttps: false
+		sessionhttps: false,
 	};
 	
 	// 만들 테이블
@@ -131,7 +131,7 @@ wiki.use(session({
 	cookie: {
 		expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
 		httpOnly: true,
-		secure: hostconfig.sessionhttps,
+		// secure: hostconfig.sessionhttps, (이렇게 하면 HTTP에서 로그인 자체가 불가능)
 		samesite: "lax"
 	},
 	resave: false,
@@ -187,8 +187,8 @@ wiki.all('*', async function(req, res, next) {
 		if(!d.length) delete req.session.username;
 		return next();
 	}
-	var autologin;
-	if(autologin = req.cookies['honoka']) {
+	var autologin = req.cookies['honoka'];
+	if(autologin) {
 		const d = await curs.execute("select username, token from autologin_tokens where token = ?", [sha3(autologin)]);
 		if(!d.length) {
 			delete req.session.username;
