@@ -56,7 +56,7 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 								Number(row.rev) > 1
 								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
 								: ''
-							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow>[ADMIN] 편집 요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
+							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집 요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
 					</span> 
 					
 					<input type="radio" name="oldrev" value="${row.rev}">
@@ -107,5 +107,23 @@ router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async(req, res) => {
 	var title = req.params[0];
 	const doc = processTitle(title);
 	await curs.execute("delete from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, req.params[1] || '0']);
+	return res.redirect('/history/' + encodeURIComponent(title));
+});
+
+router.get(/^\/admin\/history\/(.*)\/(\d+)\/hide$/, async(req, res) => {
+	if(!hasperm(req, 'hide_document_history_log'))
+		return res.status(403).send(await showError(req, 'permission'));
+	var title = req.params[0];
+	const doc = processTitle(title);
+	await curs.execute("update history set loghider = ? where title = ? and namespace = ? and rev = ?", [ip_check(req), doc.title, doc.namespace, req.params[1] || '0']);
+	return res.redirect('/history/' + encodeURIComponent(title));
+});
+
+router.get(/^\/admin\/history\/(.*)\/(\d+)\/show$/, async(req, res) => {
+	if(!hasperm(req, 'hide_document_history_log'))
+		return res.status(403).send(await showError(req, 'permission'));
+	var title = req.params[0];
+	const doc = processTitle(title);
+	await curs.execute("update history set loghider = '' where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, req.params[1] || '0']);
 	return res.redirect('/history/' + encodeURIComponent(title));
 });
