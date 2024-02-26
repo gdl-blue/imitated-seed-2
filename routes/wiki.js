@@ -77,7 +77,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			}
 		} else content = await markdown(req, rawContent[0].content, 0, doc + '');
 		
-		if(rev && ver('4.20.0') && hostconfig.namuwiki_exclusive) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
+		if(rev && ver('4.20.0')) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 		if(req.query['from']) {
 			content = alertBalloon('<a href="' + encodeURIComponent(req.query['from']) + '?noredirect=1" class=document>' + html.escape(req.query['from']) + '</a>에서 넘어옴', 'info', false) + content;
 		}
