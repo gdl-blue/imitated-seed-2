@@ -403,7 +403,7 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 			logid,
 		});
 		if(!aclgroupCache.group[username.toLowerCase()])
-			aclgroupCache.group[username.toLowerCase()] = {};
+			aclgroupCache.group[username.toLowerCase()] = [];
 		aclgroupCache.group[username.toLowerCase()].push(group);
 		return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 	} while(0);
