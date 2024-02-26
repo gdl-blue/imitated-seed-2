@@ -54,6 +54,8 @@ String.prototype.replaceAll = function(tofind, replacewith, matchcase = 1) {
     }
 };
 
+const ranking = [];
+
 server.get(/^\/search\/(.*)/, async(req, res) => {
 	const query = req.params[0];
 	const page = Number(req.query['page'] || '1');
@@ -70,6 +72,10 @@ server.get(/^\/search\/(.*)/, async(req, res) => {
 		});
 	}
 	res.json(ret);
+});
+
+server.get(/^\/api\/ranking$/, (req, res) => {
+	res.json(ranking.sort((l, r) => r.count - l.count).map(item => item.keyword).slice(0, 10));
 });
 
 server.listen(25005, '127.5.5.5', e => {

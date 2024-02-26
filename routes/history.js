@@ -11,17 +11,17 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	const from = req.query['from'];
 	const until = req.query['until'];
 	if(from) {
-		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id, loghider from history \
 						where title = ? and namespace = ? and (cast(rev as integer) <= ? AND cast(rev as integer) > ?) \
 						order by cast(rev as integer) desc",
 						[doc.title, doc.namespace, Number(from), Number(from) - 30]);
 	} else if(until) {
-		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id, loghider from history \
 						where title = ? and namespace = ? and (cast(rev as integer) >= ? AND cast(rev as integer) < ?) \
 						order by cast(rev as integer) desc",
 						[doc.title, doc.namespace, Number(until), Number(until) + 30]);
 	} else {
-		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id from history \
+		data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, edit_request_id, loghider from history \
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 30",
 						[doc.title, doc.namespace]);
 	}
@@ -56,7 +56,7 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 								Number(row.rev) > 1
 								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
 								: ''
-							})
+							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow>[ADMIN] 편집 요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
 					</span> 
 					
 					<input type="radio" name="oldrev" value="${row.rev}">
@@ -81,7 +81,7 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 					
 					${row.edit_request_id ? '<i><a href="/edit_request/' + row.edit_request_id + '">(편집 요청)</a></i>' : ''} ${ip_pas(row.username, row.ismember)}
 					
-					(<span style="color: gray;">${row.log}</span>)
+					(<span style="color: gray;${row.loghider ? ' text-decoration: line-through;' : ''}">${row.loghider ? (row.loghider + '에 의해 편집 요약 숨겨짐') : row.log}${hasperm(req, 'hide_document_history_log') && row.loghider ? ('(내용:' + row.log + ')') : ''}</span>)
 				</li>
 		`;
 	}
@@ -97,4 +97,15 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	res.send(await render(req, totitle(doc.title, doc.namespace) + '의 역사', content, {
 		document: doc,
 	}, '', null, 'history'));
+});
+
+router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async(req, res) => {
+	if(!islogin(req)) return res.status(403).send(await showError(req, 'permission'));
+	if(!((hostconfig.owners || []).includes(ip_check(req)))) {
+		return res.status(403).send(await showError(req, 'permission'));
+	}
+	var title = req.params[0];
+	const doc = processTitle(title);
+	await curs.execute("delete from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, req.params[1] || '0']);
+	return res.redirect('/history/' + encodeURIComponent(title));
 });

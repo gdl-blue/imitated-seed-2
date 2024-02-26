@@ -21,7 +21,16 @@ router.get(/^\/go\/(.*)/, (req, res) => {
 	const doc = processTitle(query);
 	curs.execute("select title, namespace from documents where lower(title) = ? and lower(namespace) = ?", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
 		.then(data => {
-			if(data.length) return res.redirect('/w/' + totitle(data[0].title, data[0].namespace));
+			if(data.length) {
+				const title = totitle(data[0].title, data[0].namespace);
+				const idx = ranking.findIndex(item => item.keyword == query);
+				if(idx > -1)
+					ranking[idx].count++;
+				else
+					ranking.push({ keyword: query, count: 1 });
+				ranking = ranking.sort((l, r) => r.count - l.count).slice(0, 10);
+				return res.redirect('/w/' + title);
+			}
 			else return res.redirect('/search/' + query);
 		})
 		.catch(e => {
@@ -113,4 +122,10 @@ router.get(/^\/search\/(.*)/, async(req, res) => {
 	}).on('error', async e => {
 		res.send(await showError(req, 'searchd_fail'));
 	}).end();
+});
+
+if(hostconfig.namuwiki_exclusive) router.get(/^\/api\/ranking$/, (req, res) => {
+	res.json({
+		keywords: ranking.sort((l, r) => r.count - l.count).map(item => ({ keyword: item.keyword })).slice(0, 10)
+	});
 });

@@ -26,6 +26,8 @@ const _ = undefined;
 const floorof = Math.floor;
 const randint = (s, e) => floorof(Math.random() * (e + 1 - s) + s);
 
+const ranking = [];
+
 String.prototype.splice = function splice(s, l, r) {
 	return this.substr(0, s) + r + this.substr(s + l, this.length);
 };
@@ -101,14 +103,14 @@ var perms = [
 ];
 var disable_autoperms = ['disable_two_factor_login'];
 
-if(version.minor >= 18) perms.remove('ipacl'), perms.remove('suspend_account');
+if(ver('4.18.0')) perms.remove('ipacl'), perms.remove('suspend_account');
 else perms.remove('aclgroup');
-if(version.minor >= 2) perms.remove('acl');
-if(version.minor < 20) perms.remove('api_access');
-if(version.minor < 20) perms.remove('hide_document_history_log');
-if(version.minor >= 18) perms.remove('editable_other_user_document');
-if(!(version.minor > 4 || (version.minor == 4 && version.revision >= 3))) { perms.remove('update_thread_document'); perms.remove('update_thread_topic'); }
-if(!(version.minor > 0 || (version.minor == 0 && version.revision >= 20))) perms.push('developer', 'tribune', 'arbiter');
+if(ver('4.2.0')) perms.remove('acl');
+if(!ver('4.20.0')) perms.remove('api_access');
+if(!ver('4.22.4')) perms.remove('hide_document_history_log');
+if(ver('4.18.0')) perms.remove('editable_other_user_document');
+if(!ver('4.4.3')) { perms.remove('update_thread_document'); perms.remove('update_thread_topic'); }
+if(!ver('4.0.20')) perms.push('developer', 'tribune', 'arbiter');
 if(hostconfig.debug) perms.push('debug');
 
 // 삐
@@ -1688,5 +1690,7 @@ module.exports = {
 	
 	simplifyRequest,
 	log,
-	mailer
+	mailer,
+	
+	ranking,
 };
