@@ -33,11 +33,29 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 						[doc.title, doc.namespace]);
 		
 		content = `
-			<p>해당 문서를 찾을 수 없습니다.</p>
-			
-			<p>
-				<a rel=nofollow href="/edit/` + encodeURIComponent(doc + '') + `">[새 문서 만들기]</a>
-			</p>
+			<div class="wiki-content clearfix">
+				<div class=wiki-inner-content>
+					<p>해당 문서를 찾을 수 없습니다.</p>
+					
+					<p>
+						<a rel=nofollow href="/edit/` + encodeURIComponent(doc + '') + `">[새 문서 만들기]</a>
+					</p>
+					
+					<script type="text/javascript">
+						if (!namu.userSettings['hide_character']) {
+							var n = random(0, 10);
+
+							if (n < 4) {
+								$(".senkawa .wiki-content").addClass("character sephi-notfound0");
+							} else if (n < 7) {
+								$(".senkawa .wiki-content").addClass("character sephi-notfound1");
+							} else {
+								$(".senkawa .wiki-content").addClass("character munya-notfound");
+							}
+						}
+					</script>
+				</div>
+			</div>
 		`;
 		
 		if(data.length) {
