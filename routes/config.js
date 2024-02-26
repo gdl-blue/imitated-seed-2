@@ -92,6 +92,10 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				<label class=control-label>사용자정의 이름공간 (구분자는 ;)</label>
 				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
 			</div>
+			<div class=form-group>
+			<label class=control-label>아이피 차단</label>
+			<input class=form-control type=text name=block_ip value="${html.escape((hostconfig.block_ip || []).join(';'))}" />
+		    </div>
 
 			<div style="padding-top: 1rem;border-top: 0.0625rem solid #ccc;">
                 <h3>etc setting</h3>
@@ -129,6 +133,8 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 			req.body['wiki.email_filter_enabled'] = '0';
 		if(req.body['custom_namespaces'])
 			hostconfig.custom_namespaces = req.body['custom_namespaces'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
+		if(req.body['block_ip'])
+			hostconfig.block_ip = req.body['block_ip'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
 		if(req.body['filters']) {
 			await curs.execute("delete from email_filters");
 			for(var f of req.body['filters'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item)) {
