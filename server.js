@@ -514,6 +514,15 @@ wiki.use(function(req, res, next) {
 	}
 	setInterval(cacheNeededPages, 86400000);
 	cacheNeededPages();
+	
+	if(ver('4.18.0'))
+		setInterval(function clearExpiredAclgroups() {
+			var dbdata = await curs.execute("select username, aclgroup from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+			for(var item of dbdata) 
+				if(aclgroupCache.group[item.username.toLowerCase()])
+					aclgroupCache.group[item.username.toLowerCase()].remove(item.aclgroup);
+			await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
+		}, 60000);
 
 	var dbdata = await curs.execute("select name, css from aclgroup_groups");
 	for(var item of dbdata)
