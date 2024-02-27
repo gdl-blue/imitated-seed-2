@@ -3,7 +3,7 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 	if(!['all', 'create', 'delete', 'move', 'revert'].includes(flag)) flag = 'all';
 	if(flag == 'all') flag = '%';
 	
-	var data = await curs.execute("select isapi, flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+	var data = await curs.execute("select isapi, flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username, loghider from history \
 					where " + (flag == '%' ? "not namespace = '사용자' and " : '') + "advance like ? order by cast(time as integer) desc limit 100", 
 					[flag]);
 	
@@ -74,10 +74,10 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 				</tr>
 		`;
 		
-		if(row.log.length > 0 || row.advance != 'normal') {
+		if((row.log.length > 0 && !row.loghider) || row.advance != 'normal') {
 			content += `
 				<td colspan="3" style="padding-left: 1.5rem;">
-					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
+					${row.loghider ? '' : row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
 				</td>
 			`;
 		}

@@ -222,15 +222,8 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res,
 	}
 });
 
-wiki.get('/js/:filepath', function sendJS(req, res) {
-	const filepath = req.params['filepath'];
-	res.sendFile(filepath, { root: './js' });
-});
-
-wiki.get('/css/:filepath', function sendCSS(req, res) {
-	const filepath = req.params['filepath'];
-	res.sendFile(filepath, { root: './css' });
-});
+wiki.use('/js', express.static('js'));
+wiki.use('/css', express.static('css'));
 
 function redirectToFrontPage(req, res) {
 	res.redirect('/w/' + (config.getString('wiki.front_page', 'FrontPage')));

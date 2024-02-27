@@ -4,7 +4,7 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
 	
-	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2);
+	var aclmsg = await getacl(req, doc.title, doc.namespace, 'edit', 2, 1);
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_edit', msg: aclmsg }));
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'move', 1);

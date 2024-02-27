@@ -6,7 +6,7 @@ router.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function docum
 	if(ismember == 'author' && username.toLowerCase() == 'namubot') {
 		var data = [];
 	} else {
-		var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		var data = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username, loghider from history \
 				where cast(time as integer) >= ? and ismember = ? " + (username.replace(/\s/g, '') ? "and lower(username) = ?" : "and (lower(username) like '%' || ?)") + " order by cast(time as integer) desc", [
 					Number(getTime()) - 2592000000, ismember, username.toLowerCase()
 				]);
@@ -15,7 +15,7 @@ router.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function docum
 		var tt = Number(getTime()) + 12345;
 		if(data.length) tt = Number(data[data.length - 1].time);
 		if(data.length < 100 && ver('4.8.0'))
-			moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+			moredata = await curs.execute("select flags, title, namespace, rev, time, changes, log, iserq, erqnum, advance, ismember, username, loghider from history \
 					where cast(time as integer) < ? and ismember = ? " + (username.replace(/\s/g, '') ? "and lower(username) = ?" : "and (lower(username) like '%' || ?)") + " order by cast(time as integer) desc limit ?", [
 						tt, ismember, username.toLowerCase(), 100 - data.length
 					]);
@@ -89,10 +89,10 @@ router.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function docum
 				</tr>
 		`;
 		
-		if(row.log.length > 0 || row.advance != 'normal') {
+		if((row.log.length > 0 && !row.loghider) || row.advance != 'normal') {
 			content += `
 				<td colspan="3" style="padding-left: 1.5rem;">
-					${row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
+					${row.loghider ? '' : row.log} ${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
 				</td>
 			`;
 		}

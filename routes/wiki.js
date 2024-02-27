@@ -28,7 +28,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	} else if(!rawContent.length) {
 		viewname = 'notfound';
 		httpstat = 404;
-		var data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username from history \
+		var data = await curs.execute("select flags, rev, time, changes, log, iserq, erqnum, advance, ismember, username, loghider from history \
 						where title = ? and namespace = ? order by cast(rev as integer) desc limit 3",
 						[doc.title, doc.namespace]);
 		
@@ -40,22 +40,6 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 					<p>
 						<a rel=nofollow href="/edit/` + encodeURIComponent(doc + '') + `">[새 문서 만들기]</a>
 					</p>
-					
-					<script type="text/javascript">
-						if (!namu.userSettings['hide_character']) {
-							var n = random(0, 10);
-
-							if (n < 4) {
-								$(".senkawa .wiki-content").addClass("character sephi-notfound0");
-							} else if (n < 7) {
-								$(".senkawa .wiki-content").addClass("character sephi-notfound1");
-							} else {
-								$(".senkawa .wiki-content").addClass("character munya-notfound");
-							}
-						}
-					</script>
-				</div>
-			</div>
 		`;
 		
 		if(data.length) {
@@ -76,13 +60,31 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 							)
 						)
 						
-					};">${row.changes}</span>) ${ip_pas(row.username, row.ismember)} (<span style="color: gray;">${row.log}</span>)</li>
+					};">${row.changes}</span>) ${ip_pas(row.username, row.ismember)} (<span style="color: gray;${row.loghider ? ' text-decoration: line-through;' : ''}">${row.loghider ? (row.loghider + '에 의해 편집 요약 숨겨짐') : row.log}${hasperm(req, 'hide_document_history_log') && row.loghider ? ('(내용:' + row.log + ')') : ''}</span>)</li>
 			`;
 			content += `
 				</ul>
 				<a href="/history/` + encodeURIComponent(doc + '') + `">[더보기]</a>
 			`;
 		}
+		
+		content += `
+					<script type="text/javascript">
+						if (!namu.userSettings['hide_character']) {
+							var n = random(0, 10);
+
+							if (n < 4) {
+								$(".senkawa .wiki-content").addClass("character sephi-notfound0");
+							} else if (n < 7) {
+								$(".senkawa .wiki-content").addClass("character sephi-notfound1");
+							} else {
+								$(".senkawa .wiki-content").addClass("character munya-notfound");
+							}
+						}
+					</script>
+				</div>
+			</div>
+		`;
 	} else {
 		if(rawContent[0].content.startsWith('#redirect ')) {
 			const nd = rawContent[0].content.split('\n')[0].replace('#redirect ', '').split('#');
