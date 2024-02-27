@@ -929,7 +929,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 		dest = dest.replace(/^([:]|\s)((분류|파일)[:])/, '$2');
 		
 		const sl = dest == root ? ' wiki-self-link' : '';
-		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : '') + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? (x => x) : (x => encodeURIComponent(x.replace(/[&]amp[;]/g, '&').replace(/[&]lt[;]/g, '<').replace(/[&]gt[;]/g, '>').replace(/[&]quot[;]/g, '"'))))(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + disp + '</a>');
+		data = data.replace(link, '<a ' + (external ? 'target=_blank ' : ('title="' + dest + '" ')) + 'class="wiki-link-' + (external ? 'external' : 'internal') + '' + sl + notexist + '" href="' + (external ? '' : '/w/') + '' + (external ? (x => x) : (x => encodeURIComponent(x.replace(/[&]amp[;]/g, '&').replace(/[&]lt[;]/g, '<').replace(/[&]gt[;]/g, '>').replace(/[&]quot[;]/g, '"'))))(dest) + (!external && dd[1] ? html.escape('#' + dd[1]) : '') + '">' + disp + '</a>');
 		
 		// 역링크
 		if(xref && !external && !sl) {
