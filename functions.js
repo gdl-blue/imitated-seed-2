@@ -923,9 +923,9 @@ function fetchValue(code) {
 }
 
 // 오류/알림풍선
-function alertBalloon(content, type = 'danger', dismissible = true, classes = '', noh) {
+function alertBalloon(content, type = 'danger', dismissible = true, classes = '', noh, id) {
 	return `
-		<div class="alert alert-${type} ${dismissible ? 'alert-dismissible' : ''} ${classes}" role=alert>
+		<div class="alert alert-${type} ${dismissible ? 'alert-dismissible' : ''} ${classes}" ${id ? ('id=' + id + ' ') : ''}role=alert>
 			${dismissible ? `<button type=button class=close data-dismiss=alert aria-label=Close>
 				<span aria-hidden=true>×</span>
 				<span class=sr-only>Close</span>

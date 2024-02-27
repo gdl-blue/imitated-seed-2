@@ -1269,7 +1269,7 @@ module.exports = async function markdown(req, content, discussion = 0, title = '
 				</div>
 			` + data;
 		} else if(doc.namespace != '사용자' && !discussion && !flags.includes('preview')) {
-			data = alertBalloon('이 문서는 분류가 되어 있지 않습니다. <a href="/w/분류:분류">분류:분류</a>에서 적절한 분류를 찾아 문서를 분류해주세요!', 'info', true) + data;
+			data = alertBalloon('이 문서는 분류가 되어 있지 않습니다. <a href="/w/분류:분류">분류:분류</a>에서 적절한 분류를 찾아 문서를 분류해주세요!', 'info', true, undefined, undefined, 'wikiNoCategoryAlert') + data;
 		}
 	}
 	
