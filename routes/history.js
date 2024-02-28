@@ -56,7 +56,7 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 								Number(row.rev) > 1
 								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
 								: ''
-							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집 요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
+							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
 					</span> 
 					
 					<input type="radio" name="oldrev" value="${row.rev}">
