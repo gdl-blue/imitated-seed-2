@@ -99,14 +99,30 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	}, '', null, 'history'));
 });
 
-router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async(req, res) => {
-	if(!islogin(req)) return res.status(403).send(await showError(req, 'permission'));
-	if(!((hostconfig.owners || []).includes(ip_check(req)))) {
+router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async (req, res) => {
+	if (!islogin(req)) return res.status(403).send(await showError(req, 'permission'));
+	if (!((hostconfig.owners || []).includes(ip_check(req)))) {
 		return res.status(403).send(await showError(req, 'permission'));
 	}
 	var title = req.params[0];
 	const doc = processTitle(title);
-	await curs.execute("delete from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, req.params[1] || '0']);
+	const rev = req.params[1];
+	const total = (await curs.execute("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))[0]['count(rev)'];
+	if (Number(rev) === total) {
+		if (rev === '1') {
+			await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		}
+		else {
+			var dbdata = await curs.execute("select * from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 2", [doc.title, doc.namespace]);
+			await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
+			if (dbdata.length === 2) {
+				await curs.execute("insert into documents (content, title, namespace) values (?, ?, ?)", [dbdata[1].content, doc.title, doc.namespace]);
+			}
+		}
+	}
+
+	await curs.execute("delete from history where title = ? and namespace = ? and rev = ?", [doc.title, doc.namespace, rev]);
+
 	return res.redirect('/history/' + encodeURIComponent(title));
 });
 
