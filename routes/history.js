@@ -52,11 +52,11 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 						(<a rel=nofollow href="/w/${encodeURIComponent(title)}?rev=${row.rev}">보기</a> |
 							<a rel=nofollow href="/raw/${encodeURIComponent(title)}?rev=${row.rev}" data-npjax="true">RAW</a> |
 							<a rel=nofollow href="/blame/${encodeURIComponent(title)}?rev=${row.rev}">Blame</a> |
-							<a rel=nofollow href="/revert/${encodeURIComponent(title)}?rev=${row.advance == 'revert' ? Number(row.flags) : row.rev}">이 리비젼으로 되돌리기</a>${
+							<a rel=nofollow href="/revert/${encodeURIComponent(title)}?rev=${row.advance == 'revert' ? Number(row.flags) : row.rev}">이 ${ver('4.13.0') ? '리비전으로' : '리비젼으로'} 되돌리기</a>${
 								Number(row.rev) > 1
 								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
 								: ''
-							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집 요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
+							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
 					</span> 
 					
 					<input type="radio" name="oldrev" value="${row.rev}">
