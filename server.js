@@ -91,6 +91,7 @@ async function init() {
 	};
 	
 	// 테이블 만들기
+	prt('\n테이블을 생성하는 중... ');
 	for(var table in tables) {
 		var sql = '';
 		sql = `CREATE TABLE ${table} ( `;
@@ -101,6 +102,63 @@ async function init() {
 		sql += `)`;
 		await curs.execute(sql);
 	}
+	print('완료!');
+	
+	prt('이름공간 ACL 설정 중... ');
+	for(var namespc of ['문서', '틀', '분류', '파일', '더 시드']) {
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'read', 'allow', '0', 'perm', 'any', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'edit', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '2', 'edit', 'deny', '0', 'perm', 'suspend_account', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '3', 'edit', 'allow', '0', 'perm', 'any', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'move', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '2', 'move', 'deny', '0', 'perm', 'suspend_account', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '3', 'move', 'allow', '0', 'perm', 'any', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'delete', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '2', 'delete', 'deny', '0', 'perm', 'suspend_account', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '3', 'delete', 'allow', '0', 'perm', 'any', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'create_thread', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '2', 'create_thread', 'deny', '0', 'perm', 'suspend_account', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '3', 'create_thread', 'allow', '0', 'perm', 'any', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'write_thread_comment', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '2', 'write_thread_comment', 'deny', '0', 'perm', 'suspend_account', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '3', 'write_thread_comment', 'allow', '0', 'perm', 'any', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'edit_request', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '2', 'edit_request', 'deny', '0', 'perm', 'suspend_account', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '3', 'edit_request', 'allow', '0', 'perm', 'any', '1')");
+		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'acl', 'allow', '0', 'perm', 'admin', '1')");
+	}
+	
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'read', 'allow', '0', 'perm', 'any', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'edit', 'deny', '0', 'perm', 'suspend_account', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '2', 'edit', 'allow', '0', 'perm', 'match_username_and_document_title', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '3', 'edit', 'allow', '0', 'perm', 'editable_other_user_document', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'move', 'deny', '0', 'perm', 'suspend_account', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '2', 'move', 'allow', '0', 'perm', 'match_username_and_document_title', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '3', 'move', 'allow', '0', 'perm', 'editable_other_user_document', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'delete', 'deny', '0', 'perm', 'suspend_account', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '2', 'delete', 'allow', '0', 'perm', 'match_username_and_document_title', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '3', 'delete', 'allow', '0', 'perm', 'editable_other_user_document', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'create_thread', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '2', 'create_thread', 'deny', '0', 'perm', 'suspend_account', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '3', 'create_thread', 'allow', '0', 'perm', 'any', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'write_thread_comment', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '2', 'write_thread_comment', 'deny', '0', 'perm', 'suspend_account', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '3', 'write_thread_comment', 'allow', '0', 'perm', 'any', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'edit_request', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '2', 'edit_request', 'deny', '0', 'perm', 'suspend_account', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '3', 'edit_request', 'allow', '0', 'perm', 'any', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '사용자', '1', 'acl', 'allow', '0', 'perm', 'admin', '1')");
+
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'read', 'allow', '0', 'perm', 'admin', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'edit', 'allow', '0', 'perm', 'admin', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'move', 'allow', '0', 'perm', 'admin', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'delete', 'allow', '0', 'perm', 'admin', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'create_thread', 'allow', '0', 'perm', 'admin', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'write_thread_comment', 'allow', '0', 'perm', 'admin', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'edit_request', 'allow', '0', 'perm', 'admin', '1')");
+	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'acl', 'allow', '0', 'perm', 'admin', '1')");
+
+	print('완료!');
 	
 	fs.writeFileSync('config.json', JSON.stringify(hostconfig), 'utf8');
 	print('\n준비 완료되었습니다. 엔진을 다시 시작하십시오.');
