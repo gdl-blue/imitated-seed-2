@@ -207,14 +207,14 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 								<div class="form-group">
 									<label class=control-label>Condition :</label> 
 									<div>
-										<select class="seed-acl-add-condition-type form-control" id="permTypeWTC">
+										<select class="seed-acl-add-condition-type form-control">
 											<option value="perm">권한</option>
 											<option value="member">사용자</option>
 											<option value="ip">아이피</option>
 											${ver('4.5.9') ? `<option value="geoip">GeoIP</option>` : ''}
 											${ver('4.18.0') ? `<option value="aclgroup">ACL그룹</option>` : ''}
 										</select>
-										<select class="seed-acl-add-condition-value-perm form-control" id="permTextWTC">
+										<select class="seed-acl-add-condition-value-perm form-control">
 											${aclpermopt}
 										</select>
 										<input class="seed-acl-add-condition-value form-control" style="display: none;" type="text"> 
