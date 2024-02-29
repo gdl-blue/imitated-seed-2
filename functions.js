@@ -214,6 +214,8 @@ function islogin(req) {
 function ip_check(req, forceIP) {
 	if(!forceIP && req.session.username)
 		return req.session.username;
+	else if(hostconfig.custom_ip_header && req.headers[hostconfig.custom_ip_header.toLowerCase()])
+		return req.headers[hostconfig.custom_ip_header.toLowerCase()]
 	else
 		return (req.headers['x-forwarded-for'] || (req.socket ? req.socket.remoteAddress : req.connection.remoteAddress) || req.ip || '10.0.0.9').split(',')[0];
 }
