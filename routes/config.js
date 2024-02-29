@@ -92,69 +92,125 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				<label class=control-label>사용자정의 이름공간 (구분자는 ;)</label>
 				<input class=form-control type=text name=custom_namespaces value="${html.escape((hostconfig.custom_namespaces || []).join(';'))}" />
 			</div>
+			
 			<div class=form-group>
-			<label class=control-label>아이피 차단</label>
-			<input class=form-control type=text name=block_ip value="${html.escape((hostconfig.block_ip || []).join(';'))}" />
+				<label class=control-label>IP 차단 (구분자는 ;)</label>
+				<input class=form-control type=text name=block_ip value="${html.escape((hostconfig.block_ip || []).join(';'))}" />
 		    </div>
-
-			<div style="padding-top: 1rem;border-top: 0.0625rem solid #ccc;">
-                <h3>etc setting</h3>
-                <div class="form-group row">
-                    <label for="etc_name" class="col-sm-2 col-form-label">name</label>
-                    <div class="col-sm-10">
-                        <input type="text" class="form-control" id="etc_name" name="etc_name">
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <label for="etc_value" class="col-sm-2 col-form-label">value</label>
-                    <div class="col-sm-10">
-                        <input type="text" class="form-control" id="etc_value" name="etc_value">
-                    </div>
-                </div>
-            </div>
 
 			<div class=btns>
 				<button type=submit style="width: 100px;" class="btn btn-primary">저장</button>
 			</div>
 		</form>
+			
+		<br /><hr /><br />
+
+		<form method=post class=settings-section>
+			<div>
+                <h3>고급 설정</h3>
+				<TABLE WIDTH=100% CELLPADDING=6px>
+					<COLGROUP>
+						<COL STYLE="width: 90px;" />
+						<COL />
+						<COL STYLE="width: 120px;" />
+					</COLGROUP>
+					
+					<TBODY>
+						<TR>
+							<TD STYLE="padding: 6px; vertical-align: middle;">
+								<label for=etc_name class="col-form-label">이름: </label>
+							</TD>
+							
+							<TD STYLE="padding: 6px;">
+								<input type=text class=form-control id=etc_name name=etc_name />
+							</TD>
+							
+							<TD STYLE="padding: 6px;" ROWSPAN=2>
+								<button type=submit style="width: 100px;" class="btn btn-primary">추가</button>
+							</TD>
+						</TR>
+						
+						<TR>
+							<TD STYLE="padding: 6px; vertical-align: middle;">
+								<label for=etc_value class="col-form-label">값: </label>
+							</TD>
+							
+							<TD STYLE="padding: 6px;">
+								<input type=text class=form-control id=etc_value name=etc_value />
+							</TD>
+						</TR>
+				</TABLE>
+				
+				<TABLE CLASS=table WIDTH=100%>
+					<COLGROUP>
+						<COL STYLE="width: 170px;" />
+						<COL />
+					</COLGROUP>
+					
+					<THEAD>
+						<TR>
+							<TH>이름</TH>
+							<TH>값</TH>
+						</TR>
+					</THEAD>
+					
+					<TBODY>
+	`;
+	
+	for(var si in wikiconfig) {
+		if(si == 'update_code') continue;
+		content += `
+			<TR>
+				<TD>${html.escape(si)}</TD>
+				<TD>${html.escape(wikiconfig[si])}</TD>
+			</TR>
+		`;
+	}
+	
+	content += `
+					</TBODY>
+				</TABLE>
+            </div>
+		</form>
 	`;
 	
 	if(req.method == 'POST') {
-		if(wikiconfig['wiki.site_name'] != req.body['wiki.site_name']) {
-			curs.execute("update documents set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-			curs.execute("update history set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-			curs.execute("update threads set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-			curs.execute("update edit_requests set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-			curs.execute("update acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-			curs.execute("update classic_acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-		}
-		
-		if(!req.body['wiki.email_filter_enabled'])
-			req.body['wiki.email_filter_enabled'] = '0';
-		if(req.body['custom_namespaces'])
-			hostconfig.custom_namespaces = req.body['custom_namespaces'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
-		if(req.body['block_ip'])
-			hostconfig.block_ip = req.body['block_ip'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
-		if(req.body['filters']) {
-			await curs.execute("delete from email_filters");
-			for(var f of req.body['filters'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item)) {
-				curs.execute("insert into email_filters (address) values (?)", [f]);
+		if(req.body['etc_name'] && req.body['etc_value']) {
+			if(req.body['etc_name'] != 'update_code') {
+				wikiconfig[req.body['etc_name']] = req.body['etc_value'];
+				await curs.execute("delete from config where key = ?", [req.body['etc_name']]);
+				await curs.execute("insert into config (key, value) values (?, ?)", [req.body['etc_name'], req.body['etc_value']]);
 			}
-		}
-		for(var item of ['wiki.site_name', 'wiki.front_page', 'wiki.default_skin', 'filters', 'wiki.sitenotice', 'wiki.editagree_text', 'wiki.canonical_url', 'wiki.copyright_url', 'wiki.copyright_text', 'wiki.footer_text', 'wiki.logo_url', 'wiki.email_filter_enabled']) {
-			wikiconfig[item] = req.body[item];
-			await curs.execute("delete from config where key = ?", [item]);
-			await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);
-		}
+        } else {
+			if(wikiconfig['wiki.site_name'] != req.body['wiki.site_name']) {
+				curs.execute("update documents set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+				curs.execute("update history set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+				curs.execute("update threads set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+				curs.execute("update edit_requests set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+				curs.execute("update acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+				curs.execute("update classic_acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+			}
+			
+			if(!req.body['wiki.email_filter_enabled'])
+				req.body['wiki.email_filter_enabled'] = '0';
+			if(req.body['custom_namespaces'])
+				hostconfig.custom_namespaces = req.body['custom_namespaces'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
+			if(req.body['block_ip'])
+				hostconfig.block_ip = req.body['block_ip'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
+			if(req.body['filters']) {
+				await curs.execute("delete from email_filters");
+				for(var f of req.body['filters'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item)) {
+					curs.execute("insert into email_filters (address) values (?)", [f]);
+				}
+			}
+			for(var item of ['wiki.site_name', 'wiki.front_page', 'wiki.default_skin', 'filters', 'wiki.sitenotice', 'wiki.editagree_text', 'wiki.canonical_url', 'wiki.copyright_url', 'wiki.copyright_text', 'wiki.footer_text', 'wiki.logo_url', 'wiki.email_filter_enabled']) {
+				wikiconfig[item] = req.body[item];
+				await curs.execute("delete from config where key = ?", [item]);
+				await curs.execute("insert into config (key, value) values (?, ?)", [item, wikiconfig[item]]);
+			}
 
-		if (req.body['etc_name'] && req.body['etc_value']){
-			wikiconfig[req.body['etc_name']] = req.body['etc_value'];
-			await curs.execute("delete from config where key = ?", [req.body['etc_name']]);
-			await curs.execute("insert into config (key, value) values (?, ?)", [req.body['etc_name'], req.body['etc_value']]);
-        }
-
-		fs.writeFile('config.json', JSON.stringify(hostconfig), 'utf8', () => 1);
-		
+			fs.writeFile('config.json', JSON.stringify(hostconfig), 'utf8', () => 1);
+		}
 		return res.redirect('/admin/config');
 	}
 	
