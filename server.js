@@ -197,7 +197,7 @@ wiki.use(session({
 }));
 wiki.use(cookieParser());
 if(hostconfig.disable_file_server)
-	wiki.use('/images', express.static('images'));
+	wiki.use('/images', express.static('images', { maxAge: 86400000 }));
 
 // 업데이트 수준
 const updatecode = '25';
@@ -280,8 +280,8 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res,
 	}
 });
 
-wiki.use('/js', express.static('js'));
-wiki.use('/css', express.static('css'));
+wiki.use('/js', express.static('js', { maxAge: 86400000 }));
+wiki.use('/css', express.static('css', { maxAge: 86400000 }));
 
 function redirectToFrontPage(req, res) {
 	res.redirect('/w/' + (config.getString('wiki.front_page', 'FrontPage')));
