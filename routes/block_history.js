@@ -68,7 +68,7 @@ router.get(/^\/BlockHistory$/, async(req, res) => {
 		if(['aclgroup_add', 'aclgroup_remove'].includes(item.type) && !ver('4.18.0')) continue;
 		
 		content += `
-			<li>${generateTime(toDate(item.date), timeFormat)} ${ip_pas(item.executer, item.ismember)} 사용자가 ${item.target} <i>(${
+			<li>${generateTime(toDate(item.date), timeFormat)} ${ip_pas(item.executer, item.ismember, 0, 1)} 사용자가 ${item.target} <i>(${
 				item.type == 'aclgroup_add'
 				? `<b>${item.aclgroup}</b> ACL 그룹에 추가`
 				: (

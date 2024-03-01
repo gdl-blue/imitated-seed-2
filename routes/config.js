@@ -106,55 +106,57 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 		<br /><hr /><br />
 
 		<form method=post class=settings-section>
-			<div>
-                <h3>고급 설정</h3>
-				<TABLE WIDTH=100% CELLPADDING=6px>
-					<COLGROUP>
-						<COL STYLE="width: 90px;" />
-						<COL />
-						<COL STYLE="width: 120px;" />
-					</COLGROUP>
-					
-					<TBODY>
-						<TR>
-							<TD STYLE="padding: 6px; vertical-align: middle;">
-								<label for=etc_name class="col-form-label">이름: </label>
-							</TD>
-							
-							<TD STYLE="padding: 6px;">
-								<input type=text class=form-control id=etc_name name=etc_name />
-							</TD>
-							
-							<TD STYLE="padding: 6px;" ROWSPAN=2>
-								<button type=submit style="width: 100px;" class="btn btn-primary">추가</button>
-							</TD>
-						</TR>
-						
-						<TR>
-							<TD STYLE="padding: 6px; vertical-align: middle;">
-								<label for=etc_value class="col-form-label">값: </label>
-							</TD>
-							
-							<TD STYLE="padding: 6px;">
-								<input type=text class=form-control id=etc_value name=etc_value />
-							</TD>
-						</TR>
-				</TABLE>
+			<h3>고급 설정</h3>
+			<TABLE WIDTH=100% CELLPADDING=6px>
+				<COLGROUP>
+					<COL STYLE="width: 90px;" />
+					<COL />
+					<COL STYLE="width: 120px;" />
+				</COLGROUP>
 				
-				<TABLE CLASS=table WIDTH=100%>
-					<COLGROUP>
-						<COL STYLE="width: 170px;" />
-						<COL />
-					</COLGROUP>
+				<TBODY>
+					<TR>
+						<TD STYLE="padding: 6px; vertical-align: middle;">
+							<label for=etc_name class="col-form-label">이름: </label>
+						</TD>
+						
+						<TD STYLE="padding: 6px;">
+							<input type=text class=form-control id=etc_name name=etc_name />
+						</TD>
+						
+						<TD STYLE="padding: 6px;" ROWSPAN=2>
+							<button type=submit style="width: 100px;" class="btn btn-primary">추가</button>
+						</TD>
+					</TR>
 					
-					<THEAD>
-						<TR>
-							<TH>이름</TH>
-							<TH>값</TH>
-						</TR>
-					</THEAD>
-					
-					<TBODY>
+					<TR>
+						<TD STYLE="padding: 6px; vertical-align: middle;">
+							<label for=etc_value class="col-form-label">값: </label>
+						</TD>
+						
+						<TD STYLE="padding: 6px;">
+							<input type=text class=form-control id=etc_value name=etc_value />
+						</TD>
+					</TR>
+			</TABLE>
+		</form>
+				
+		<TABLE CLASS=table WIDTH=100%>
+			<COLGROUP>
+				<COL STYLE="width: 170px;" />
+				<COL />
+				<COL STYLE="width: 80px;" />
+			</COLGROUP>
+			
+			<THEAD>
+				<TR>
+					<TH>이름</TH>
+					<TH>값</TH>
+					<TH class=text-center>작업</TH>
+				</TR>
+			</THEAD>
+			
+			<TBODY>
 	`;
 	
 	for(var si in wikiconfig) {
@@ -163,32 +165,49 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 			<TR>
 				<TD>${html.escape(si)}</TD>
 				<TD>${html.escape(wikiconfig[si])}</TD>
+				<td class=text-center>
+					<form method=post onsubmit="return confirm('정말로?');">
+						<input type=hidden name=etc_name value="${html.escape(si)}" />
+						<input type=submit class="btn btn-sm btn-danger" value="초기화" />
+					</form>
+				</td>
 			</TR>
 		`;
 	}
 	
 	content += `
-					</TBODY>
-				</TABLE>
-            </div>
-		</form>
+			</TBODY>
+		</TABLE>
 	`;
 	
+	function updateSiteName(name) {
+		curs.execute("update documents set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+		curs.execute("update history set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+		curs.execute("update threads set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+		curs.execute("update edit_requests set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+		curs.execute("update acl set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+		curs.execute("update classic_acl set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+	}
+	
 	if(req.method == 'POST') {
-		if(req.body['etc_name'] && req.body['etc_value']) {
+		if(req.body['etc_name']) {
 			if(req.body['etc_name'] != 'update_code') {
-				wikiconfig[req.body['etc_name']] = req.body['etc_value'];
-				await curs.execute("delete from config where key = ?", [req.body['etc_name']]);
-				await curs.execute("insert into config (key, value) values (?, ?)", [req.body['etc_name'], req.body['etc_value']]);
+				if(req.body['etc_value'] == undefined) {
+					if(req.body['etc_name'] == 'wiki.site_name')
+						updateSiteName('더 시드');
+					delete wikiconfig[req.body['etc_name']];
+					await curs.execute("delete from config where key = ?", [req.body['etc_name']]);
+				} else {
+					if(req.body['etc_name'] == 'wiki.site_name' && req.body['etc_value'] != wikiconfig['wiki.site_name'])
+						updateSiteName(req.body['etc_value']);
+					wikiconfig[req.body['etc_name']] = req.body['etc_value'];
+					await curs.execute("delete from config where key = ?", [req.body['etc_name']]);
+					await curs.execute("insert into config (key, value) values (?, ?)", [req.body['etc_name'], req.body['etc_value']]);
+				}
 			}
         } else {
 			if(wikiconfig['wiki.site_name'] != req.body['wiki.site_name']) {
-				curs.execute("update documents set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-				curs.execute("update history set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-				curs.execute("update threads set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-				curs.execute("update edit_requests set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-				curs.execute("update acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
-				curs.execute("update classic_acl set namespace = ? where namespace = ?", [req.body['wiki.site_name'], wikiconfig['wiki.site_name']]);
+				updateSiteName(req.body['wiki.site_name']);
 			}
 			
 			if(!req.body['wiki.email_filter_enabled'])
