@@ -19,7 +19,7 @@ router.get(/^\/complete\/(.*)/, (req, res) => {
 router.get(/^\/go\/(.*)/, (req, res) => {
 	const query = req.params[0];
 	const doc = processTitle(query);
-	curs.execute("select title, namespace from documents where lower(title) = ? and lower(namespace) = ?", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
+	curs.execute("select title, namespace from history where lower(title) = ? and lower(namespace) = ?", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
 		.then(data => {
 			if(data.length) {
 				const title = totitle(data[0].title, data[0].namespace);
