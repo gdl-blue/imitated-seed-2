@@ -116,7 +116,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 		star_count = dd[0]['count(title)'];
 	}
 
-	const edit_acl_message = await getacl(req, doc.title, doc.namespace, 'edit', 1, 0) || null;
+	const edit_acl_message = await getacl(req, doc.title, doc.namespace, 'edit', 1, 1) || null;
 	const editable = !edit_acl_message ? true : !(await getacl(req, doc.title, doc.namespace, 'edit_request', 1));
 
 	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {
