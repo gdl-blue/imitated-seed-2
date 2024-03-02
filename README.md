@@ -7,7 +7,7 @@
 
 [onamu-theseed](https://github.com/gdl-blue/onamu-theseed)의 후속이다.
 
-이 엔진이 정상 작동하는 것으로 확인된 Node.js 버전은 8.6.0, 12.16.2, 12.18.1, 16.6.2이다.
+이 엔진이 정상 작동하는 것으로 확인된 Node.js 버전은 8.6.0, 12.16.2, 12.18.1, 16.6.2이다. 만약 혹시나 Windows XP/Vista에서 실행히 필요한 경우 [이것](https://github.com/hlizard/node8-xp/raw/v8.6.0-xp/Release/Release.zip)을 사용할 것.
 
 테스트 서버:
 - [내 서버](https://go2021.glitch.me) - the seed 4.11.2
@@ -16,7 +16,7 @@
 - 
 나무픽스와 거의 호환된다.
 
-Pull Request 시 서버 코드에는 Node.js 13 이상, 프론트엔드 자바스크립트에는 ES6 이상 문법을 사용하지 말 것.
+Pull Request 시 서버 코드에는 `?.`, `??`, `import` 등의 신문법, 프론트엔드 자바스크립트에는 ES6 이상 문법을 사용하지 말 것.
 
 파서 함수 이름이 마크다운인 이유는 개발 초기에는 마크다운을 사용했기 때문이다.
 
