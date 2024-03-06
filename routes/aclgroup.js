@@ -133,9 +133,9 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 	var data2 = await curs.execute("select name from aclgroup_groups where not name = '차단된 사용자'");
 	const groups = data.map(item => item.name);
 	var editable = hasperm(req, 'aclgroup');
-	var editabled = editable;
 	if(req.query['group'] == '차단된 사용자')
 		editable = hasperm(req, 'admin');
+	var editabled = editable;
 	
 	var tabs = ``;
 	var group = null;

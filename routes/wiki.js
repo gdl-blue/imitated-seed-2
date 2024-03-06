@@ -92,8 +92,10 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			var extd = await curs.execute("select title from documents where title = ? and namespace = ?", [processTitle(ntitle).title, processTitle(ntitle).namespace]);
 			if(req.query['noredirect'] != '1' && !req.query['from'] && extd.length && (!ver('4.20.0') || (!rev && ver('4.20.0')))) {
 				return res.redirect('/w/' + encodeURIComponent(ntitle) + '?from=' + title + (nd[1] ? ('#' + nd[1]) : ''));
-			} else {
+			} else if(ver('4.3.1')) {
 				content = '#redirect <a class="wiki-link-internal' + (extd.length ? '' : ' not-exist') + '" href="' + encodeURIComponent(ntitle) + (nd[1] ? ('#' + nd[1]) : '') + '">' + html.escape(ntitle) + '</a>';
+			} else {
+				content = '#redirect ' + html.escape(ntitle);
 			}
 		} else content = await markdown(req, rawContent[0].content, 0, doc + '');
 		

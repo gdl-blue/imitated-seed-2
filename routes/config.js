@@ -18,6 +18,10 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 		filters.push(item.address);
 	}
 	
+	function tsver(version, desc) {
+		return `<option value${version == '사용자 지정' ? '' : ('=' + version)} data-description="${html.escape(desc || '')}"${hostconfig.theseed_version == version ? ' selected' : ''}>${version}${version == '사용자 지정' ? (' (' + hostconfig.theseed_version + ')') : ''}</option>`;
+	}
+	
 	// 실제 더시드 UI가 밝혀지길...
 	var content = `
 		<form method=post class=settings-section>
@@ -86,6 +90,52 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 			<div class=form-group>
 				<label class=control-label>로고 주소</label>
 				<input class=form-control type=text name=wiki.logo_url value="${html.escape(config.getString('wiki.logo_url', ''))}" />
+			</div>
+			
+			<div class=form-group>
+				<label class=control-label>the seed 버전</label>
+				<select class=form-control name=theseed_version>
+					${tsver('사용자 지정')}
+					${tsver('4.0.19')}
+					${tsver('4.0.20')}
+					${tsver('4.0.21')}
+					${tsver('4.1.0')}
+					${tsver('4.1.8')}
+					${tsver('4.2.0')}
+					${tsver('4.2.2')}
+					${tsver('4.2.4')}
+					${tsver('4.3.1')}
+					${tsver('4.4.0')}
+					${tsver('4.4.1')}
+					${tsver('4.4.2')}
+					${tsver('4.4.3')}
+					${tsver('4.5.0')}
+					${tsver('4.5.5')}
+					${tsver('4.5.7')}
+					${tsver('4.5.9')}
+					${tsver('4.6.0')}
+					${tsver('4.7.0')}
+					${tsver('4.7.1')}
+					${tsver('4.7.2')}
+					${tsver('4.7.3')}
+					${tsver('4.7.5')}
+					${tsver('4.9.0')}
+					${tsver('4.10.3')}
+					${tsver('4.11.0')}
+					${tsver('4.11.3')}
+					${tsver('4.12.0')}
+					${tsver('4.16.0')}
+					${tsver('4.17.2')}
+					${tsver('4.18.0')}
+					${tsver('4.18.6')}
+					${tsver('4.19.0')}
+					${tsver('4.20.0')}
+					${tsver('4.22.4')}
+					${tsver('4.22.5')}
+					${tsver('4.22.7')}
+				</select>
+				<p id=theseedVersionDescription></p>
+				<p>이 설정 변경 시 반드시 엔진을 즉시 다시 시작해야 합니다.</p>
 			</div>
 			
 			<div class=form-group>
@@ -216,6 +266,13 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 				hostconfig.custom_namespaces = req.body['custom_namespaces'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
 			if(req.body['block_ip'])
 				hostconfig.block_ip = req.body['block_ip'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item);
+			if(req.body['theseed_version']) {
+				hostconfig.theseed_version = req.body['theseed_version'];
+				var spl = hostconfig.theseed_version.split('.');
+				version.major = Number(spl[0]);
+				version.minor = Number(spl[1]);
+				version.revision = Number(spl[2]);
+			}
 			if(req.body['filters']) {
 				await curs.execute("delete from email_filters");
 				for(var f of req.body['filters'].split(';').map(item => item.replace(/(^(\s+)|(\s+)$)/g, '')).filter(item => item)) {

@@ -91,7 +91,7 @@ async function init() {
 	};
 	
 	// 테이블 만들기
-	prt('\n테이블을 생성하는 중... ');
+	prt('\n데이타베이스 테이블을 만드는 중... ');
 	for(var table in tables) {
 		var sql = '';
 		sql = `CREATE TABLE ${table} ( `;
@@ -104,7 +104,7 @@ async function init() {
 	}
 	print('완료!');
 	
-	prt('이름공간 ACL 설정 중... ');
+	prt('이름공간 ACL을 만드는 중... ');
 	for(var namespc of ['문서', '틀', '분류', '파일', '더 시드']) {
 		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'read', 'allow', '0', 'perm', 'any', '1')");
 		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'edit', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
@@ -158,6 +158,10 @@ async function init() {
 	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'edit_request', 'allow', '0', 'perm', 'admin', '1')");
 	await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '휴지통', '1', 'acl', 'allow', '0', 'perm', 'admin', '1')");
 
+	print('완료!');
+	
+	prt('ACL그룹을 만드는 중... ');
+	await curs.execute("insert into aclgroup_groups (name, css, warning_description, disallow_signup) values ('차단된 사용자', 'text-decoration: line-through !important; color: gray !important;', '', '1')");
 	print('완료!');
 	
 	fs.writeFileSync('config.json', JSON.stringify(hostconfig), 'utf8');

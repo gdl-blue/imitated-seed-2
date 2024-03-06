@@ -107,6 +107,8 @@ if(ver('4.18.0')) perms.remove('ipacl'), perms.remove('suspend_account');
 else perms.remove('aclgroup');
 if(ver('4.2.0')) perms.remove('acl');
 if(!ver('4.20.0')) perms.remove('api_access');
+if(!ver('4.4.1')) perms.remove('disable_two_factor_login');
+if(!ver('4.4.2')) perms.remove('login_history');
 if(!ver('4.22.4')) perms.remove('hide_document_history_log');
 if(ver('4.18.0')) perms.remove('editable_other_user_document');
 if(!ver('4.4.3')) { perms.remove('update_thread_document'); perms.remove('update_thread_topic'); }

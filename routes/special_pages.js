@@ -1,7 +1,7 @@
 router.get(/^\/NeededPages$/, async(req, res) => {
 	const nslist = fetchNamespaces();
 	var ns = req.query['namespace'];
-	if(!ns || !nslist.includes(ns)) ns = '문서';
+	if(!ns || !nslist.includes(ns) || !ver('4.5.3')) ns = '문서';
 	
 	if(!neededPages[ns]) neededPages[ns] = [];
 	var ss;
@@ -23,29 +23,34 @@ router.get(/^\/NeededPages$/, async(req, res) => {
 	const navbtns = navbtnr(total, st, ed, '/NeededPages');
 	const ret = neededPages[ns].slice(st - 1, ed);
 	
-	var content = `
-		<fieldset class=recent-option>
-			<form class=form-inline method=get>
-				<div class=form-group>
-					<label class=control-label>이름공간 :</label>
-					<select class=form-control id=namespace name=namespace>
-					
-	`;
-	for(var nsp of nslist) {
+	var content = '';
+	
+	if(ver('4.5.3')) {
 		content += `
-			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
+			<fieldset class=recent-option>
+				<form class=form-inline method=get>
+					<div class=form-group>
+						<label class=control-label>이름공간 :</label>
+						<select class=form-control id=namespace name=namespace>
+						
 		`;
+		for(var nsp of nslist) {
+			content += `
+				<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
+			`;
+		}
+		content += `
+						</select>
+					</div>
+					
+					<div class="form-group btns">
+						<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
+					</div>
+				</form>
+			</fieldset>`;
 	}
-	content += `
-					</select>
-				</div>
-				
-				<div class="form-group btns">
-					<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
-				</div>
-			</form>
-		</fieldset>
 		
+	content += `
 		<p>역 링크는 존재하나 아직 작성이 되지 않은 문서 목록입니다.</p>
 		<p>이 페이지는 하루에 한번 업데이트 됩니다.</p>
 		
@@ -64,33 +69,37 @@ router.get(/^\/NeededPages$/, async(req, res) => {
 router.get(/^\/UncategorizedPages$/, async(req, res) => {
 	const nslist = fetchNamespaces();
 	var ns = req.query['namespace'];
-	if(!ns || !nslist.includes(ns)) ns = '문서';
+	if(!ns || !nslist.includes(ns) || !ver('4.5.3')) ns = '문서';
+	var content = '';
 	
-	var content = `
-		<fieldset class="recent-option">
-			<form class="form-inline" method=get>
-				<div class="form-group">
-					<label class=control-label>이름공간 :</label>
-					<select class=form-control id=namespace name=namespace>
-					
-	`;
-	
-	for(var nsp of nslist) {
+	if(ver('4.5.3')) {
 		content += `
-			<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
+			<fieldset class="recent-option">
+				<form class="form-inline" method=get>
+					<div class="form-group">
+						<label class=control-label>이름공간 :</label>
+						<select class=form-control id=namespace name=namespace>
+						
 		`;
+		
+		for(var nsp of nslist) {
+			content += `
+				<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
+			`;
+		}
+		
+		content += `
+						</select>
+					</div>
+					
+					<div class="form-group btns">
+						<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
+					</div>
+				</form>
+			</fieldset>`;
 	}
 	
 	content += `
-					</select>
-				</div>
-				
-				<div class="form-group btns">
-					<button type=submit class="btn btn-primary" style="width: 5rem;">제출</button>
-				</div>
-			</form>
-		</fieldset>
-		
 		<ul class=wiki-list>
 	`;
 	

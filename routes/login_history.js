@@ -1,3 +1,5 @@
+if(ver('4.4.2')) {
+
 router.all(/^\/admin\/login_history$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!getperm('login_history', ip_check(req))) return res.send(await showError(req, 'permission'));
@@ -86,3 +88,5 @@ router.get(/^\/admin\/login_history\/(.+)$/, async(req, res) => {
 	
 	return res.send(await render(req, username + ' 로그인 내역', content, {}, _, _, 'login_history'));
 });
+
+}

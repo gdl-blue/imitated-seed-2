@@ -360,10 +360,12 @@ else router.all(/^\/member\/mypage$/, async(req, res, next) => {
 				${!error && req.method == 'POST' && !skinList.concat(['default']).includes(req.body['skin']) ? (error = err('p', 'invalid_skin')) : ''}
 			</div>
 			
+			${ver('4.5.0') ? `
 			<div class=form-group>
 				<label>Google Authenticator<label>
 				<a class="btn btn-info" href="/member/activate_otp">활성화</a>
 			</div>
+			` : ''}
 			
 			<div class=btns>
 				<button type=reset class="btn btn-secondary">초기화</button>
