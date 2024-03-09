@@ -182,6 +182,41 @@ function toDate(t) {
     return year + "-" + month + "-" + day + " " + hour + ":" + min + ":" + sec;
 }
 
+function formatRelativeDate(t) {
+	var cur = getTime();
+	// 초 단위 시간 구분
+	if(Math.abs(cur - Math.floor(Number(t)) * 1000) < Math.abs(cur - Math.floor(Number(t)))) {
+		t = Number(t) * 1000;
+	}
+	var date = new Date(Number(t));
+
+	var now = new Date();
+
+	var ret = '';
+	var gap = (now.getTime() - date.getTime()) / 1000;
+	
+	var rawdate = date.getFullYear() + '-' +
+		(date.getMonth() + 1) + '-' +
+		date.getDate() + ' ' +
+		(date.getHours() > 12 ? date.getHours() - 12 : (date.getHours() == 0 ? 12 : date.getHours())) + ':' +
+		date.getMinutes() + ':' + 
+		date.getSeconds();
+	
+	if(gap / 259200 >= 1) {
+		ret = rawdate;
+	} else if(gap / 86400 >= 1) {
+		ret = floorof(gap / 86400) + '일 전';
+	} else if(gap / 3600 >= 1) {
+		ret = floorof(gap / 3600) + '시간 전';
+	} else if(gap / 60 >= 1) {
+		ret = floorof(gap / 60) + '분 전';
+	} else {
+		ret = floorof(gap / 1) + '초 전';
+	}
+
+	return `<time datetime="${date.toISOString()}" title="${rawdate}">${ret}</time>`;
+}
+
 function toTime(t) {
 	var cur = getTime();
 	// 초 단위 시간 구분
@@ -1673,6 +1708,7 @@ module.exports = {
 	toDate, 
 	toTime,
 	generateTime, 
+	formatRelativeDate,
 	islogin, 
 	ip_check, 
 	getUserset, 
