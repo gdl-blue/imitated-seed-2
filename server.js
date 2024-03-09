@@ -75,7 +75,7 @@ async function init() {
 		'acl': ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
 		'ipacl': ['cidr', 'al', 'expiration', 'note', 'date'],
 		'suspend_account': ['username', 'date', 'expiration', 'note'],
-		'aclgroup_groups': ['name', 'admin', 'date', 'lastupdate', 'css', 'warning_description'],
+		'aclgroup_groups': ['name', 'admin', 'date', 'lastupdate', 'css', 'warning_description', 'disallow_signup'],
 		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
 		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
 		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
