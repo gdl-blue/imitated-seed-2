@@ -31,6 +31,13 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
     padding: 0 0 0 .5rem;
 }
 
+.f5zvpEli li:last-of-type {
+    border-bottom-right-radius: 8px;
+    border-right: 1px solid rgb(224, 224, 224);
+    border-top-right-radius: 8px;
+    padding: 0px 0.5rem 0px 0px;
+}
+
 .WM1fI54n {
     color: #373a3c;
     color: var(--text-color,#373a3c);
