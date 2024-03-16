@@ -12,7 +12,7 @@
 테스트 서버:
 - [내 서버](https://go2021.glitch.me) - the seed 4.11.2
 - ~~[test님의 서버](https://seore.org) - the seed 4.20.0, Nuxt.js로 포팅됨~~
-- [테스트위키](https://testwiki.kr) - the seed 4.22.8
+- [테스트위키](https://testwiki.kr) - the seed 4.22.9
 
 나무픽스와 거의 호환된다.
 
@@ -38,6 +38,7 @@ Pull Request 시 서버 코드에는 `?.`, `??`, `import` 등의 신문법, 프�
 - 타사메일의 경우 smtp.gmail.com을 타사메일의 smtp주소로 변경해야함.
 
 ## 추가 도구
+- backlink-reset.js: 역링크 초기화
 - undelete-thread.js: 삭제된 토론 복구
 - namuwiki-importer.js: 나무위키 데이타베이스 덤프 가져오기
 
@@ -61,7 +62,7 @@ Pull Request 시 서버 코드에는 `?.`, `??`, `import` 등의 신문법, 프�
   - `enable_captcha`: (기본값 false) 보안문자를 쓰게 한다.
   - `block_ip`: (기본값 []) 접속을 차단할 IP를 지정한다. CIDR는 지원하지 않는다.
   - `protect_owner`: (기본값 false) 소유자 보호 기능을 활성화한다.
-  - `disable_multithread`: (기본값 false) 멀티쓰레딩을 비활성화한다.
+  - `disable_multithreading`: (기본값 true) 멀티쓰레딩을 비활성화한다.
   - `custom_namespaces`: (기본값 []) 사용자 지정 이름공간 배열
   - `sessionhttp`: (기본값 false) true로 설정시, https접속시에만 로그인이 유지된다.
   - `mailhost`: (기본값 []) 이메일 호스트 설정.
@@ -71,7 +72,7 @@ Pull Request 시 서버 코드에는 `?.`, `??`, `import` 등의 신문법, 프�
   - `max_file_size`: (기본값 2000000) 최대 파일 크기 (바이트 단위)
 
 ## 라이선스
-자유롭게 쓰기 바란다. ()
+자유롭게 쓰기 바란다.
 
 ## 더 시드와 다른 것들
 - 엔진에서 백엔드와 프론트엔드를 모두 처리한다. (오픈나무에서 영향 받음)
