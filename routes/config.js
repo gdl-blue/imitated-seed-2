@@ -19,7 +19,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 	}
 	
 	function tsver(version, desc) {
-		return `<option value${version == '사용자 지정' ? '' : ('=' + version)} data-description="${html.escape(desc || '')}"${hostconfig.theseed_version == version ? ' selected' : ''}>${version}${version == '사용자 지정' ? (' (' + hostconfig.theseed_version + ')') : ''}</option>`;
+		return `<option value${version == '사용자 지정' ? '' : ('=' + version)} data-description="${html.escape(desc || '')}"${hostconfig.theseed_version == version ? ' selected' : ''}>${version}</option>`;
 	}
 	
 	// 실제 더시드 UI가 밝혀지길...
@@ -133,6 +133,7 @@ router.all(/^\/admin\/config$/, async(req, res, next) => {
 					${tsver('4.22.4')}
 					${tsver('4.22.5')}
 					${tsver('4.22.7')}
+					${tsver('4.22.9')}
 				</select>
 				<p id=theseedVersionDescription></p>
 				<p>이 설정 변경 시 반드시 엔진을 즉시 다시 시작해야 합니다.</p>
