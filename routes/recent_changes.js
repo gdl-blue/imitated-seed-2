@@ -146,6 +146,11 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 	}
 }
 
+@media screen and (max-width: 1023.98px)
+.DjsdhWRC+.NfJT3FPE[data-v-94a6588c] {
+    border-top: 1px solid #e0e0e0;
+}
+
 @media screen and (max-width: 1023.98px) {
 	.NfJT3FPE[data-v-94a6588c] {
 		gap: .1rem;
