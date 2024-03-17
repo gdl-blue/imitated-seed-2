@@ -10,7 +10,7 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
 	
 	if(ver('4.22.9')) {
 		content += `
-			<style>
+<style>
 .f5zvpEli {
     display: flex;
     list-style: none;
@@ -31,7 +31,7 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
     padding: 0 0 0 .5rem;
 }
 
-.WM1fI54n {
+.WM1fI54n[data-v-08862673] {
     color: #373a3c;
     color: var(--text-color,#373a3c);
     display: inline-block;
@@ -50,7 +50,7 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
     font-weight: 600;
 }
 
-.WM1fI54n::after {
+.WM1fI54n[data-v-08862673]::after {
     background-color: transparent;
     background-color: var(--navigation-item-underline-color,transparent);
     bottom: 0;
@@ -62,7 +62,14 @@ router.get(/^\/RecentChanges$/, async function recentChanges(req, res) {
     right: 1rem;
 }
 
-.WM1fI54n:hover:not(.Zu7ghnVP) {
+.WM1fI54n[data-v-08862673] li:last-of-type {
+    border-bottom-right-radius: 8px;
+    border-right: 1px solid #e0e0e0;
+    border-top-right-radius: 8px;
+    padding: 0 0.5rem 0 0;
+}
+
+.WM1fI54n[data-v-08862673]:hover:not(.Zu7ghnVP) {
     --navigation-item-underline-color: var(--brand-bright-color-2,#e3e3e3);
 }
 
@@ -237,17 +244,21 @@ span.d\\+Pid0zt[data-v-6cbb5b59] {
 .NfJT3FPE[data-v-94a6588c]:hover:not(.DjsdhWRC) {
     background-color: #fbfbfb;
 }
-			</style>
-			
+
+.Os\+liK4h[data-v-94a6588c]:hover {
+    cursor: not-allowed;
+}
+</style>
+
 			<div class="BgxsYBxf E19V7b3D">	
 				<div class=_7tsGZmP7>
 					<div class=nM6gcR96>
 						<ul class=f5zvpEli>
-							<li><a class="WM1fI54n${flag == 'all' ? ' Zu7ghnVP' : ''}" href="?logtype=all">전체</a></li>
-							<li><a class="WM1fI54n${flag == 'create' ? ' Zu7ghnVP' : ''}" href="?logtype=create">새 문서</a></li>
-							<li><a class="WM1fI54n${flag == 'delete' ? ' Zu7ghnVP' : ''}" href="?logtype=delete">삭제</a></li>
-							<li><a class="WM1fI54n${flag == 'move' ? ' Zu7ghnVP' : ''}" href="?logtype=move">이동</a></li>
-							<li><a class="WM1fI54n${flag == 'revert' ? ' Zu7ghnVP' : ''}" href="?logtype=revert">되돌림</a></li>
+							<li><a data-v-08862673 class="WM1fI54n${flag == 'all' ? ' Zu7ghnVP' : ''}" href="?logtype=all">전체</a></li>
+							<li><a data-v-08862673 class="WM1fI54n${flag == 'create' ? ' Zu7ghnVP' : ''}" href="?logtype=create">새 문서</a></li>
+							<li><a data-v-08862673 class="WM1fI54n${flag == 'delete' ? ' Zu7ghnVP' : ''}" href="?logtype=delete">삭제</a></li>
+							<li><a data-v-08862673 class="WM1fI54n${flag == 'move' ? ' Zu7ghnVP' : ''}" href="?logtype=move">이동</a></li>
+							<li><a data-v-08862673 class="WM1fI54n${flag == 'revert' ? ' Zu7ghnVP' : ''}" href="?logtype=revert">되돌림</a></li>
 						</ul>
 					</div>
 				</div>
@@ -315,7 +326,7 @@ span.d\\+Pid0zt[data-v-6cbb5b59] {
 							${
 									Number(row.rev) > 1
 									? '<a class=sx7-yPnI data-v-94a6588c title="비교" href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
-									: ''
+									: '<span class="sx7-yPnI Os+liK4h" data-v-94a6588c title="비교">비교</span>'
 							} 
 							<a class=sx7-yPnI data-v-94a6588c title="토론" href="/discuss/${encodeURIComponent(title)}">토론</a> 
 						</div>
