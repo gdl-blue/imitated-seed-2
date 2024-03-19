@@ -45,8 +45,8 @@ router.post(/^\/preview\/(.*)$/, async(req, res) => {
 			</head>
 			
 			<body>
-				<h1 class=title>${html.escape(doc + '')}</h1>
-				<div class=wiki-article>
+				${ver('4.16.0') ? `<h1 class=title>${html.escape(doc + '')}</h1>` : ''}
+				<div class=wiki-article style="background-color: white;">
 					${await markdown(req, req.body['text'], 0, doc + '', 'preview')}
 				</div>
 			</body>
