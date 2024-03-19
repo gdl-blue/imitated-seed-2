@@ -1381,10 +1381,10 @@ function navbtn(total, start, end, href) {
 	if(!href) return `
 		<div class=btn-group role=group>
 			<a class="btn btn-secondary btn-sm disabled">
-				<span class="ion-ios-arrow-back"></span>&nbsp;Prev
+				${ver('4.16.0') ? '<span class="ion-ios-arrow-back"></span>&nbsp;Prev' : '<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past'}
 			</a>
 			<a class="btn btn-secondary btn-sm disabled">
-				Next&nbsp;<span class="ion-ios-arrow-forward"></span>
+				${ver('4.16.0') ? 'Next&nbsp;<span class="ion-ios-arrow-forward"></span>' : 'Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>'}
 			</a>
 		</div>
 	`;  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
@@ -1396,10 +1396,10 @@ function navbtn(total, start, end, href) {
 	return `
 		<div class=btn-group role=group>
 			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
-				<span class="ion-ios-arrow-back"></span>&nbsp;Prev
+				${ver('4.16.0') ? '<span class="ion-ios-arrow-back"></span>&nbsp;Prev' : '<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past'}
 			</a>
 			<a ${start <= 1 ? '' : `href="${(href + '?from=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
-				Next&nbsp;<span class="ion-ios-arrow-forward"></span>
+				${ver('4.16.0') ? 'Next&nbsp;<span class="ion-ios-arrow-forward"></span>' : 'Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>'}
 			</a>
 		</div>
 	`;
@@ -1414,10 +1414,10 @@ function navbtnr(total, start, end, href) {
 	return `
 		<div class=btn-group role=group>
 			<a ${start <= 1 ? '' : `href="${(href + '?until=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
-				<span class="ion-ios-arrow-back"></span>&nbsp;Prev
+				${ver('4.16.0') ? '<span class="ion-ios-arrow-back"></span>&nbsp;Prev' : '<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past'}
 			</a>
 			<a ${end == total ? '' : `href="${(href + '?from=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
-				Next&nbsp;<span class="ion-ios-arrow-forward"></span>
+				${ver('4.16.0') ? 'Next&nbsp;<span class="ion-ios-arrow-forward"></span>' : 'Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>'}
 			</a>
 		</div>
 	`;
