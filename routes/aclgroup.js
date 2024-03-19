@@ -268,7 +268,7 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 			</form>
 			
 			<div class="table-wrap">
-				<table style="margin-top: 7px;">
+				<table id="aclgroup" style="margin-top: 7px;">
 					<colgroup>
 						<col style="width: 150px;">
 						<col style="width: 150px;">

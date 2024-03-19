@@ -836,10 +836,12 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
 				<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
 				<link rel=stylesheet href="https://theseed.io/css/wiki.css" />
+				${ver('4.16.0') ? '<link rel=stylesheet href="https://unpkg.com/ionicons@4.5.10-0/dist/css/ionicons.min.css" />' : ''}
 			` : `
 				<link rel=stylesheet href="/css/diffview.css" />
 				<link rel=stylesheet href="/css/katex.min.css" />
 				<link rel=stylesheet href="/css/wiki.css" />
+				${ver('4.16.0') ? '<link rel=stylesheet href="/css/ionicons.min.css" />' : ''}
 			`}${adcss}
 			`;
 			for(var css of skinconfig.auto_css_targets['*']) {
@@ -1379,10 +1381,10 @@ function navbtn(total, start, end, href) {
 	if(!href) return `
 		<div class=btn-group role=group>
 			<a class="btn btn-secondary btn-sm disabled">
-				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
+				${ver('4.16.0') ? '<span class="ion-ios-arrow-back"></span>&nbsp;Prev' : '<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past'}
 			</a>
 			<a class="btn btn-secondary btn-sm disabled">
-				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
+				${ver('4.16.0') ? 'Next&nbsp;<span class="ion-ios-arrow-forward"></span>' : 'Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>'}
 			</a>
 		</div>
 	`;  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
@@ -1394,10 +1396,10 @@ function navbtn(total, start, end, href) {
 	return `
 		<div class=btn-group role=group>
 			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
-				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
+				${ver('4.16.0') ? '<span class="ion-ios-arrow-back"></span>&nbsp;Prev' : '<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past'}
 			</a>
 			<a ${start <= 1 ? '' : `href="${(href + '?from=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
-				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
+				${ver('4.16.0') ? 'Next&nbsp;<span class="ion-ios-arrow-forward"></span>' : 'Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>'}
 			</a>
 		</div>
 	`;
@@ -1412,10 +1414,10 @@ function navbtnr(total, start, end, href) {
 	return `
 		<div class=btn-group role=group>
 			<a ${start <= 1 ? '' : `href="${(href + '?until=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
-				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
+				${ver('4.16.0') ? '<span class="ion-ios-arrow-back"></span>&nbsp;Prev' : '<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past'}
 			</a>
 			<a ${end == total ? '' : `href="${(href + '?from=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
-				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
+				${ver('4.16.0') ? 'Next&nbsp;<span class="ion-ios-arrow-forward"></span>' : 'Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>'}
 			</a>
 		</div>
 	`;
