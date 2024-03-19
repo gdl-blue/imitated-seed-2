@@ -836,12 +836,12 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
 				<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
 				<link rel=stylesheet href="https://theseed.io/css/wiki.css" />
-				<link rel=stylesheet href="https://unpkg.com/ionicons@4.5.10-0/dist/css/ionicons.min.css" />
+				${ver('4.16.0') ? '<link rel=stylesheet href="https://unpkg.com/ionicons@4.5.10-0/dist/css/ionicons.min.css" />' : ''}
 			` : `
 				<link rel=stylesheet href="/css/diffview.css" />
 				<link rel=stylesheet href="/css/katex.min.css" />
 				<link rel=stylesheet href="/css/wiki.css" />
-				<link rel=stylesheet href="/css/ionicons.min.css" />
+				${ver('4.16.0') ? '<link rel=stylesheet href="/css/ionicons.min.css" />' : ''}
 			`}${adcss}
 			`;
 			for(var css of skinconfig.auto_css_targets['*']) {
