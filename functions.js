@@ -1483,7 +1483,7 @@ function cacheSkinList() {
 
 function generateCaptcha(req, num) {
     if(!hostconfig.enable_captcha) return '';
-    if(hasperm(req, 'no_force_recaptcha') || hasperm(req, 'no_force_captcha')) return '';
+    if(hasperm(req, 'no_force_recaptcha') || hasperm(req, 'skip_captcha')) return '';
     
     var numbers = [];
     var i;
@@ -1553,7 +1553,7 @@ function generateCaptcha(req, num) {
 
 function validateCaptcha(req) {
     if(!hostconfig.enable_captcha) return true;
-    if(hasperm(req, 'no_force_recaptcha') || hasperm(req, 'no_force_captcha')) return true;
+    if(hasperm(req, 'no_force_recaptcha') || hasperm(req, 'skip_captcha')) return true;
     
     try {
         if(req.body['captcha'].replace(/\s/g, '') != req.session['captcha-' + req.body['captcha-id']]) {
