@@ -843,6 +843,11 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 	for(let link of (data.match(/\[\[(((?!\]\]).)+)\]\]/g) || [])) {
 		var _dest = link.match(/\[\[(((?!\]\]).)+)\]\]/)[1];
 		var dest, disp;
+		var resAnchor = _dest.match(/^[#](\d+)$/);
+		if(discussion && resAnchor) {
+			data = data.replace(link, '<a class=wiki-self-link href="#' + resAnchor[1] + '">#' + resAnchor[1] + '</a>');
+			continue;
+		}
 		if(_dest.includes('|')) {
 			dest = _dest.split('|')[0];
 			disp = _dest.split('|')[1];
@@ -862,9 +867,7 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 		
 		if(dest.startsWith('분류:') && !discussion) {  // 분류
 			cates += `<li><a href="/w/${encodeURIComponent(dest)}" class="wiki-link-internal${notexist}">${html.escape(dest.replace('분류:', ''))}</a></li>`;
-			if(xref) {
-				curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'category')", [doc.title, doc.namespace, dest.replace('분류:', ''), '분류']);
-			}
+			if(xref) curs.execute("insert into backlink (title, namespace, link, linkns, type) values (?, ?, ?, ?, 'category')", [doc.title, doc.namespace, dest.replace('분류:', ''), '분류']);
 			data = data.replace(link, '');
 			continue;
 		} 
@@ -900,7 +903,7 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 					align = 'normal';
 				if(rendering != 'pixelated')
 					rendering = undefined;
-				data = data.replace(link, `
+				data = data.replace(link, `\
 					<a class=wiki-link-internal href="/w/${encodeURIComponent(dest)}" title="${dest}">
 						<span class=wiki-image-align-${align} style="${width ? `width:${width};` : ''}${height ? `height:${height};` : ''}${bgcolor ? `background-color:${bgcolor};` : ''}${borderRadius ? `border-radius:${borderRadius};` : ''}${rendering ? `image-rendering:${rendering};` : ''}">
 							<span class=wiki-image-wrapper style="height: 100%;">
@@ -911,8 +914,7 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 								</noscript>
 							</span>
 						</span>
-					</a>
-				`.replace(/\n/g, '').replace(/\t/g, ''));
+					</a>`.replace(/\n/g, '').replace(/\t/g, ''));
 				if(xref) {
 					if(!xrefl.includes(linkdoc.title + '\n' + linkdoc.namespace)) {
 						xrefl.push(linkdoc.title + '\n' + linkdoc.namespace);
@@ -944,9 +946,9 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 	
 	// 토론 앵커
 	var reg;
-	var anc = /(\s|^)[#](\d+)(\s|$)/g;
+	var anc = /(\s|^)[#](\d+)/g;
 	if(discussion) while(reg = anc.exec(data)) {
-		data = data.replace(reg[0], reg[1] + '<a class=wiki-self-link href="#' + reg[2] + '">#' + reg[2] + '</a>' + reg[3]);
+		data = data.replace(reg[0], reg[1] + '<a class=wiki-self-link href="#' + reg[2] + '">#' + reg[2] + '</a>');
 		anc.lastIndex--;
 	}
 	
