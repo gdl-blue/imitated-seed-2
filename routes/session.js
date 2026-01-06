@@ -82,7 +82,7 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		}
 		
 		if(!hostconfig.disable_login_history) {
-			curs.execute("insert into login_history (username, ip, time) values (?, ?, ?)", [id, ip_check(req, 1), getTime()]);
+			curs.execute("insert into login_history (username, ip, time) values (?, ?, ?)", [id, getperm('hideip', id) ? '127.0.0.1' :  ip_check(req, 1), getTime()]);
 			conn.run("delete from useragents where username = ?", [id], () => {
 				curs.execute("insert into useragents (username, string) values (?, ?)", [id, req.headers['user-agent']]);
 			});

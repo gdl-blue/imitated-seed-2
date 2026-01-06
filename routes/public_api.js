@@ -1,3 +1,5 @@
+const namumark = require('../namumark');
+
 if(ver('4.20.0')) {
 	router.get(/^\/api\/edit\/(.*)$/, async(req, res) => {
 		var auth = req.headers['authorization'] || '';
@@ -108,7 +110,7 @@ if(ver('4.20.0')) {
 						values ('1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 			doc.title, doc.namespace, text, String(Number(baserev) + 1), username, getTime(), changes, log, '0', '-1', ismember, advance
 		]);
-		markdown(req, text, 0, doc + '', 'backlinkinit');
+		namumark(req, text, 0, doc + '', 'backlinkinit');
 		
 		delete(apiTokens[username]);
 		

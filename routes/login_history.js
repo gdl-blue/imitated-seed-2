@@ -23,8 +23,10 @@ router.all(/^\/admin\/login_history$/, async(req, res, next) => {
 		if(!data.length)
 			return res.send(await render(req, '로그인 내역', (error = err('alert', { code: 'invalid_username' })) + content, {}, _, error, 'login_history'));
 		username = data[0].username;
+		if(getperm('hideip', username))
+			return res.send(await render(req, '로그인 내역', (error = err('alert', { code: 'invalid_permission' })) + content, {}, _, error, 'login_history'));
 		if((hostconfig.owners || []).includes(username) && hostconfig.protect_owners && username != ip_check(req))
-			return res.send(await showError(req, 'permission'));
+			return res.send(await showError(req, 'invalid_permission'));
 		
 		const id = rndval('abcdef1234567890', 64);
 		if(!loginHistory[ip_check(req)]) loginHistory[ip_check(req)] = {};

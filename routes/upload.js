@@ -1,5 +1,7 @@
 const request = require('request');
 const sizeOf = require('image-size');
+const path = require('path');
+const fs = require('fs');
 
 router.all(/^\/Upload$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();

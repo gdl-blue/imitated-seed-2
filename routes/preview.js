@@ -1,3 +1,5 @@
+const namumark = require('../namumark');
+
 router.post(/^\/preview\/(.*)$/, async(req, res) => {
 	const title = req.params[0];
 	const doc = processTitle(title);
@@ -47,7 +49,7 @@ router.post(/^\/preview\/(.*)$/, async(req, res) => {
 			<body>
 				<h1 class=title>${html.escape(doc + '')}</h1>
 				<div class=wiki-article>
-					${await markdown(req, req.body['text'], 0, doc + '', 'preview')}
+					${await namumark(req, req.body['text'], 0, doc + '', 'preview')}
 				</div>
 			</body>
 		</html>
@@ -68,7 +70,7 @@ if(ver('4.20.0')) router.post(/^\/commentpreview$/, async(req, res) => {
 				</div>
 				
 				<div class="r-body">
-					${await markdown(req, req.body['text'], 1, '', 'preview')}
+					${await namumark(req, req.body['text'], 1, '', 'preview')}
 				</div>
 			</div>
 		</div>

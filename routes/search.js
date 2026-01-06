@@ -1,3 +1,5 @@
+const http = require('http');
+
 router.get(/^\/complete\/(.*)/, (req, res) => {
 	// 초성검색은 나중에
 	const query = req.params[0];

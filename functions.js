@@ -96,13 +96,12 @@ const whattr = {
 
 // 사용자 권한
 var perms = [
-	'hide_document_history_log', 'delete_thread', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
-	'update_thread_status', 'acl', 'nsacl', 'hide_thread_comment', 'grant', 'no_force_recaptcha', 
-	'disable_two_factor_login', 'login_history', 'update_thread_document', 'update_thread_topic', 
+	'hide_document_history_log', 'delete_thread', 'developer', 'admin', 'editable_other_user_document', 'suspend_account', 'ipacl', 
+	'update_thread_status', 'acl', 'nsacl', 'hide_thread_comment', 'grant', 'config', 'no_force_recaptcha', 
+	'skip_captcha', 'disable_two_factor_login', 'member_info', 'login_history', 'hideip', 'update_thread_document', 'update_thread_topic', 
 	'aclgroup', 'api_access', 
 ];
 var disable_autoperms = ['disable_two_factor_login'];
-
 if(ver('4.18.0')) perms.remove('ipacl'), perms.remove('suspend_account');
 else perms.remove('aclgroup');
 if(ver('4.2.0')) perms.remove('acl');
@@ -112,8 +111,21 @@ if(!ver('4.4.2')) perms.remove('login_history');
 if(!ver('4.22.4')) perms.remove('hide_document_history_log');
 if(ver('4.18.0')) perms.remove('editable_other_user_document');
 if(!ver('4.4.3')) { perms.remove('update_thread_document'); perms.remove('update_thread_topic'); }
-if(!ver('4.0.20')) perms.push('developer', 'tribune', 'arbiter');
+if(!ver('4.0.20')) perms.push('tribune', 'arbiter');
 if(hostconfig.debug) perms.push('debug');
+
+function getDefaultGrantPermissions() {
+	var ret = [];
+	for(var item of perms)
+		ret.push(item);
+	ret.remove('developer');
+	ret.remove('hideip');
+	ret.remove('skip_captcha');
+	ret.remove('member_info');
+	ret.remove('config');
+	ret.remove('debug');
+	return ret.join(',');
+}
 
 // 삐
 function beep(cnt = 1) { // 경고음 재생
@@ -253,8 +265,16 @@ function ip_check(req, forceIP) {
 		return req.session.username;
 	else if(hostconfig.custom_ip_header && req.headers[hostconfig.custom_ip_header.toLowerCase()])
 		return req.headers[hostconfig.custom_ip_header.toLowerCase()]
-	else
-		return (req.headers['x-forwarded-for'] || (req.socket ? req.socket.remoteAddress : req.connection.remoteAddress) || req.ip || '10.0.0.9').split(',')[0];
+	else {
+		var ip = null;
+		if(req.ip) ip = req.ip;
+		else if(req.connection && req.connection.remoteAddress) ip = req.connection.remoteAddress;
+		else if(req.socket && req.socket.remoteAddress) ip = req.socket.remoteAddress;
+		else if(req.connection && req.connection.socket && req.connection.socket.remoteAddress) ip = req.connection.socket.remoteAddress;
+		else if(req.headers['x-forwarded-for']) ip = req.headers['x-forwarded-for'];
+		if(ip) return ip.replace(/\s/g, '').split(',')[0].replace(/^[:][:]ffff[:]/, '');
+		else return '127.0.0.1';
+	}
 }
 
 // 사용자설정 가져오기
@@ -693,8 +713,9 @@ function getSkin(req) {
 }
 
 // 권한 보유여부
-function getperm(perm, username) {
+function getperm(perm, username, ignoreDeveloper = false) {
 	if(perm == 'member') return true;
+	if(!ignoreDeveloper && perm != 'developer' && getperm('developer', username)) return true;
 	if(perm == 'no_force_captcha') perm = 'no_force_recaptcha';
 	if(!perms.includes(perm)) return false;
 	if(!permlist[username]) permlist[username] = [];
@@ -702,11 +723,12 @@ function getperm(perm, username) {
 }
 
 // 내 권한 보유여부
-function hasperm(req, perm) {
+function hasperm(req, perm, ignoreDeveloper = false) {
 	if(!islogin(req)) {
 		if(perm == 'ip') return true;
 		return false;
 	}
+	if(!ignoreDeveloper && perm != 'developer' && hasperm(req, 'developer')) return true;
 	if(perm == 'member') return true;
 	if(perm == 'no_force_captcha') perm = 'no_force_recaptcha';
 	if(!perms.includes(perm)) return false;
@@ -766,7 +788,8 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 	const perms = {
 		has(perm) {
 			try {
-				return permlist[ip_check(req)].includes(perm);
+				var pl = permlist[ip_check(req)];
+				return pl.includes(perm) || pl.includes('developer');
 			} catch(e) {
 				return false;
 			}
@@ -786,9 +809,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
         swig.compileFile(templatefn, {}, async(e, r) => {
             if(e) {
 				print(`[오류!] ${e.stack}`);
-				return resolve(`
-					<title>` + title + ` (스킨 렌더링 오류!)</title>
-					<meta charset=utf-8 />` + content);
+				return resolve(`<title>${title}(스킨 렌더링 오류!)</title><meta charset=utf-8 />${content}`);
 			}
 			
 			varlist['skinInfo'] = skinInfo;
@@ -1647,7 +1668,7 @@ function log(thread, msg) {
 	console.log(`[${toTime(getTime())}] [${thread}]: ${msg}`);
 }
 
-//메일 설정
+// 메일 설정
 const transporter = nodemailer.createTransport({
 	host: hostconfig.mailhost,
 	port: 465,
@@ -1733,4 +1754,6 @@ module.exports = {
 	mailer,
 	
 	ranking,
+	
+	getDefaultGrantPermissions,
 };

@@ -42,8 +42,8 @@ async function init() {
 	
 	// 호스팅 설정
 	var hostconfig = {
-		host: input('호스트 주소: '),
-		port: input('포트 번호: '),
+		host: input('호스트 주소: ') || '0.0.0.0',
+		port: input('포트 번호: ') || '8080',
 		skin: input('기본 스킨 이름: '),
 		search_host: '127.5.5.5',
 		search_port: '25005',
@@ -57,37 +57,37 @@ async function init() {
 	
 	// 만들 테이블
 	const tables = {
-		'documents': ['title', 'content', 'namespace', 'time'],
-		'history': ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags', 'isapi', 'loghider'],
-		'namespaces': ['namespace', 'locked', 'norecent', 'file'],
-		'users': ['username', 'password', 'email'],
-		'user_settings': ['username', 'key', 'value'],
-		'nsacl': ['namespace', 'no', 'type', 'content', 'action', 'expire'],
-		'config': ['key', 'value'],
-		'email_filters': ['address'],
-		'stars': ['title', 'namespace', 'username', 'lastedit'],
-		'perms': ['perm', 'username'],
-		'threads': ['title', 'namespace', 'topic', 'status', 'time', 'tnum', 'deleted', 'num'],
-		'res': ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin', 'type'],
-		'useragents': ['username', 'string'],
-		'login_history': ['username', 'ip', 'time'],
-		'account_creation': ['key', 'email', 'time'],
-		'acl': ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
-		'ipacl': ['cidr', 'al', 'expiration', 'note', 'date'],
-		'suspend_account': ['username', 'date', 'expiration', 'note'],
-		'aclgroup_groups': ['name', 'admin', 'date', 'lastupdate', 'css', 'warning_description', 'disallow_signup'],
-		'aclgroup': ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
-		'block_history': ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
-		'edit_requests': ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
-		'files': ['title', 'namespace', 'hash', 'url', 'size', 'width', 'height'],
-		'backlink': ['title', 'namespace', 'link', 'linkns', 'type', 'exist'],
-		'classic_acl': ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
-		'autologin_tokens': ['username', 'token'],
-		'trusted_devices': ['username', 'id'],
-		'api_tokens': ['username', 'token'],
-		'recover_account': ['key', 'username', 'email', 'time'],
-		'boardipacl': ['cidr', 'expiration', 'note', 'date'],
-		'boardsuspendaccount': ['username', 'expiration', 'note', 'date'],
+		documents: ['title', 'content', 'namespace', 'time'],
+		history: ['title', 'namespace', 'content', 'rev', 'time', 'username', 'changes', 'log', 'iserq', 'erqnum', 'advance', 'ismember', 'edit_request_id', 'flags', 'isapi', 'loghider'],
+		namespaces: ['namespace', 'locked', 'norecent', 'file'],
+		users: ['username', 'password', 'email'],
+		user_settings: ['username', 'key', 'value'],
+		nsacl: ['namespace', 'no', 'type', 'content', 'action', 'expire'],
+		config: ['key', 'value'],
+		email_filters: ['address'],
+		stars: ['title', 'namespace', 'username', 'lastedit'],
+		perms: ['perm', 'username'],
+		threads: ['title', 'namespace', 'topic', 'status', 'time', 'tnum', 'deleted', 'num'],
+		res: ['id', 'content', 'username', 'time', 'hidden', 'hider', 'status', 'tnum', 'ismember', 'isadmin', 'type'],
+		useragents: ['username', 'string'],
+		login_history: ['username', 'ip', 'time'],
+		account_creation: ['key', 'email', 'time'],
+		acl: ['title', 'namespace', 'id', 'type', 'action', 'expiration', 'conditiontype', 'condition', 'ns'],
+		ipacl: ['cidr', 'al', 'expiration', 'note', 'date'],
+		suspend_account: ['username', 'date', 'expiration', 'note'],
+		aclgroup_groups: ['name', 'admin', 'date', 'lastupdate', 'css', 'warning_description', 'disallow_signup'],
+		aclgroup: ['aclgroup', 'type', 'username', 'note', 'date', 'expiration', 'id'],
+		block_history: ['date', 'type', 'aclgroup', 'id', 'duration', 'note', 'executer', 'target', 'ismember', 'logid'],
+		edit_requests: ['title', 'namespace', 'id', 'deleted', 'state', 'content', 'baserev', 'username', 'ismember', 'log', 'date', 'processor', 'processortype', 'lastupdate', 'processtime', 'reason', 'rev'],
+		files: ['title', 'namespace', 'hash', 'url', 'size', 'width', 'height'],
+		backlink: ['title', 'namespace', 'link', 'linkns', 'type', 'exist'],
+		classic_acl: ['title', 'namespace', 'blockkorea', 'blockbot', 'read', 'edit', 'del', 'discuss', 'move'],
+		autologin_tokens: ['username', 'token'],
+		trusted_devices: ['username', 'id'],
+		api_tokens: ['username', 'token'],
+		recover_account: ['key', 'username', 'email', 'time'],
+		boardipacl: ['cidr', 'expiration', 'note', 'date'],
+		boardsuspendaccount: ['username', 'expiration', 'note', 'date'],
 	};
 	
 	// 테이블 만들기
@@ -172,22 +172,23 @@ async function init() {
 if(!fs.existsSync('./config.json')) {
 	init();
 } else {
-const router = require('./routes/router');
+const router = require('./routes/router.js');
+router.attachRoutes();
 const hostconfig = require('./hostconfig');
-const wiki = express();  // 서버
+const server = express();  // 서버
 
 const functions = require('./functions');
 for(var item in functions) global[item] = functions[item];
 cacheSkinList();
 
 // 모듈 사용
-wiki.use(bodyParser.json());
-wiki.use(bodyParser.urlencoded({ extended: true }));
-wiki.use(fileUpload({
+server.use(bodyParser.json());
+server.use(bodyParser.urlencoded({ extended: true }));
+server.use(fileUpload({
 	limits: { fileSize: hostconfig.max_file_size || 2000000 },
     abortOnLimit: true,
 }));
-wiki.use(session({
+server.use(session({
 	key: 'kotori',
 	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
 	cookie: {
@@ -199,15 +200,15 @@ wiki.use(session({
 	resave: false,
 	saveUninitialized: false,
 }));
-wiki.use(cookieParser());
+server.use(cookieParser());
 if(hostconfig.disable_file_server)
-	wiki.use('/images', express.static('images', { maxAge: 86400000 }));
+	server.use('/images', express.static('images', { maxAge: 86400000 }));
 
 // 업데이트 수준
 const updatecode = '25';
 
 // 보안을 위해...
-wiki.disable('x-powered-by');
+server.disable('x-powered-by');
 
 // swig 필터
 swig.setFilter('encode_userdoc', function encodeUserdocURL(input) {
@@ -217,7 +218,7 @@ swig.setFilter('encode_doc', function encodeDocURL(input) {
 	return encodeURIComponent(input);
 });
 swig.setFilter('avatar_url', function(input) {
-	return 'https://www.gravatar.com/avatar/' + md5(getUserSetting(input.username, 'email') || '') + '?d=retro';
+	return 'https://www.gravatar.com/avatar/' + md5(getUserSetting(input.username, 'email') || input.username) + '?d=retro';
 });
 swig.setFilter('md5', function(input, l) {
 	return md5(input).slice(0, (l || 33));
@@ -229,14 +230,14 @@ swig.setFilter('to_date', toDate);
 swig.setFilter('localdate', generateTime);
 
 // 아이피차단
-wiki.all('*', async function(req, res, next) {
+server.all('*', async function(req, res, next) {
 	if(hostconfig.block_ip && hostconfig.block_ip.includes(ip_check(req, 1)))
 		return;
 	next();
 });
 
 // 자동 로그인 & 차단 로그아웃
-wiki.all('*', async function(req, res, next) {
+server.all('*', async function(req, res, next) {
 	if(!ver('4.1.0')) {
 		if(islogin(req) && await userblocked(ip_check(req))) {
 			delete req.session.username;
@@ -262,7 +263,7 @@ wiki.all('*', async function(req, res, next) {
 	next();
 });
 
-wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res, next) {
+server.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res, next) {
 	const skinname = req.params[0];
 	const filepath = req.params[1];
 	
@@ -274,8 +275,8 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res,
 	}
 	
 	var skinconfig = skincfgs[skinname];
-	/* if(!skinconfig.static_files.includes(filepath))
-		return next(); */
+	if(!skinconfig.static_files.includes(filepath))
+		return next();
 	
 	try {
 		res.sendFile(filepath, { root: './skins/' + skinname + '/static' });
@@ -284,78 +285,76 @@ wiki.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res,
 	}
 });
 
-wiki.use('/js', express.static('js', { maxAge: 86400000 }));
-wiki.use('/css', express.static('css', { maxAge: 86400000 }));
+server.use('/js', express.static('js'));
+server.use('/css', express.static('css'));
 
 function redirectToFrontPage(req, res) {
 	res.redirect('/w/' + (config.getString('wiki.front_page', 'FrontPage')));
 }
 
-wiki.get(/^\/w$/, redirectToFrontPage);
-wiki.get(/^\/w\/$/, redirectToFrontPage);
-wiki.get('/', redirectToFrontPage);
+server.get(/^\/w$/, redirectToFrontPage);
+server.get(/^\/w\/$/, redirectToFrontPage);
+server.get('/', redirectToFrontPage);
 
-//if(1) wiki.use('/', require('./frontends/nuxt/frontend')); else
-wiki.use('/', router);
+//if(1) server.use('/', require('./frontends/nuxt/frontend')); else
+server.use('/', router);
 
 // 404 페이지
-wiki.use(function(req, res, next) {
-    return res.status(404).send(`
-		<!DOCTYPE html>
-		<html>
-			<head>
-				<meta charset=utf-8 />
-				<meta name=viewport content="width=1240">
-				<title>Page is not found!</title>
-				<style>
-					section {
-						position: fixed;
-						top: 0;
-						right: 0;
-						bottom: 0;
-						left: 0;
-						padding: 80px 0 0;
-						background-color:#EFEFEF;
-						font-family: "Open Sans", sans-serif;
-						text-align: center;
-					}
-					
-					h1 {
-						margin: 0 0 19px;
-						font-size: 40px;
-						font-weight: normal;
-						color: #E02B2B;
-						line-height: 40px;
-					}
-					
-					p {
-						margin: 0 0 57px;
-						font-size: 16px;
-						color:#444;
-						line-height: 23px;
-					}
-				</style>
-			</head>
+server.use(function(req, res, next) {
+    return res.status(404).send(`\
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8 />
+		<meta name=viewport content="width=1240">
+		<title>Page is not found!</title>
+		<style>
+			section {
+				position: fixed;
+				top: 0;
+				right: 0;
+				bottom: 0;
+				left: 0;
+				padding: 80px 0 0;
+				background-color:#EFEFEF;
+				font-family: "Open Sans", sans-serif;
+				text-align: center;
+			}
 			
-			<body>
-				<section>
-					<h1>404</h1>
-					<p>
-						Page is not found!<br />
-						<a href="/">Back to home</a>
-					</p>
-				</section>
-			</body>
-		</html>
-	`);
+			h1 {
+				margin: 0 0 19px;
+				font-size: 40px;
+				font-weight: normal;
+				color: #E02B2B;
+				line-height: 40px;
+			}
+			
+			p {
+				margin: 0 0 57px;
+				font-size: 16px;
+				color:#444;
+				line-height: 23px;
+			}
+		</style>
+	</head>
+	
+	<body>
+		<section>
+			<h1>404</h1>
+			<p>
+				Page is not found!<br />
+				<a href="/">Back to home</a>
+			</p>
+		</section>
+	</body>
+</html>`);
 });
 
 (async function setWikiData() {
 	// 위키 설정 캐시
 	var data = await curs.execute("select key, value from config");
-	for(var cfg of data) {
+	for(var cfg of data)
 		wikiconfig[cfg.key] = cfg.value;
-	}
 	
 	// 권한 캐시
 	var data = await curs.execute("select username, perm from perms order by username");
@@ -594,12 +593,15 @@ wiki.use(function(req, res, next) {
 		aclgroupCache.group[item.username.toLowerCase()].push(item.aclgroup);
 	}
 	
+	if(ver('4.13.0'))
+		print('[경고!]: 4.13.0 이상 버전은 더 이상 보수되지 않습니다')
+	
 	// 서버실행
 	const { host, port } = hostconfig;
 	if(hostconfig.default_host)
-		wiki.listen(process.env.PORT);  
+		server.listen(process.env.PORT);  
 	else 
-		wiki.listen(port, host);
+		server.listen(port, host);
 	print(host + (port == 80 ? '' : (':' + port)) + '에서 실행 중. . .');
 	beep();
 	
@@ -612,7 +614,7 @@ wiki.use(function(req, res, next) {
 	}
 })();
 
-if(hostconfig.self_request) {
+if(hostconfig.self_request)
 	var rq = setInterval(function() {
 		https.request({
 			host: hostconfig.self_request,
@@ -636,6 +638,5 @@ if(hostconfig.self_request) {
 			});
 		}).end();
 	}, (50 + Math.floor(Math.random() * 10)) * 1000);
-}
  
 }

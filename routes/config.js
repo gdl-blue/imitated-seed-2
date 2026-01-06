@@ -1,11 +1,111 @@
-router.all(/^\/admin\/config$/, async(req, res, next) => {
-	if(!['POST', 'GET'].includes(req.method)) return next();
-	if(!islogin(req)) return res.status(403).send(await showError(req, 'permission'));
-	if(!((hostconfig.owners || []).includes(ip_check(req)))) {
+const fs = require('fs');
+
+function updateSiteName(name) {
+	curs.execute("update documents set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+	curs.execute("update history set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+	curs.execute("update threads set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+	curs.execute("update edit_requests set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+	curs.execute("update acl set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+	curs.execute("update classic_acl set namespace = ? where namespace = ?", [name, wikiconfig['wiki.site_name']]);
+}
+
+router.get(/^\/admin\/config$/, async(req, res, next) => {
+	if(!hasperm(req, 'config'))
 		return res.status(403).send(await showError(req, 'permission'));
-	}
 	
-	const defskin = config.getString('wiki.default_skin', hostconfig.skin);
+	var data = await curs.execute("select key, value from config");
+	var content = `\
+		<table class=table>
+			<thead>
+				<tr>
+					<th>Key</th>
+					<th>Value</th>
+					<th>Delete</th>
+				</tr>
+			</thead>
+			
+			<tbody>
+	`;
+	for(var item of data) {
+		if(item.key == 'update_code') continue;
+		content += `\
+			<tr>
+				<td>${item.key}</td>
+				<td>
+					<form method=post action="/admin/config/modify">
+						<input type=hidden name=key value="${html.escape(item.key)}" />
+						<input type=text name=value value="${html.escape(item.value)}" />
+						<input type=submit class="btn btn-sm btn-secondary" value="수정" />
+					</form>
+				</td>
+				<td>
+					<form method=post action="/admin/config/remove">
+						<input type=hidden name=key value="${item.key}" />
+						<input type=submit class="btn btn-sm btn-danger" value="삭제" />
+					</form>
+				</td>
+			</tr>
+		`;
+	}
+	content += `\
+			</tbody>
+		</table>
+		
+		<form method=post action="/admin/config/add">
+			<div>
+				<label>Key :</label><input type=text name=key />
+			</div>
+			
+			<div>
+				<label>Value :</label><input type=text name=value />
+			</div>
+			
+			<div>
+				<button type=submit class="btn btn-sm btn-primary">추가</button>
+			</div>
+		</form>
+	`;
+	
+	return res.send(await render(req, 'Config', content));
+});
+
+router.post(/^\/admin\/config\/add$/, async(req, res, next) => {
+	if(!hasperm(req, 'config'))
+		return res.status(403).send(await showError(req, 'permission'));
+	await curs.execute("delete from config where key = ?", [req.body.key]);
+	await curs.execute("insert into config (key, value) values (?, ?)", [req.body.key, req.body.value]);
+	if(req.body.key == 'wiki.site_name' && req.body.value != wikiconfig['wiki.site_name'])
+		updateSiteName(req.body.value);
+	wikiconfig[req.body.key] = req.body.value;
+	res.redirect('/admin/config');
+});
+
+router.post(/^\/admin\/config\/modify$/, async(req, res, next) => {
+	if(!hasperm(req, 'config'))
+		return res.status(403).send(await showError(req, 'permission'));
+	await curs.execute("delete from config where key = ?", [req.body.key]);
+	await curs.execute("insert into config (key, value) values (?, ?)", [req.body.key, req.body.value]);
+	if(req.body.key == 'wiki.site_name' && req.body.value != wikiconfig['wiki.site_name'])
+		updateSiteName(req.body.value);
+	wikiconfig[req.body.key] = req.body.value;
+	res.redirect('/admin/config');
+});
+
+router.post(/^\/admin\/config\/remove$/, async(req, res, next) => {
+	if(!hasperm(req, 'config'))
+		return res.status(403).send(await showError(req, 'permission'));
+	await curs.execute("delete from config where key = ?", [req.body.key]);
+	if(req.body.key == 'wiki.site_name')
+		updateSiteName('더 시드');
+	delete wikiconfig[req.body.key];
+	res.redirect('/admin/config');
+});
+
+router.all(/^\/admin\/config2$/, async(req, res, next) => {
+	if(!['POST', 'GET'].includes(req.method)) return next();
+	if(!hasperm(req, 'config'))
+		return res.status(403).send(await showError(req, 'permission'));
+	
 	var skopt = '';
 	for(var skin of skinList) {
 		var opt = `<option value="${skin}" ${config.getString('wiki.default_skin', hostconfig.skin) == skin ? 'selected' : ''}>${skin}</option>`;

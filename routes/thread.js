@@ -1,3 +1,5 @@
+const namumark = require('../namumark');
+
 router.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	const title = req.params[0];
 	const doc = processTitle(title);
@@ -138,10 +140,10 @@ router.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 									rs['hidden'] == '1'
 									? (
 										getperm('hide_thread_comment', ip_check(req))
-										? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + await markdown(req, rs['content'], 1) + '</div>'
+										? '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]<div class="text-line-break" style="margin: 25px 0px 0px -10px; display:block"><a class="text" onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class="line"></div></div><div class="hidden-content" style="display:none">' + await namumark(req, rs['content'], 1) + '</div>'
 										: '[' + rs['hider'] + '에 의해 숨겨진 글입니다.]'
 									  )
-									: await markdown(req, rs['content'], 1)
+									: await namumark(req, rs['content'], 1)
 								}
 							</div>
 						</div>
@@ -246,7 +248,7 @@ router.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 					[doc.title, doc.namespace, req.body['topic'], 'normal', getTime(), tnum, newid]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, slug) values \
 					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0', newid]);
+					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req), true) || getperm('developer', ip_check(req), true) || getperm('tribune', ip_check(req), true) || getperm('arbiter', ip_check(req), true) ? '1' : '0', newid]);
 	
 	delete req.session.captcha;
 	
@@ -456,7 +458,7 @@ router.post(/^\/thread\/([a-zA-Z0-9]{18,24})$/, async function postThreadComment
 	
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin) \
 					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-						String(lid + 1), req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0'
+						String(lid + 1), req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req), true) || getperm('developer', ip_check(req), true) || getperm('tribune', ip_check(req), true) || getperm('arbiter', ip_check(req), true) ? '1' : '0'
 					]);
 	await curs.execute("update threads set time = ? where tnum = ?", [getTime(), tnum]);
 	
@@ -553,7 +555,7 @@ router.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadD
 					? '스레드를 <strong>' + rs.content + '</strong> 문서로 이동'
 					: '스레드 주제를 <strong>' + rs.content + '</strong>로 변경'
 				)
-			) : await markdown(req, rs.content, 1);
+			) : await namumark(req, rs.content, 1);
 		
 		if(rs.hidden == '1') {
 			var rc = rescontent;
@@ -658,7 +660,7 @@ router.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/status$/, async function up
 	await curs.execute("update threads set time = ?, status = ? where tnum = ?", [getTime(), newstatus, tnum]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'status')", [
-						String(rescount + 1), newstatus, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
+						String(rescount + 1), newstatus, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req), true) || getperm('developer', ip_check(req), true) || getperm('tribune', ip_check(req), true) || getperm('arbiter', ip_check(req), true) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -690,7 +692,7 @@ router.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/document$/, async function 
 	await curs.execute("update threads set time = ?, title = ?, namespace = ? where tnum = ?", [getTime(), dd.title, dd.namespace, tnum]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'document')", [
-						String(rescount + 1), newdoc, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
+						String(rescount + 1), newdoc, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req), true) || getperm('developer', ip_check(req), true) || getperm('tribune', ip_check(req), true) || getperm('arbiter', ip_check(req), true) ? '1' : '0' 
 					]);
 	
 	res.json({});
@@ -716,7 +718,7 @@ router.post(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/topic$/, async function upd
 	await curs.execute("update threads set time = ?, topic = ? where tnum = ?", [getTime(), newtopic, tnum]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, type) \
 					values (?, ?, ?, ?, '0', '', '1', ?, ?, ?, 'topic')", [
-						String(rescount + 1), newtopic, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req)) ? '1' : '0' 
+						String(rescount + 1), newtopic, ip_check(req), getTime(), tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req), true) || getperm('developer', ip_check(req), true) || getperm('tribune', ip_check(req), true) || getperm('arbiter', ip_check(req), true) ? '1' : '0' 
 					]);
 	
 	res.json({});

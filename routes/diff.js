@@ -1,3 +1,5 @@
+const diff = require('../cemerick-jsdifflib.js');
+
 router.get(/^\/diff\/(.*)/, async (req, res) => {
 	const title  = req.params[0];
 	const doc    = processTitle(title);

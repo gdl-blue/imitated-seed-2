@@ -336,7 +336,10 @@ else router.all(/^\/member\/mypage$/, async(req, res, next) => {
 			
 			<div class=form-group>
 				<label>전자우편 주소</label>
-				<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email') || '')}" />
+				${hostconfig.disable_email ? `
+					<input type=hidden name=email value="" />
+					<div>비활성화됨</div>
+				` : `<input type=email name=email class=form-control value="${html.escape(getUserset(req, 'email') || '')}" />`}
 				${emailfilter}
 			</div>
 			

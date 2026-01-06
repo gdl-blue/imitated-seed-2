@@ -1,3 +1,6 @@
+const diff = require('../cemerick-jsdifflib.js');
+const namumark = require('../namumark');
+
 router.get(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)\/preview$/ : /^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 	const id = req.params[0];
 	var data = await curs.execute("select title, namespace, state, content, baserev, username, ismember, log, date, processor, processortype, processtime, lastupdate, reason, rev from edit_requests where not deleted = '1' and (id = ? or slug = ?)", [id, id]);
@@ -48,7 +51,7 @@ router.get(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)\/preview$/ : /^\/edit_r
 		<body>
 			<h1 class=title>${html.escape(doc + '')}</h1>
 			<div class=wiki-article>
-				${await markdown(req, item.content, 0, doc + '', 'preview')}
+				${await namumark(req, item.content, 0, doc + '', 'preview')}
 			</div>
 		</body>
 	`);
@@ -104,7 +107,7 @@ router.post(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)\/accept$/ : /^\/edit_r
 		item.title, item.namespace, item.content, String(rev), item.username, getTime(), changes, item.log, '0', '-1', item.ismember, 'normal', id
 	]);
 	await curs.execute("update edit_requests set state = 'accepted', processor = ?, processortype = ?, processtime = ?, rev = ? where " + (ver('4.16.0') ? 'slug' : 'id') + " = ?", [ip_check(req), islogin(req) ? 'author' : 'ip', getTime(), String(rev), id]);
-	markdown(req, item.text, 0, doc + '', 'backlinkinit');
+	namumark(req, item.text, 0, doc + '', 'backlinkinit');
 	return res.redirect('/edit_request/' + id);
 });
 

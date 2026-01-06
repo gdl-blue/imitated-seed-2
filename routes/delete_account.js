@@ -42,10 +42,20 @@ if(hostconfig.allow_account_deletion) router.all(/^\/member\/delete_account$/, a
 		curs.execute("delete from acl where title = ? and namespace = '사용자'", [username]);
 		curs.execute("delete from classic_acl where title = ? and namespace = '사용자'", [username]);
 		curs.execute("delete from documents where title = ? and namespace = '사용자'", [username]);
+		/*
 		curs.execute("delete from history where title = ? and namespace = '사용자'", [username]);
+		*/
+		const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = '사용자' order by cast(rev as integer) desc limit 1", [username]);
+		const recentRev = _recentRev[0];
+		const rawChanges = 0 - recentRev.content.length;
+		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+			username, '사용자', '', String(Number(recentRev.rev) + 1), username, getTime(), '' + rawChanges, '', '0', '-1', 'author', 'delete'
+		]);
 		curs.execute("delete from login_history where username = ?", [username]);
 		curs.execute("delete from stars where username = ?", [username]);
 		curs.execute("delete from useragents where username = ?", [username]);
+		/*
 		curs.execute("update history set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
 		curs.execute("update res set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
 		curs.execute("update res set hider = '탈퇴한 사용자' where hider = ?", [username]);
@@ -53,6 +63,7 @@ if(hostconfig.allow_account_deletion) router.all(/^\/member\/delete_account$/, a
 		curs.execute("update block_history set target = '탈퇴한 사용자' where target = ?", [username]);
 		curs.execute("update edit_requests set processor = '탈퇴한 사용자', ismember = 'ip' where processor = ? and ismember = 'author'", [username]);
 		curs.execute("update edit_requests set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
+		*/
 		delete req.session.username;
 		delete userset[username];
 		if(permlist[username]) permlist[username] = [];

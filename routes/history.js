@@ -56,7 +56,7 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 								Number(row.rev) > 1
 								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
 								: ''
-							}${hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
+							}${ver('4.22.4') && hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
 					</span> 
 					
 					<input type="radio" name="oldrev" value="${row.rev}">
@@ -81,7 +81,7 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 					
 					${row.edit_request_id ? '<i><a href="/edit_request/' + row.edit_request_id + '">(편집 요청)</a></i>' : ''} ${ip_pas(row.username, row.ismember)}
 					
-					(<span style="color: gray;${row.loghider ? ' text-decoration: line-through;' : ''}">${row.loghider ? (row.loghider + '에 의해 편집 요약 숨겨짐') : row.log}${hasperm(req, 'hide_document_history_log') && row.loghider ? ('(내용:' + row.log + ')') : ''}</span>)
+					(<span style="color: gray;${row.loghider ? ' text-decoration: line-through;' : ''}">${row.loghider ? (row.loghider + '에 의해 편집 요약 숨겨짐') : row.log}${ver('4.22.4') && hasperm(req, 'hide_document_history_log') && row.loghider ? ('(내용:' + row.log + ')') : ''}</span>)
 				</li>
 		`;
 	}
@@ -126,7 +126,7 @@ router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async (req, res) => {
 	return res.redirect('/history/' + encodeURIComponent(title));
 });
 
-router.get(/^\/admin\/history\/(.*)\/(\d+)\/hide$/, async(req, res) => {
+if(ver('4.22.4')) router.get(/^\/admin\/history\/(.*)\/(\d+)\/hide$/, async(req, res) => {
 	if(!hasperm(req, 'hide_document_history_log'))
 		return res.status(403).send(await showError(req, 'permission'));
 	var title = req.params[0];
@@ -135,7 +135,7 @@ router.get(/^\/admin\/history\/(.*)\/(\d+)\/hide$/, async(req, res) => {
 	return res.redirect('/history/' + encodeURIComponent(title));
 });
 
-router.get(/^\/admin\/history\/(.*)\/(\d+)\/show$/, async(req, res) => {
+if(ver('4.22.4')) router.get(/^\/admin\/history\/(.*)\/(\d+)\/show$/, async(req, res) => {
 	if(!hasperm(req, 'hide_document_history_log'))
 		return res.status(403).send(await showError(req, 'permission'));
 	var title = req.params[0];

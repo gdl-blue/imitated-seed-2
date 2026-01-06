@@ -55,7 +55,7 @@ router.all(/^\/delete\/(.*)/, async(req, res, next) => {
 		const rawChanges = 0 - recentRev.content.length;
 		curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, iserq, erqnum, ismember, advance) \
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-			doc.title, doc.namespace, '', String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '' + (rawChanges), req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'delete'
+			doc.title, doc.namespace, '', String(Number(recentRev.rev) + 1), ip_check(req), getTime(), '' + rawChanges, req.body['log'] || '', '0', '-1', islogin(req) ? 'author' : 'ip', 'delete'
 		]);
 		curs.execute("update documents set time = ? where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		return res.redirect('/w/' + encodeURIComponent(doc + ''));

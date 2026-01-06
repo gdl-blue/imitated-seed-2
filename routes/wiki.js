@@ -1,3 +1,5 @@
+const namumark = require('../namumark');
+
 router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	const title = req.params[0];
 	if(title.replace(/\s/g, '') == '') res.redirect('/w/' + config.getString('wiki.front_page', 'FrontPage'));
@@ -97,7 +99,7 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 			} else {
 				content = '#redirect ' + html.escape(ntitle);
 			}
-		} else content = await markdown(req, rawContent[0].content, 0, doc + '');
+		} else content = await namumark(req, rawContent[0].content, 0, doc + '');
 		
 		if(rev && ver('4.20.0')) content = alertBalloon('<strong>[주의!]</strong> 문서의 이전 버전(' + generateTime(toDate(data[0].time), timeFormat) + '에 수정)을 보고 있습니다. <a href="/w/' + encodeURIComponent(doc + '') + '">최신 버전으로 이동</a>', 'danger', true, '', 1) + content;
 		if(req.query['from']) {

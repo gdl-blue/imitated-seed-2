@@ -47,7 +47,7 @@ if(jsdom.JSDOM) {
 	document = jsdom.jsdom('<div></div>');
 }
 
-var __whitespace = {" ":true, "\t":true, "\n":true, "\f":true, "\r":true};
+var __whitespace = {" ": true, "\t": true, "\n": true, "\f": true, "\r": true};
 
 var difflib = {
 	defaultJunkFunction: function (c) {

@@ -1,3 +1,6 @@
+const diff = require('../cemerick-jsdifflib.js');
+const namumark = require('../namumark');
+
 router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	
@@ -204,7 +207,7 @@ router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 			doc.title, doc.namespace, text, String(Number(baserev) + 1), ip_check(req), getTime(), changes, log, '0', '-1', ismember, advance
 		]);
-		markdown(req, text, 0, doc + '', 'backlinkinit');
+		namumark(req, text, 0, doc + '', 'backlinkinit');
 		
 		return res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
 	} while(0);

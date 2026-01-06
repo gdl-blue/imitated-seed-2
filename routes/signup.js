@@ -1,3 +1,5 @@
+const ipRangeCheck = require('ip-range-check');
+
 router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next) {
 	if(!['GET', 'POST'].includes(req.method)) return next();
 	
@@ -103,7 +105,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		const key = rndval('abcdef1234567890', 64);
 		curs.execute("insert into account_creation (key, email, time) values (?, ?, ?)", [key, req.body['email'], String(getTime())]);
 
-		// 이메일 사용 안하면
+		// 이메일 사용 안 하면
 		if(hostconfig.disable_email) return res.redirect('/member/signup/' + key);
 
 		// 사용하면

@@ -1,3 +1,5 @@
+const ipRangeCheck = require('ip-range-check');
+
 if(ver('4.18.0')) {
 
 if(hostconfig.namuwiki_exclusive) router.get(/^\/self_unblock$/, async(req, res) => {
