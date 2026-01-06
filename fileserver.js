@@ -13,8 +13,7 @@ const fileUpload = require('express-fileupload');
 const { sha256 } = require('js-sha256');
 const sizeOf = require('image-size');
 
-function print(x) { console.log(x); }
-function prt(x) { process.stdout.write(x); }
+const print = console.log;
 
 const server = express();
 

@@ -2,14 +2,10 @@ const sqlite3 = require('sqlite3').verbose();
 const inputReader = require('wait-console-input');
 const conn = new sqlite3.Database('./wikidata.db', () => 1);
 
-function Split(str, del) { return str.split(del); }; const split = Split;
-function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
-function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
+const print = console.log;
 
-function print(x) { console.log(x); }
-function prt(x) { process.stdout.write(x); }
 function input(prpt) {
-	prt(prpt);
+	process.stdout.write(prpt);
 	return inputReader.readLine('');
 }
 
@@ -19,7 +15,7 @@ conn.sd = [];
 const curs = {
 	execute: function executeSQL(sql = '', params = []) {
 		return new Promise((resolve, reject) => {
-			if(UCase(sql).startsWith("SELECT")) {
+			if(sql.toUpperCase().startsWith("SELECT")) {
 				conn.all(sql, params, (err, retval) => {
 					if(err) return reject(err);
 					conn.sd = retval;

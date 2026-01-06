@@ -2,12 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const conn = new sqlite3.Database('./wikidata.db', () => 1);
 const namumark = require('./namumark.js');
 
-function Split(str, del) { return str.split(del); }; const split = Split;
-function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
-function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
-
-function print(x) { console.log(x); }
-function prt(x) { process.stdout.write(x); }
+const print = console.log;
 
 conn.commit = function() {};
 conn.sd = [];
@@ -15,7 +10,7 @@ conn.sd = [];
 const curs = {
 	execute: function executeSQL(sql = '', params = []) {
 		return new Promise((resolve, reject) => {
-			if(UCase(sql).startsWith("SELECT")) {
+			if(sql.toUpperCase().startsWith("SELECT")) {
 				conn.all(sql, params, (err, retval) => {
 					if(err) return reject(err);
 					conn.sd = retval;
@@ -85,7 +80,7 @@ function fetchNamespaces() {
 				.then(async dbdocs => {
 					print('초기화 시작...');
 					for(var item of dbdocs) {
-						prt('\'' + totitle(item.title, item.namespace) + '\' 처리 중... ');
+						process.stdout.write('\'' + totitle(item.title, item.namespace) + '\' 처리 중... ');
 						await namumark(item.content, 0, totitle(item.title, item.namespace) + '', 'backlinkinit');
 						print('완료!');
 					}

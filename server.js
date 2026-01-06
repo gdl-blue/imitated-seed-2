@@ -1,36 +1,28 @@
-/* 병아리 엔진 - the seed 모방 프로젝트 */
-
+const fs = require('fs');
+try { fs.writeFileSync('./node_modules/busboy/lib/utils.js', fs.readFileSync('./node_modules/busboy/lib/utils.js').toString().replace('} catch {', '} catch(e) {')); } catch(e) {}
 const http = require('http');
 const https = require('https');
-const path = require('path');
-const geoip = require('geoip-lite');
 const inputReader = require('wait-console-input');
-const { SHA3 } = require('sha3');
 const md5 = require('md5');
 const express = require('express');
 const session = require('express-session');
 const swig = require('swig');
-const ipRangeCheck = require('ip-range-check');
 const bodyParser = require('body-parser');
-const fs = require('fs');
-const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
-const captchapng = require('captchapng');
 const fileUpload = require('express-fileupload');
 
-function print(x) { console.log(x); }
-function prt(x) { process.stdout.write(x); }
+const print = console.log;
 
-// 삐
-function beep(cnt = 1) { // 경고음 재생
+// 비프음
+function beep(cnt = 1) {
 	for(var i=1; i<=cnt; i++)
-		prt('');
+		process.stdout.write('');
 }
 
 // 입력받기
 function input(prpt) {
-	prt(prpt); // 일부러 이렇게. 바로하면 한글 깨짐.
+	process.stdout.write(prpt);  // 일부러 이렇게. 바로 하면 한글 깨짐.
 	return inputReader.readLine('');
 }
 
@@ -91,7 +83,7 @@ async function init() {
 	};
 	
 	// 테이블 만들기
-	prt('\n데이타베이스 테이블을 만드는 중... ');
+	process.stdout.write('\n데이타베이스 테이블을 만드는 중... ');
 	for(var table in tables) {
 		var sql = '';
 		sql = `CREATE TABLE ${table} ( `;
@@ -104,7 +96,7 @@ async function init() {
 	}
 	print('완료!');
 	
-	prt('이름공간 ACL을 만드는 중... ');
+	process.stdout.write('이름공간 ACL을 만드는 중... ');
 	for(var namespc of ['문서', '틀', '분류', '파일', '더 시드']) {
 		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'read', 'allow', '0', 'perm', 'any', '1')");
 		await curs.execute("INSERT INTO acl (title, namespace, id, type, action, expiration, conditiontype, condition, ns) VALUES ('', '" + namespc + "', '1', 'edit', 'deny', '0', 'perm', 'blocked_ipacl', '1')");
@@ -160,7 +152,7 @@ async function init() {
 
 	print('완료!');
 	
-	prt('ACL그룹을 만드는 중... ');
+	process.stdout.write('ACL그룹을 만드는 중... ');
 	await curs.execute("insert into aclgroup_groups (name, css, warning_description, disallow_signup) values ('차단된 사용자', 'text-decoration: line-through !important; color: gray !important;', '', '1')");
 	print('완료!');
 	

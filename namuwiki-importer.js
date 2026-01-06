@@ -8,10 +8,10 @@ function Split(str, del) { return str.split(del); }; const split = Split;
 function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
 function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
 
-function print(x) { console.log(x); }
-function prt(x) { process.stdout.write(x); }
+const print = console.log;
+
 function input(prpt) {
-	prt(prpt);
+	process.stdout.write(prpt);
 	return inputReader.readLine('');
 }
 

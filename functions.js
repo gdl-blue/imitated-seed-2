@@ -52,9 +52,7 @@ if(hostconfig.theseed_version) {
 	version.revision = Number(sp[2]);
 }
 
-// 로그출력
-function print(x) { console.log(x); }
-function prt(x) { process.stdout.write(x); }
+const print = console.log;
 
 var wikiconfig = {};  // 위키 설정 캐시
 var permlist = {};  // 권한 캐시
@@ -130,12 +128,12 @@ function getDefaultGrantPermissions() {
 // 삐
 function beep(cnt = 1) { // 경고음 재생
 	for(var i=1; i<=cnt; i++)
-		prt('');
+		process.stdout.write('');
 }
 
 // 입력받기
 function input(prpt) {
-	prt(prpt); // 일부러 이렇게. 바로하면 한글 깨짐.
+	process.stdout.write(prpt); // 일부러 이렇게. 바로하면 한글 깨짐.
 	return inputReader.readLine('');
 }
 
@@ -772,57 +770,48 @@ async function requireAsync(p) {
             if(e) {
                 reject(e);
             } else {
-                resolve( JSON.parse(r.toString()) );
+                resolve(JSON.parse(r.toString()));
             }
         });
     });
 }
 
 // 스킨 템플릿 렌더링
-async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewname = '') {
-	const skinInfo = {
-		title: title + subtitle,
-		viewName: viewname,
-	};
-	
-	const perms = {
-		has(perm) {
-			try {
-				var pl = permlist[ip_check(req)];
-				return pl.includes(perm) || pl.includes('developer');
-			} catch(e) {
-				return false;
-			}
-		}
-	};
-	
-	var skinconfig = skincfgs[getSkin(req)];
-	
-	var templatefn = '';
-	if(skinconfig.override_views.includes(viewname)) {
-		templatefn = './skins/' + getSkin(req) + '/views/' + viewname + '.html';
-	} else {
-		templatefn = './skins/' + getSkin(req) + '/views/default.html';
-	}
+async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewName = '') {
+	const currentSkin = getSkin(req);
+	const skinConfig = skincfgs[currentSkin];
+	const templatefn = `./skins/${currentSkin}/views/${skinConfig.override_views.includes(viewName) ? viewName : 'default'}.html`;
 
 	return new Promise((resolve, reject) => {
-        swig.compileFile(templatefn, {}, async(e, r) => {
-            if(e) {
+        swig.compileFile(templatefn, {}, async(err, template) => {
+            if(err) {
 				print(`[오류!] ${e.stack}`);
 				return resolve(`<title>${title}(스킨 렌더링 오류!)</title><meta charset=utf-8 />${content}`);
 			}
 			
-			varlist['skinInfo'] = skinInfo;
+			varlist['skinInfo'] = {
+				title: title + subtitle,
+				viewName,
+			};
 			varlist['config'] = config;
 			varlist['content'] = content;
-			varlist['perms'] = perms;
+			varlist['perms'] = {
+				has(perm) {
+					try {
+						var pl = permlist[ip_check(req)];
+						return pl.includes(perm) || pl.includes('developer');
+					} catch(e) {
+						return false;
+					}
+				}
+			};
 			varlist['url'] = req.path;
 			varlist['error'] = error;
 			varlist['req_ip'] = ip_check(req, 1);
 			
 			if(islogin(req)) {
 				var user_document_discuss = null;
-				const udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
+				var udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
 				if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
 				
 				varlist['member'] = {
@@ -831,77 +820,63 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				varlist['user_document_discuss'] = user_document_discuss;
 			}
 			
-			var output = r(varlist);
+			var body = template(varlist);
 			
-			var header = '<!DOCTYPE html>\n<html><head>';
+			// 헤드 부분 작성
+			var header = '<!DOCTYPE html><html><head>';
 			var adjs = '', adcss = '';
-			for(var js of (hostconfig.additional_js || [])) {
+			for(var js of (hostconfig.additional_js || []))
 				adjs += `<script type="text/javascript" src="/js/${js}"></script>`;
-			}
-			for(var css of (hostconfig.additional_css || [])) {
+			for(var css of (hostconfig.additional_css || []))
 				adcss += `<link rel=stylesheet href="/css/${css}" />`;
-			}
-			header += `
+			header += `\
 				<title>${title}${subtitle} - ${config.getString('wiki.site_name', '더 시드')}</title>
 				<meta charset=utf-8 />
 				<meta http-equiv=x-ua-compatible content="ie=edge" />
 				<meta http-equiv=x-pjax-version content="" />
 				<meta name=generator content="the seed" />
-				<meta name=application-name content="` + config.getString('wiki.site_name', '더 시드') + `" />
+				<meta name=application-name content="${config.getString('wiki.site_name', '더 시드')}" />
 				<meta name=mobile-web-app-capable content=yes />
-				<meta name=msapplication-tooltip content="` + config.getString('wiki.site_name', '더 시드') + `" />
-				<meta name=msapplication-starturl content="/w/` + encodeURIComponent(config.getString('wiki.front_page', 'FrontPage')) + `" />
-				<link rel=search type="application/opensearchdescription+xml" title="` + config.getString('wiki.site_name', '더 시드') + `" href="/opensearch.xml" />
+				<meta name=msapplication-tooltip content="${config.getString('wiki.site_name', '더 시드')}" />
+				<meta name=msapplication-starturl content="/w/${encodeURIComponent(config.getString('wiki.front_page', 'FrontPage'))}" />
+				<link rel=search type="application/opensearchdescription+xml" title="${config.getString('wiki.site_name', '더 시드')}" href="/opensearch.xml" />
 				<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
-			${hostconfig.use_external_css ? `
+			${hostconfig.use_external_css ? `\
 				<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
 				<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
-				<link rel=stylesheet href="https://theseed.io/css/wiki.css" />
-			` : `
+				<link rel=stylesheet href="https://theseed.io/css/wiki.css" />` : 
+			`\
 				<link rel=stylesheet href="/css/diffview.css" />
 				<link rel=stylesheet href="/css/katex.min.css" />
-				<link rel=stylesheet href="/css/wiki.css" />
-			`}${adcss}
+				<link rel=stylesheet href="/css/wiki.css" />`}${adcss}
 			`;
-			for(var css of skinconfig.auto_css_targets['*']) {
-				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + css + '" />';
-			}
-			for(var css of (skinconfig.auto_css_targets[viewname] || [])) {
-				header += '<link rel=stylesheet href="/skins/' + getSkin(req) + '/' + css + '" />';
-			}
-			header += `
-				${hostconfig.use_external_js ? `
+			for(var css of skinConfig.auto_css_targets['*'])
+				header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+			for(var css of (skinConfig.auto_css_targets[viewName] || []))
+				header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+			header += `\
+				${hostconfig.use_external_js ? `\
 					<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
 					<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
-					<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
-					<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
-					<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
-					
-				` : `
+					<script type="text/javascript" src="https://theseed.io/js/dateformatter.js"></script>
+					<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js"></script>
+					<script type="text/javascript" src="https://theseed.io/js/theseed.js"></script>` : 
+				`\
 					<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
 					<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
-					<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
-					<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
-					<script type="text/javascript" src="/js/theseed.js?24141115"></script>
-				`}${adjs}
+					<script type="text/javascript" src="/js/dateformatter.js"></script>
+					<script type="text/javascript" src="/js/intersection-observer.js"></script>
+					<script type="text/javascript" src="/js/theseed.js"></script>`}${adjs}
 			`;
-			for(var js of skinconfig.auto_js_targets['*']) {
-				header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + js.path + '"></script>';
-			}
-			for(var js of (skinconfig.auto_js_targets[viewname] || [])) {
-				header += '<script type="text/javascript" src="/skins/' + getSkin(req) + '/' + js.path + '"></script>';
-			}
-			
-			header += skinconfig.additional_heads;
-			header += '</head><body class="';
-			var ac = '';
-			for(var cls of skinconfig.body_classes) {
-				ac += cls + ' ';
-			}
-			header += ac.replace(/\s$/, '') + '">';
+			for(var js of skinConfig.auto_js_targets['*'])
+				header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+			for(var js of (skinConfig.auto_js_targets[viewName] || []))
+				header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+			header += skinConfig.additional_heads;
+			header += `</head><body class="${skinConfig.body_classes.join(' ')}">`;
 			var footer = '</body></html>';
 			
-			resolve(header + output + footer);
+			resolve(header + body + footer);
 		});
 	});
 }
@@ -1699,7 +1674,6 @@ module.exports = {
 	disable_autoperms,
 	
 	print,
-	prt,
 	
 	Stack,
 	Queue,

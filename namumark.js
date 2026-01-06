@@ -1085,7 +1085,7 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 				let def = pd[1] ? item.replace(param + '=', '') : '';
 				d = d.replace(itema, params[param] || def);
 			}
-			d = await markdown(req, d, 0, itf, 'include noframe', title);
+			d = await namumark(req, d, 0, itf, 'include noframe', title);
 			d = d.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
 			
 			data = data.replace(finc, d);
