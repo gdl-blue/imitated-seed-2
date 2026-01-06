@@ -177,19 +177,18 @@ function getTime() { return Math.floor(new Date().getTime()); };
 function toDate(t) {
 	var cur = getTime();
 	// 초 단위 시간 구분
-	if(Math.abs(cur - Math.floor(Number(t)) * 1000) < Math.abs(cur - Math.floor(Number(t)))) {
+	if(Math.abs(cur - Math.floor(Number(t)) * 1000) < Math.abs(cur - Math.floor(Number(t))))
 		t = Number(t) * 1000;
-	}
 	var date = new Date(Number(t));
 	
-	var hour = date.getUTCHours(); hour = (hour < 10 ? "0" : "") + hour;
-    var min  = date.getUTCMinutes(); min = (min < 10 ? "0" : "") + min;
-    var sec  = date.getUTCSeconds(); sec = (sec < 10 ? "0" : "") + sec;
-    var year = date.getUTCFullYear();
-    var month = date.getUTCMonth() + 1; month = (month < 10 ? "0" : "") + month;
-    var day  = date.getUTCDate(); day = (day < 10 ? "0" : "") + day;
+	var hour  = date.getUTCHours(); hour = (hour < 10 ? '0' : '') + hour;
+    var min   = date.getUTCMinutes(); min = (min < 10 ? '0' : '') + min;
+    var sec   = date.getUTCSeconds(); sec = (sec < 10 ? '0' : '') + sec;
+    var year  = date.getUTCFullYear();
+    var month = date.getUTCMonth() + 1; month = (month < 10 ? '0' : '') + month;
+    var day   = date.getUTCDate(); day = (day < 10 ? '0' : '') + day;
 
-    return year + "-" + month + "-" + day + " " + hour + ":" + min + ":" + sec;
+    return year + '-' + month + '-' + day + ' ' + hour + ':' + min + ':' + sec;
 }
 
 function formatRelativeDate(t) {
@@ -230,22 +229,25 @@ function formatRelativeDate(t) {
 function toTime(t) {
 	var cur = getTime();
 	// 초 단위 시간 구분
-	if(Math.abs(cur - Math.floor(Number(t)) * 1000) < Math.abs(cur - Math.floor(Number(t)))) {
+	if(Math.abs(cur - Math.floor(Number(t)) * 1000) < Math.abs(cur - Math.floor(Number(t))))
 		t = Number(t) * 1000;
-	}
 	var date = new Date(Number(t));
 	
-	var hour = date.getUTCHours(); hour = (hour < 10 ? "0" : "") + hour;
-    var min  = date.getUTCMinutes(); min = (min < 10 ? "0" : "") + min;
-    var sec  = date.getUTCSeconds(); sec = (sec < 10 ? "0" : "") + sec;
+	var hour = date.getUTCHours();
+	hour = (hour < 10 ? '0' : '') + hour;
+    var min  = date.getUTCMinutes();
+	min  = (min < 10 ? '0' : '') + min;
+    var sec  = date.getUTCSeconds();
+	sec  = (sec < 10 ? '0' : '') + sec;
 
-    return hour + ":" + min + ":" + sec;
+    return hour + ':' + min + ':' + sec;
 }
 
 // 시간 <time> 반환
 function generateTime(time, fmt) {
-	const d = time.split(' ')[0];
-	const t = time.split(' ')[1];
+	const spl = time.split(' ');
+	const d = spl[0];
+	const t = spl[1];
 	
 	return `<time datetime="${d}T${t}.000Z" data-format="${fmt}">${time}</time>`;
 }
@@ -253,17 +255,16 @@ generateTime.safe = true;
 
 // 로그인 여부
 function islogin(req) {
-	if(req.session.username) return true;
-	return false;
+	return req.session.username;
 }
 
 // 아이디 확인
 function ip_check(req, forceIP) {
-	if(!forceIP && req.session.username)
+	if(!forceIP && req.session.username) {
 		return req.session.username;
-	else if(hostconfig.custom_ip_header && req.headers[hostconfig.custom_ip_header.toLowerCase()])
-		return req.headers[hostconfig.custom_ip_header.toLowerCase()]
-	else {
+	} else if(hostconfig.custom_ip_header && req.headers[hostconfig.custom_ip_header.toLowerCase()]) {
+		return req.headers[hostconfig.custom_ip_header.toLowerCase()];
+	} else {
 		var ip = null;
 		if(req.ip) ip = req.ip;
 		else if(req.connection && req.connection.remoteAddress) ip = req.connection.remoteAddress;
@@ -275,7 +276,7 @@ function ip_check(req, forceIP) {
 	}
 }
 
-// 사용자설정 가져오기
+// 사용자 설정 가져오기
 function getUserset(req, str, def) {
     str = str.replace(/^wiki[.]/, '');
 	if(!islogin(req)) return def === undefined ? '' : def;
@@ -736,7 +737,7 @@ function hasperm(req, perm, ignoreDeveloper = false) {
 	return permlist[ip_check(req)].includes(perm);
 }
 
-// 비동기파일읽기
+// 비동기 파일 읽기
 async function readFile(p, noerror = 0) {
     return new Promise((resolve, reject) => {
         fs.readFile(p, 'utf8', (e, r) => {
@@ -752,15 +753,11 @@ async function readFile(p, noerror = 0) {
 
 // 비동기 파일 존재 여부
 async function exists(p) {
-    // fs.exists는 작동안함
+    // fs.exists는 작동 안 함
     return new Promise((resolve, reject) => {
-        fs.readFile(p, (e, r) => {
+        fs.readFile(p, e => {
             // 화일이 없으니 에러
-            if(e) {
-                resolve(false);
-            } else {
-                resolve(true);
-            }
+			resolve(!e);
         });
     });
 }
@@ -914,7 +911,7 @@ const exaclperms = [
 	'member', 'member_signup_15days_ago', 'document_contributor', 'contributor',
 ];
 
-// 오류메시지
+// 오류 메시지
 function fetchErrorString(code, ...params) {
 	const codes = {
 		permission: ver('4.0.18') ? '권한이 부족합니다.' : '관리자 권한입니다.',
@@ -1041,7 +1038,8 @@ async function ipblocked(ip) {
 			else msg = 'IP가 차단되었습니다.' + (!ver('4.6.0') ? ' <a href="https://board.namu.wiki/whyiblocked">게시판</a>으로 문의해주세요.' : '') + '<br />차단 만료일 : ' + (row.expiration == '0' ? '무기한' : new Date(Number(row.expiration))) + '<br />차단 사유 : ' + row.note;
 			return msg;
 		}
-	} return false;
+	}
+	return false;
 }
 
 Array.prototype.remove = function remove(item) {
@@ -1060,7 +1058,7 @@ async function userblocked(username) {
 				aclgroupCache.group[item.username.toLowerCase()].remove(item.aclgroup);
 		await curs.execute("delete from aclgroup where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		var data = await curs.execute("select id, type, username, note, expiration, date from aclgroup where aclgroup = ? and username = ?", ['차단된 사용자', username]);
-		if(data.length) {
+		if(data.length)
 			return {
 				username,
 				expiration: data[0].expiration,
@@ -1068,18 +1066,20 @@ async function userblocked(username) {
 				date: data[0].date,
 				id: data[0].id,
 			};
-		}
+		else
+			return false;
 	} else {
 		await curs.execute("delete from suspend_account where not expiration = '0' and ? > cast(expiration as integer)", [Number(getTime())]);
 		var data = await curs.execute("select expiration, note, date from suspend_account where username = ?", [username]);
-		if(data.length) {
+		if(data.length)
 			return {
 				username,
 				expiration: data[0].expiration,
 				note: data[0].note,
 				date: data[0].date,
 			};
-		} else return false;
+		else
+			return false;
 	}
 }
 
@@ -1614,9 +1614,8 @@ function expireopt(req) {
 		val  = ['', -1].concat(val);
 	}
 	var ret = '';
-	for(var i=0; i<disp.length; i++) {
+	for(var i=0; i<disp.length; i++)
 		ret += `<option value=${val[i]}${req && req.method == 'POST' && String(req.body['expire']) === String(val[i]) ? ' selected' : ''}>${disp[i]}</option>`;
-	}
 	return ret;
 }
 
@@ -1647,20 +1646,20 @@ const transporter = nodemailer.createTransport({
 	port: 465,
 	secure: true,
 	auth: {
-	  user: hostconfig.email,
-	  pass: hostconfig.passwd
+		user: hostconfig.email,
+		pass: hostconfig.passwd,
 	},
-  });
+});
 
 function mailer(to, subject, content) {
 	const mailOptions = {
-		from: [config.getString('wiki.site_name')] + '<' + [hostconfig.email] + '>',
-        to: to ,
+		from: config.getString('wiki.site_name') + ' <' + hostconfig.email + '>',
+        to: to,
         subject: subject,
-        html: content
+        html: content,
 	};
 	transporter.sendMail(mailOptions);
-	log('메일러', to+'으로 가입인증메일 발송됨.');
+	log('메일러', to + '(으)로 가입 인증 메일 발송됨.');
 }
 
 module.exports = {
