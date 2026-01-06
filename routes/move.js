@@ -34,6 +34,8 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 			` : ''
 			}
 			
+			${generateCaptcha(req, req.session.captcha)}
+			
 			<div>
 				<button type=submit>이동</button>
 			</div>
@@ -43,6 +45,8 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 	var error = null;
 	
 	if(req.method == 'POST') do {
+		if(!validateCaptcha(req)) { content = (error = err('alert', { code: 'captcha_validation_failed' })) + content; break; }
+		
 		if(doc.namespace == '사용자')
 			if((ver('4.11.0') && !doc.title.includes('/')) || !ver('4.11.0')) {
 				content = (error = err('alert', 'disable_user_document')) + content;
@@ -51,9 +55,7 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 		
 		var doccontent = '';
 		const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-		if(o_o.length) {
-			doccontent = o_o[0].content;
-		}
+		if(o_o.length) doccontent = o_o[0].content;
 		
 		const _recentRev = await curs.execute("select content, rev from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 1", [doc.title, doc.namespace]);
 		const recentRev = _recentRev[0];

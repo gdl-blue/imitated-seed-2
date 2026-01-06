@@ -712,6 +712,7 @@ function getSkin(req) {
 
 // 권한 보유여부
 function getperm(perm, username, ignoreDeveloper = false) {
+	if(perm == 'any') return true;
 	if(perm == 'member') return true;
 	if(!ignoreDeveloper && perm != 'developer' && getperm('developer', username)) return true;
 	if(perm == 'no_force_captcha') perm = 'no_force_recaptcha';
@@ -722,6 +723,7 @@ function getperm(perm, username, ignoreDeveloper = false) {
 
 // 내 권한 보유여부
 function hasperm(req, perm, ignoreDeveloper = false) {
+	if(perm == 'any') return true;
 	if(!islogin(req)) {
 		if(perm == 'ip') return true;
 		return false;
@@ -1184,7 +1186,6 @@ async function getacl(req, title, namespace, type, getmsg, noeq) {
 			m2: '', 
 			msg: '',
 		};
-		
 		for(var row of table) {
 			if(row.conditiontype == 'perm') {
 				var ret = 0;
@@ -1362,10 +1363,15 @@ async function getacl(req, title, namespace, type, getmsg, noeq) {
 	const r = await f(doc);
 	if(!getmsg) return r.ret;
 	if(!r.ret && !r.msg) {
-		r.msg = `${ver('4.7.0') && !r.m1 && !r.m2 ? 'ACL에 허용 규칙이 없기 때문에 ' : ''}${r.m1 && ver('4.7.0') ? r.m1 + '이기 때문에 ' : ''}${acltype[type]} 권한이 부족합니다.${r.m2 && ver('4.7.0') ? ' ' + r.m2.replace(/\sOR\s$/, '') + '(이)여야 합니다. ' : ''}`;
-		if(ver('4.5.9')) r.msg += ` 해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.`;
-		if(type == 'edit' && !bbk && !noeq)
-			r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
+		if(!r.m1 && hasperm(req, 'developer')) {
+			r.ret = 1;
+			r.msg = '';
+		} else {
+			r.msg = `${ver('4.7.0') && !r.m1 && !r.m2 ? 'ACL에 허용 규칙이 없기 때문에 ' : ''}${r.m1 && ver('4.7.0') ? r.m1 + '이기 때문에 ' : ''}${acltype[type]} 권한이 부족합니다.${r.m2 && ver('4.7.0') ? ' ' + r.m2.replace(/\sOR\s$/, '') + '(이)여야 합니다. ' : ''}`;
+			if(ver('4.5.9')) r.msg += ` 해당 문서의 <a href="/acl/${encodeURIComponent(totitle(title, namespace) + '')}">ACL 탭</a>을 확인하시기 바랍니다.`;
+			if(type == 'edit' && !bbk && !noeq)
+				r.msg += ' 대신 <strong><a href="/new_edit_request/' + encodeURIComponent(totitle(title, namespace) + '') + '">편집 요청</a></strong>을 생성하실 수 있습니다.';
+		}
 	}
 	return r.msg;  // 거부되었으면 오류 메시지 내용 반환, 허용은 빈 문자열
 }
@@ -1383,11 +1389,11 @@ function navbtn(total, start, end, href) {
 		</div>
 	`;  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
 	href = href.split('?')[0];
-	start = Number(start);
-	end = Number(end);
-	total = Number(total);
+	start = parseInt(start);
+	end = parseInt(end);
+	total = parseInt(total);
 	
-	return `
+	return `\
 		<div class=btn-group role=group>
 			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
@@ -1395,17 +1401,16 @@ function navbtn(total, start, end, href) {
 			<a ${start <= 1 ? '' : `href="${(href + '?from=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
-		</div>
-	`;
+		</div>`;
 }
 
 function navbtnr(total, start, end, href) {
 	href = href.split('?')[0];
-	start = Number(start);
-	end = Number(end);
-	total = Number(total);
+	start = parseInt(start);
+	end = parseInt(end);
+	total = parseInt(total);
 	
-	return `
+	return `\
 		<div class=btn-group role=group>
 			<a ${start <= 1 ? '' : `href="${(href + '?until=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
@@ -1413,15 +1418,14 @@ function navbtnr(total, start, end, href) {
 			<a ${end == total ? '' : `href="${(href + '?from=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
-		</div>
-	`;
+		</div>`;
 }
 
 function navbtnss(ts, te, start, end, href) {
 	href = href.split('?')[0];
 	start = start;
 	end = end;
-	return `
+	return `\
 		<div class=btn-group role=group>
 			<a ${start == ts ? '' : `href="${(href + '?until=' + encodeURIComponent(start))}" `}class="btn btn-secondary btn-sm${start == ts ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
@@ -1429,19 +1433,17 @@ function navbtnss(ts, te, start, end, href) {
 			<a ${end == te ? '' : `href="${(href + '?from=' + encodeURIComponent(end))}" `}class="btn btn-secondary btn-sm${end == te ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
-		</div>
-	`;
+		</div>`;
 }
 
 // HTML 이스케이프
 const html = {
-	escape(content = '') {
+	escape(content) {
 		if(!content) content = '';
 		content = content.replace(/[&]/gi, '&amp;');
 		content = content.replace(/["]/gi, '&quot;');
 		content = content.replace(/[<]/gi, '&lt;');
 		content = content.replace(/[>]/gi, '&gt;');
-		
 		return content;
 	}
 };
@@ -1456,9 +1458,10 @@ function cacheSkinList() {
     }
 }
 
-function generateCaptcha(req, num) {
+function generateCaptcha(req, num, isEdit = false) {
     if(!hostconfig.enable_captcha) return '';
-    if(hasperm(req, 'no_force_recaptcha') || hasperm(req, 'skip_captcha')) return '';
+    if(hasperm(req, 'skip_captcha')) return '';
+    if(!isEdit && hasperm(req, 'no_force_recaptcha')) return '';
     
     var numbers = [];
     var i;
@@ -1469,8 +1472,8 @@ function generateCaptcha(req, num) {
 	if(num) {
 		numbers = [String(num).slice(0, 3), String(num).slice(3, 6)];
 	} else {
-		numbers.push(parseInt(Math.random()*900+100));
-		numbers.push(parseInt(Math.random()*900+100));
+		numbers.push(parseInt(Math.random() * 900 + 100));
+		numbers.push(parseInt(Math.random() * 900 + 100));
     }
 	
     for(i of numbers) {
@@ -1487,53 +1490,48 @@ function generateCaptcha(req, num) {
             case 1:
                 i.color(120, 200, 255, 255);
                 i.color(255, 255, 255, 255);
-            break;case 2:
+            break; case 2:
                 i.color(46, 84, 84, 255);
                 i.color(52, 235, 195, 255);
-            break;case 3:
+            break; case 3:
                 i.color(44, 56, 222, 255);
                 i.color(227, 43, 52, 255);
-            break;case 4:
+            break; case 4:
                 i.color(31, 216, 220, 255);
                 i.color(255, 0, 0, 255);
-            break;case 5:
+            break; case 5:
                 i.color(85, 170, 170, 255);
                 i.color(255, 255, 255, 255);
-            break;case 6:
+            break; case 6:
                 i.color(225, 202, 48, 255);
                 i.color(9, 198, 122, 255);
         }
-        
         const img = i.getBase64();
-        
-        retHTML += `
-            <img style="border-radius: 6px; border: 1px solid white; box-shadow: 3px 3px 20px 1px grey inset; display: inline-block;" class=captcha-image src="data:image/png;base64,${Buffer.from(img, 'base64').toString('base64')}" />
-        `;
+        retHTML += `<img style="border-radius: 6px; border: 1px solid white; box-shadow: 3px 3px 20px 1px grey inset; display: inline-block; margin: 0 3px;" class=captcha-image src="data:image/png;base64,${Buffer.from(img, 'base64').toString('base64')}" />`;
     }
     
-    return `
+    return `\
         <div class=captcha-frame style="margin: 20px 0 20px 0; border-color: #000; border-width: 1px 1px 1px; border-style: solid; border-radius: 6px; display: table; padding: 10px; background: rgb(153, 208, 249); background: linear-gradient(rgb(153, 208, 249) 0%, rgb(13, 120, 200) 31%, rgb(43, 157, 242) 30%, rgb(202, 233, 255));">
             <div class=captcha-images>
                 ${retHTML}
             </div>
             
-            <div class=captcha-input>
+            <div class=captcha-input style="margin: 0 3px;">
                 <label style="color: white;">보이는 숫자 입력: </label><br />
 				<input type=hidden name=captcha-id value=${id} />
                 <input type=text class=form-control name=captcha />
             </div>
-        </div>
-    `;
+        </div>`;
 }
 
-function validateCaptcha(req) {
+function validateCaptcha(req, isEdit = false) {
     if(!hostconfig.enable_captcha) return true;
-    if(hasperm(req, 'no_force_recaptcha') || hasperm(req, 'skip_captcha')) return true;
+    if(hasperm(req, 'skip_captcha')) return true;
+    if(!isEdit && hasperm(req, 'no_force_recaptcha')) return true;
     
     try {
-        if(req.body['captcha'].replace(/\s/g, '') != req.session['captcha-' + req.body['captcha-id']]) {
+        if(!req.body['captcha'] || !req.body['captcha-id'] || !req.session['captcha-' + req.body['captcha-id']] || req.body['captcha'].replace(/\s/g, '') != req.session['captcha-' + req.body['captcha-id']])
             return false;
-        }
     } catch(e) {
         return false;
     }

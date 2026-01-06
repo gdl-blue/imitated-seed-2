@@ -27,6 +27,8 @@ router.all(/^\/delete\/(.*)/, async(req, res, next) => {
             <p>
 				<b>알림!&nbsp;:</b>&nbsp;문서의 제목을 변경하려는 경우 <a href="/move/${encodeURIComponent(doc + '')}">문서 이동</a> 기능을 사용해주세요. 문서 이동 기능을 사용할 수 없는 경우 토론 기능이나 게시판을 통해 대행 요청을 해주세요.
             </p>
+			
+			${generateCaptcha(req, req.session.captcha)}
 
             <div class=btns>
 				<button type=reset class="btn btn-secondary">초기화</button>
@@ -37,6 +39,8 @@ router.all(/^\/delete\/(.*)/, async(req, res, next) => {
 	
 	var error = null;
 	if(req.method == 'POST') do {
+		if(!validateCaptcha(req)) { content = (error = err('alert', { code: 'captcha_validation_failed' })) + content; break; }
+		
 		if(doc.namespace == '사용자')
 			if((ver('4.11.0') && !doc.title.includes('/')) || !ver('4.11.0')) {
 				content = (error = err('alert', 'disable_user_document')) + content;

@@ -70,7 +70,8 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		} catch(e) {console.log(e);}
 	} while(0);
 	
-	var content = `
+	var content = `\
+		${req.method == 'POST' && !error && !validateCaptcha(req) ? (error = err('alert', { code: 'captcha_validation_failed' })) : ''}
 		${req.method == 'POST' && !error && filteredemail ? (error = err('alert', { msg: '이메일 허용 목록에 있는 이메일이 아닙니다.' })) : ''}
 		${req.method == 'POST' && !error && blockmsg ? (error = err('alert', { msg: blockmsg })) : ''}
 		${req.method == 'POST' && !error && blocked ? (error = err('alert', { msg: '이용중인 IP는 문서 훼손행위가 자주 발생하는 IP이므로 로그인이 필요합니다.<br />(이 메세지는 본인이 반달을 했다기 보다는 해당 통신사를 쓰는 다른 누군가가 해서 발생했을 확률이 높습니다.)' })) : ''}
@@ -86,19 +87,19 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 				${req.method == 'POST' && !error && userduplicate ? (error = err('p', { msg: '이메일이 이미 존재합니다.' })) : ''}
 				${req.method == 'POST' && !error && invalidemail ? (error = err('p', { msg: '이메일의 값을 형식에 맞게 입력해주세요.' })) : ''}
 				${emailfilter}
-
 			</div>
 			
 			<p>
 				<strong>가입후 탈퇴는 불가능합니다.</strong>
 			</p>
+			
+			${generateCaptcha(req, req.session.captcha)}
 		
 			<div class=btns>
 				<button type=reset class="btn btn-secondary">초기화</button>
 				<button type=submit class="btn btn-primary">가입</button>
 			</div>
-		</form>
-	`;
+		</form>`;
 	
 	if(req.method == 'POST' && !error) {
 		await curs.execute("delete from account_creation where cast(time as integer) < ?", [Number(getTime()) - 86400000]);
@@ -112,17 +113,13 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		else {
 			// 메일 발송
 			const { email } = req.body;
-			mailer(
-				email, 
-				'[' + [config.getString('wiki.site_name', '더 시드')] + ']' + '계정 생성 이메일 주소 인증.',
-				`
-				<p>안녕하세요. ${config.getString('wiki.site_name')} 입니다.</p>
-				<p>${config.getString('wiki.site_name')} 계정 생성 이메일 인증 메일입니다.</p>
-				<p>직접 계정 생성을 진행하신 것이 맞다면 아래 링크를 클릭해서 계정 생성을 계속 진행해주세요.</p>
-				<a href="http://${config.getString('wiki.canonical_url')}/member/signup/${key}">[인증]</a>
-				<p>이 메일은 24시간동안 유효합니다.</p>
-				<p>요청 아이피: ${ip_check(req)}</p>
-			`);
+			mailer(email, '[' + config.getString('wiki.site_name', '더 시드') + '] ' + '계정 생성 이메일 주소 인증.',
+				`안녕하세요. ${config.getString('wiki.site_name')} 입니다.<br />` + 
+				`${config.getString('wiki.site_name')} 계정 생성 이메일 인증 메일입니다.<br />` + 
+				`직접 계정 생성을 진행하신 것이 맞다면 아래 링크를 클릭해서 계정 생성을 계속 진행해주세요.<br />` + 
+				`<a href="http://${req.hostname}/member/signup/${key}">[인증]</a><br />` + 
+				`이 메일은 24시간동안 유효합니다.<br />` + 
+				`요청 아이피 : ${ip_check(req)}<br />`);
 
 			//.
 			return res.send(await render(req, '계정 만들기', `

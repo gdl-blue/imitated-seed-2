@@ -7,6 +7,7 @@ router.get(/^\/member\/logout$/, async(req, res, next) => {
 	var desturl = req.query['redirect'];
 	if(!desturl) desturl = '/';
 	delete req.session.username;
+	req.session.edit_count = 0;
 	res.redirect(desturl);
 });
 
@@ -38,7 +39,9 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		if(blocked) break;
 	} while(0);
 	
-	var content = `
+	var content = `\
+		${req.method == 'POST' && !error && !validateCaptcha(req) ? (error = err('alert', { code: 'captcha_validation_failed' })) : ''}
+		
 		<form class=login-form method=post>
 			<div class=form-group>
 				<label>Username</label>
@@ -64,9 +67,10 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 			
 			<a href="/member/recover_password" style="float: right;">[아이디/비밀번호 찾기]</a> <br>
 			
+			${generateCaptcha(req, req.session.captcha)}
+			
 			<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
-		</form>
-	`;
+		</form>`;
 	
 	if(req.method == 'POST' && !error) {
 		id = usr[0].username;
@@ -89,6 +93,7 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		}
 		
 		req.session.username = id;
+		req.session.edit_count = 1;  // 로그인할 때 이미 캡챠 인증을 했을테니 편집할 때 당분간은 안 뜨게 하자.
 		return res.redirect(desturl);
 	}
 	

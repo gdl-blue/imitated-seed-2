@@ -75,6 +75,8 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
+			${generateCaptcha(req, req.session.captcha)}
+			
 			<div class=btns>
 				<button id=uploadBtn type=submit class="btn btn-primary">올리기</button>
 			</div>
@@ -86,6 +88,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 	var error = null;
 	
 	if(req.method == 'POST') do {
+		if(!validateCaptcha(req)) { content = (error = err('alert', { code: 'captcha_validation_failed' })) + content; break; }
 		if(!req.files || !req.files.file) { content = (error = err('alert', { code: 'file_not_uploaded' })) + content; break; }
 		var file = req.files.file;
 		var title = req.body['document'];
