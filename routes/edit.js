@@ -1,5 +1,5 @@
-const diff = require('../cemerick-jsdifflib.js');
-const namumark = require('../namumark');
+const diff = require('./cemerick-jsdifflib.js');
+const namumark = require('./namumark');
 
 router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 	if(!['POST', 'GET'].includes(req.method)) return next();
@@ -214,7 +214,7 @@ router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 		return res.redirect('/w/' + encodeURIComponent(totitle(doc.title, doc.namespace)));
 	} while(0);
 	
-	res.status(httpstat).send(await render(req, totitle(doc.title, doc.namespace) + ' (편집)', content.replace('&<$TEXTAREA>', textarea), {
+	res.status(httpstat).send(await render2(req, totitle(doc.title, doc.namespace) + ' (편집)', content.replace('&<$TEXTAREA>', textarea), {
 		document: doc,
 		body: {
 			baserev: String(baserev),

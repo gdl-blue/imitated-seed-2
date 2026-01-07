@@ -50,5 +50,5 @@ router.get(/^\/RandomPage$/, async function randomPage(req, res) {
 	}
 	content += (li || '<li><a href="/w/' + encodeURIComponent(config.getString('wiki.front_page', 'FrontPage')) + '">' + html.escape(config.getString('wiki.front_page', 'FrontPage')) + '</a></li>') + '</ul>';
 	
-	res.send(await render(req, 'RandomPage', content, {}));
+	res.send(await render2(req, 'RandomPage', content, {}));
 });

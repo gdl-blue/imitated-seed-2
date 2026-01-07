@@ -61,7 +61,7 @@ router.get(/^\/search\/(.*)/, async(req, res) => {
 	var st = new Date().getTime() / 1000;
 	
 	if(!query.replace(/^(\s+)/, '').replace(/(\s+)$/, '')) {
-		res.send(await render(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
+		res.send(await render2(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
 	}
 	
 	http.request({
@@ -119,7 +119,7 @@ router.get(/^\/search\/(.*)/, async(req, res) => {
 			content = content + `
 				<div class=search-summary>전체 ${ret.total} 건 / 처리 시간 ${(et - st).toFixed(3).replace(/([0]+)$/, '')}초</div>
 			` + reshtml;
-			res.send(await render(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
+			res.send(await render2(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
 		});
 	}).on('error', async e => {
 		res.send(await showError(req, 'searchd_fail'));

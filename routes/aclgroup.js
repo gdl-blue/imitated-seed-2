@@ -1,6 +1,6 @@
 const ipRangeCheck = require('ip-range-check');
 
-if(ver('4.18.0')) {
+if(!ver('4.18.0')) return;
 
 if(hostconfig.namuwiki_exclusive) router.get(/^\/self_unblock$/, async(req, res) => {
 	const id = req.query['id'];
@@ -37,7 +37,7 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 	if(!['POST', 'GET'].includes(req.method)) return next();
 	if(!hasperm(req, 'aclgroup')) return res.send(await showError(req, 'permission'));
 	
-	var content = `
+	var content = `\
 		<form method=post>
 			<div class=form-group>
 				<label>그룹 이름: </label>
@@ -64,8 +64,7 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 			<div class=btns>
 				<button type=submit class="btn btn-primary" style="width: 100px;">생성</button>
 			</div>
-		</form>
-	`;
+		</form> `;
 	
 	var error = null;
 	
@@ -89,7 +88,7 @@ router.all(/^\/aclgroup\/create$/, async(req, res, next) => {
 		}
 	} while(0);
 	
-	res.send(await render(req, 'ACL그룹 생성', content, {}, '', error, _));
+	res.send(await render2(req, 'ACL그룹 생성', content, {}, '', error, _));
 });
 
 router.post(/^\/aclgroup\/delete$/, async(req, res, next) => {
@@ -410,8 +409,5 @@ router.all(/^\/aclgroup$/, async(req, res) => {
 		return res.redirect('/aclgroup?group=' + encodeURIComponent(group));
 	} while(0);
 	
-	res.send(await render(req, 'ACLGroup', content, {
-	}, '', error, 'aclgroup'));
+	res.send(await render2(req, 'ACLGroup', content, {}, '', error, 'aclgroup'));
 });
-
-}

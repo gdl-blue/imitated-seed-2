@@ -143,7 +143,7 @@ if(ver('4.18.6')) {
 			return res.redirect('/member/mypage');
 		}
 		
-		return res.send(await render(req, '내 정보', content, {}, _, error, 'mypage'));
+		return res.send(await render2(req, '내 정보', content, {}, _, error, 'mypage'));
 	});
 	
 	router.all(/^\/member\/change_email$/, async(req, res, next) => {
@@ -193,7 +193,7 @@ if(ver('4.18.6')) {
 			return res.redirect('/member/mypage');
 		}
 		
-		return res.send(await render(req, '이메일 변경', content, {}, _, error, 'mypage'));
+		return res.send(await render2(req, '이메일 변경', content, {}, _, error, 'mypage'));
 	});
 
 	
@@ -242,7 +242,7 @@ if(ver('4.18.6')) {
 			return res.redirect('/member/mypage');
 		}
 		
-		return res.send(await render(req, '비밀번호 변경', content, {}, _, error, 'mypage'));
+		return res.send(await render2(req, '비밀번호 변경', content, {}, _, error, 'mypage'));
 	});
 	
 	router.all(/^\/member\/generate_api_token$/, async(req, res) => {
@@ -276,7 +276,7 @@ if(ver('4.18.6')) {
 			await curs.execute("delete from api_tokens where username = ?", [ip_check(req)]);
 			await curs.execute("insert into api_tokens (username, token) values (?, ?)", [ip_check(req), token]);
 			
-			return res.send(await render(req, 'API Token 발급', `
+			return res.send(await render2(req, 'API Token 발급', `
 				<form>
 					<div class=form-group>
 						<label>토큰: </label>
@@ -295,7 +295,7 @@ if(ver('4.18.6')) {
 			`));
 		}
 		
-		return res.send(await render(req, 'API Token 발급', content, {}, _, error));
+		return res.send(await render2(req, 'API Token 발급', content, {}, _, error));
 	});
 }
 
@@ -391,5 +391,5 @@ else router.all(/^\/member\/mypage$/, async(req, res, next) => {
 		return res.redirect('/member/mypage');
 	}
 	
-	return res.send(await render(req, '내 정보', content, {}, _, error, 'mypage'));
+	return res.send(await render2(req, '내 정보', content, {}, _, error, 'mypage'));
 });

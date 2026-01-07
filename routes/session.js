@@ -97,5 +97,5 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 		return res.redirect(desturl);
 	}
 	
-	res.send(await render(req, '로그인', content, {}, _, error, 'login'));
+	res.send(await render2(req, '로그인', content, {}, _, error, 'login'));
 });

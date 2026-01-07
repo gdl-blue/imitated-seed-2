@@ -1,4 +1,4 @@
-const namumark = require('../namumark');
+const namumark = require('./namumark');
 
 router.post(/^\/preview\/(.*)$/, async(req, res) => {
 	const title = req.params[0];
@@ -14,53 +14,52 @@ router.post(/^\/preview\/(.*)$/, async(req, res) => {
 	}
 	header += skinconfig['additional_heads'];
 	
-	res.send(`
-		<!DOCTYPE html>
-		<html>
-			<head>
-				<meta charset=utf8 />
-				<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-			${hostconfig.use_external_css ? `
-				<link rel=stylesheet href="https://theseed.io/css/diffview.css">
-				<link rel=stylesheet href="https://theseed.io/css/katex.min.css">
-				<link rel=stylesheet href="https://theseed.io/css/wiki.css">
-			` : `
-				<link rel=stylesheet href="/css/diffview.css">
-				<link rel=stylesheet href="/css/katex.min.css">
-				<link rel=stylesheet href="/css/wiki.css">
-			`}
-			${hostconfig.use_external_js ? `
-				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-				<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
-				<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
-				<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
-				<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
-				
-			` : `
-				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-				<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
-				<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
-				<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
-				<script type="text/javascript" src="/js/theseed.js?24141115"></script>
-			`}
-				${header}
-			</head>
-			
-			<body>
-				<h1 class=title>${html.escape(doc + '')}</h1>
-				<div class=wiki-article>
-					${await namumark(req, req.body['text'], 0, doc + '', 'preview')}
-				</div>
-			</body>
-		</html>
-	`);
+	res.send(`\
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf8 />
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	${hostconfig.use_external_css ? `
+		<link rel=stylesheet href="https://theseed.io/css/diffview.css">
+		<link rel=stylesheet href="https://theseed.io/css/katex.min.css">
+		<link rel=stylesheet href="https://theseed.io/css/wiki.css">
+	` : `
+		<link rel=stylesheet href="/css/diffview.css">
+		<link rel=stylesheet href="/css/katex.min.css">
+		<link rel=stylesheet href="/css/wiki.css">
+	`}
+	${hostconfig.use_external_js ? `
+		<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+		<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+		<script type="text/javascript" src="https://theseed.io/js/dateformatter.js?508d6dd4"></script>
+		<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js?36e469ff"></script>
+		<script type="text/javascript" src="https://theseed.io/js/theseed.js?24141115"></script>
+		
+	` : `
+		<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+		<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
+		<script type="text/javascript" src="/js/dateformatter.js?508d6dd4"></script>
+		<script type="text/javascript" src="/js/intersection-observer.js?36e469ff"></script>
+		<script type="text/javascript" src="/js/theseed.js?24141115"></script>
+	`}
+		${header}
+	</head>
+	
+	<body>
+		<h1 class=title>${html.escape(doc + '')}</h1>
+		<div class=wiki-article>
+			${await namumark(req, req.body['text'], 0, doc + '', 'preview')}
+		</div>
+	</body>
+</html>`);
 });
 
 if(ver('4.20.0')) router.post(/^\/commentpreview$/, async(req, res) => {
 	const { id } = req.body;
 	
 	var content = ``;
-	content += `
+	content += `\
 		<div style="border: none; margin: 0; padding: 0;" class=res-wrapper data-id="${id}">
 			<div class="res res-type-normal">
 				<div class="r-head">
@@ -73,8 +72,7 @@ if(ver('4.20.0')) router.post(/^\/commentpreview$/, async(req, res) => {
 					${await namumark(req, req.body['text'], 1, '', 'preview')}
 				</div>
 			</div>
-		</div>
-	`;
+		</div>`;
 	
 	res.send(content);
 });

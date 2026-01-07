@@ -47,5 +47,5 @@ if(ver('4.9.0')) router.get(/^\/member\/starred_documents$/, async (req, res) =>
 	
 	content += '</ul>';
 
-	res.send(await render(req, '내 문서함', content, {}, _, _, 'starred_documents'));
+	res.send(await render2(req, '내 문서함', content, {}, _, _, 'starred_documents'));
 });

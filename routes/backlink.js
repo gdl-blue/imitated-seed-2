@@ -121,7 +121,7 @@ router.get(ver('4.14.0') ? /^\/backlink\/(.*)/ : /^\/xref\/(.*)/, async (req, re
 		${navbtns}
 	`;
 	
-	res.send(await render(req, title + '의 역링크', content, {
+	res.send(await render2(req, title + '의 역링크', content, {
 		document: doc,
 	}, _, _, 'xref'));
 });

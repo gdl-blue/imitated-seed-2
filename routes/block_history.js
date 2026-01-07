@@ -112,5 +112,5 @@ router.get(/^\/BlockHistory$/, async(req, res) => {
 		${navbtns}
 	`;
 	
-	return res.send(await render(req, '차단 내역', content, {}, _, _, 'block_history'));
+	return res.send(await render2(req, '차단 내역', content, {}, _, _, 'block_history'));
 });

@@ -103,7 +103,7 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 		return res.redirect('/w/' + encodeURIComponent(newdoc + ''));
 	} while(0);
 	
-	res.send(await render(req, doc + ' (이동)', content, {
+	res.send(await render2(req, doc + ' (이동)', content, {
 		document: doc,
 	}, '', error, 'move'));
 });

@@ -122,7 +122,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 				`요청 아이피 : ${ip_check(req)}<br />`);
 
 			//.
-			return res.send(await render(req, '계정 만들기', `
+			return res.send(await render2(req, '계정 만들기', `
 				<p>
 					이메일(<strong>${req.body['email']}</strong>)로 계정 생성 이메일 인증 메일을 전송했습니다. 메일함에 도착한 메일을 통해 계정 생성을 계속 진행해 주시기 바랍니다.
 				</p>
@@ -137,7 +137,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 		}
 	}
 
-	res.send(await render(req, '계정 만들기', content, {}, _, error, 'signup'));
+	res.send(await render2(req, '계정 만들기', content, {}, _, error, 'signup'));
 });
 
 router.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, next) {
@@ -253,10 +253,10 @@ router.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, nex
 		}
 		await curs.execute("delete from account_creation where key = ?", [key]);
 		
-		return res.send(await render(req, '계정 만들기', `
+		return res.send(await render2(req, '계정 만들기', `
 			<p>환영합니다! <strong>${html.escape(id)}</strong>님 계정 생성이 완료되었습니다.</p>
 		`, {}));
 	} while(0);
 	
-	res.send(await render(req, '계정 만들기', content, {}, _, error, 'signup'));
+	res.send(await render2(req, '계정 만들기', content, {}, _, error, 'signup'));
 });

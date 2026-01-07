@@ -60,5 +60,5 @@ router.get(/^\/contribution\/(ip|author)\/(.+)\/discuss$/, async function discus
 		</table>
 	`;
 	
-	res.send(await render(req, `"${username}" 기여 목록`, content, {}));
+	res.send(await render2(req, `"${username}" 기여 목록`, content, {}));
 });

@@ -1,5 +1,5 @@
-const diff = require('../cemerick-jsdifflib.js');
-const namumark = require('../namumark');
+const diff = require('./cemerick-jsdifflib.js');
+const namumark = require('./namumark');
 
 router.get(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)\/preview$/ : /^\/edit_request\/(\d+)\/preview$/, async(req, res, next) => {
 	const id = req.params[0];
@@ -230,7 +230,7 @@ router.get(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)$/ : /^\/edit_request\/(
 	
 	var error = false;
 	
-	return res.send(await render(req, doc + ' (편집 요청 ' + id + ')', content, {
+	return res.send(await render2(req, doc + ' (편집 요청 ' + id + ')', content, {
 		document: doc,
 	}, _, error, 'edit_request'));
 });
@@ -302,7 +302,7 @@ router.all(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)\/edit$/ : /^\/edit_requ
 		return res.redirect('/edit_request/' + id);
 	} while(0);
 	
-	res.send(await render(req, doc + ' (편집 요청)', content, {
+	res.send(await render2(req, doc + ' (편집 요청)', content, {
 		document: doc,
 	}, '', error, 'new_edit_request'));
 });
@@ -410,7 +410,7 @@ router.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 		return res.redirect('/edit_request/' + (ver('4.16.0') ? slug : id));
 	} while(0);
 	
-	res.send(await render(req, doc + ' (편집 요청)', content, {
+	res.send(await render2(req, doc + ' (편집 요청)', content, {
 		document: doc,
 	}, '', error, 'new_edit_request'));
 });

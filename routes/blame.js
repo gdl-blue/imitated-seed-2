@@ -18,7 +18,7 @@ router.get(/^\/blame\/(.*)/, async (req, res) => {
 		미구현
 	`;
 	
-	res.send(await render(req, doc + ' (Blame)', content, {
+	res.send(await render2(req, doc + ' (Blame)', content, {
 		rev,
 		document: doc,
 	}, _, null, 'blame'));

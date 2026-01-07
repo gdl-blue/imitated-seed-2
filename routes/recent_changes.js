@@ -398,5 +398,5 @@ span.d\\+Pid0zt[data-v-6cbb5b59] {
 		`;
 	}
 	
-	res.send(await render(req, '최근 변경내역', content, {}));
+	res.send(await render2(req, '최근 변경내역', content, {}));
 });

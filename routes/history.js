@@ -27,76 +27,11 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	}
 	if(!data.length) return res.send(await showError(req, 'document_not_found'));
 	
-	const navbtns = navbtn(total, data[data.length-1].rev, data[0].rev, '/history/' + encodeURIComponent(title));
-	var content = `
-		<p>
-			<button id="diffbtn" class="btn btn-secondary">선택 리비젼 비교</button>
-		</p>
-		
-		${navbtns}
-		
-		<ul class=wiki-list>
-	`;
-	
-	for(var row of data) {
-		const erq = row.edit_request_id;
-		if(erq && ver('4.16.0')) {
-			var dbd = await curs.execute("select slug from edit_requests where id = ?", [erq]);
-			if(dbd.length) erq = dbd[0].slug;
-		}
-		content += `
-				<li>
-					${generateTime(toDate(row.time), timeFormat)} 
-		
-					<span style="font-size: 8pt;">
-						(<a rel=nofollow href="/w/${encodeURIComponent(title)}?rev=${row.rev}">보기</a> |
-							<a rel=nofollow href="/raw/${encodeURIComponent(title)}?rev=${row.rev}" data-npjax="true">RAW</a> |
-							<a rel=nofollow href="/blame/${encodeURIComponent(title)}?rev=${row.rev}">Blame</a> |
-							<a rel=nofollow href="/revert/${encodeURIComponent(title)}?rev=${row.advance == 'revert' ? Number(row.flags) : row.rev}">이 ${ver('4.13.0') ? '리비전으로' : '리비젼으로'} 되돌리기</a>${
-								Number(row.rev) > 1
-								? ' | <a rel=nofollow href="/diff/' + encodeURIComponent(title) + '?rev=' + row.rev + '&oldrev=' + String(Number(row.rev) - 1) + '">비교</a>'
-								: ''
-							}${ver('4.22.4') && hasperm(req, 'hide_document_history_log') && row.log ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집요약 숨기기${row.loghider ? ' 해제' : ''}</a>` : ''}${(hostconfig.owners || []).includes(ip_check(req)) ? ` | <a rel=nofollow href="/admin/history/${encodeURIComponent(title)}/${row.rev}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>` : ''})
-					</span> 
-					
-					<input type="radio" name="oldrev" value="${row.rev}">
-					<input type="radio" name="rev" value="${row.rev}">
-
-					${row.advance != 'normal' ? `<i>(${edittype(row.advance, ...(row.flags.split('\n')))})</i>` : ''}
-					
-					<strong>r${row.rev}</strong> 
-					
-					(<span style="color: ${
-						(
-							Number(row.changes) > 0
-							? 'green'
-							: (
-								Number(row.changes) < 0
-								? 'red'
-								: 'gray'
-							)
-						)
-						
-					};">${row.changes}</span>)
-					
-					${row.edit_request_id ? '<i><a href="/edit_request/' + row.edit_request_id + '">(편집 요청)</a></i>' : ''} ${ip_pas(row.username, row.ismember)}
-					
-					(<span style="color: gray;${row.loghider ? ' text-decoration: line-through;' : ''}">${row.loghider ? (row.loghider + '에 의해 편집 요약 숨겨짐') : row.log}${ver('4.22.4') && hasperm(req, 'hide_document_history_log') && row.loghider ? ('(내용:' + row.log + ')') : ''}</span>)
-				</li>
-		`;
-	}
-	
-	content += `
-		</ul>
-		
-		${navbtns}
-		
-		<script>historyInit("${encodeURIComponent(title)}");</script>
-	`;
-	
-	res.send(await render(req, totitle(doc.title, doc.namespace) + '의 역사', content, {
+	res.send(await render(req, totitle(doc.title, doc.namespace) + '의 역사', 'history', {
 		document: doc,
-	}, '', null, 'history'));
+		navigation: navigation(total, data[data.length-1].rev, data[0].rev, '/history/' + encodeURIComponent(title)),
+		history: data,
+	}));
 });
 
 router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async (req, res) => {
@@ -108,7 +43,7 @@ router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async (req, res) => {
 	const doc = processTitle(title);
 	const rev = req.params[1];
 	const total = (await curs.execute("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))[0]['count(rev)'];
-	if (Number(rev) === total) {
+	if(parseInt(rev) === total) {
 		if (rev === '1') {
 			await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 		}

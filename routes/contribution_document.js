@@ -102,5 +102,5 @@ router.get(/^\/contribution\/(ip|author)\/(.+)\/document$/, async function docum
 		</table>
 	`;
 	
-	res.send(await render(req, `"${username}" 기여 목록`, content, {}));
+	res.send(await render2(req, `"${username}" 기여 목록`, content, {}));
 });

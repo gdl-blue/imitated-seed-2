@@ -1,0 +1,36 @@
+{% import 'macros/navigation_buttons.html' as navigation_buttons %}
+
+<p>
+	<button id=diffbtn class="btn btn-secondary">선택 리비젼 비교</button>
+</p>
+
+{{ navigation_buttons.normal() }}
+
+<ul class=wiki-list>
+	{% for row in history %}
+	<li>
+		{{ row.time | to_date | localdate('Y-m-d H:i:s') }}
+
+		<span style="font-size: 8pt;">
+			(<a rel=nofollow href="/w/{{ document|encode_doc }}?rev={{ row.rev }}">보기</a> | <a rel=nofollow href="/raw/{{ document|encode_doc }}?rev={{row.rev}}" data-npjax="true">RAW</a> | <a rel=nofollow href="/blame/{{ document|encode_doc }}?rev={{row.rev}}">Blame</a> | <a rel=nofollow href="/revert/{{ document|encode_doc }}?rev={% if row.advance == 'revert' %}{{ row.flags }}{% else %}{{ row.rev }}{% endif %}">이 {% if version.higher('4.13.0') %}리비전으로{% else %}리비젼으로{% endif %} 되돌리기</a>{% if parseInt(row.rev) > 1 %} | <a rel=nofollow href="/diff/{{ document|encode_doc }}?rev={{ row.rev }}&oldrev={{ parseInt(row.rev) - 1 }}">비교</a>{% endif %}{% if version.higher('4.22.4') && perms.has('hide_document_history_log') && row.log %} | <a rel=nofollow href="/admin/history/{{ document|encode_doc }}/{{ row.rev }}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집요약 숨기기{% if row.loghider %} 해제{% endif %}</a>{% endif %}{% if (host_config.owners || []).includes(current_session) %} | <a rel=nofollow href="/admin/history/{{ document|encode_doc }}/{{ row.rev }}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>{% endif %})
+		</span> 
+		
+		<input type=radio name=oldrev value="${row.rev}" />
+		<input type=radio name=rev value="${row.rev}" />
+
+		{% if row.advance != 'normal' %}<i>({{ row|render_edit_flag }})</i>{% endif %}
+		
+		<strong>r{{ row.rev }}</strong> 
+		
+		(<span style="color: {% if row.changes > 0 %}green{% elseif row.changes < 0 %}red{% else %}gray{% endif %};">{{ row.changes }}</span>)
+		
+		{% if row.edit_request_id %}<i><a href="/edit_request/{{ row.edit_request_id }}">(편집 요청)</a></i>{% endif %} {{ row|render_user }}
+		
+		(<span style="color: gray;{% if row.loghider %} text-decoration: line-through;{% endif %}">{% if row.loghider %}{{ row.loghider }}에 의해 편집 요약 숨겨짐{% else %}{{ row.log }}{% endif %}{% if version.higher('4.22.4') && perms.has('hide_document_history_log') && row.loghider %}(내용:{{ row.log }}){% endif %}</span>)
+	</li>
+	{% endfor %}
+</ul>
+
+{{ navigation_buttons.normal() }}
+
+<script>historyInit("{{ document|encode_doc }}");</script>

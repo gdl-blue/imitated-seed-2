@@ -1,0 +1,1 @@
+{% if version.higher('4.13.0') %}<div>{% else %}<h2>{% endif %}{{ error_msg }}{% if version.higher('4.13.0') %}</div>{% else %}</h2>{% endif %}

@@ -39,7 +39,7 @@ router.get(/^\/raw\/(.*)/, async(req, res) => {
 		<textarea class=form-control style="height: 600px;" readonly=readonly>${content.replace(/<\/textarea>/gi, '&lt;/textarea&gt;')}</textarea>
 	`;
 	
-	res.send(await render(req, totitle(doc.title, doc.namespace) + ' (r' + rev + ' RAW)', rtcontent, {
+	res.send(await render2(req, totitle(doc.title, doc.namespace) + ' (r' + rev + ' RAW)', rtcontent, {
 		document: doc,
 		rev,
 	}, '', null, 'raw'));

@@ -82,10 +82,10 @@ if(hostconfig.allow_account_rename) router.all(/^\/member\/change_username$/, as
 		delete permlist[username];
 		userset[newusername] = userset[username];
 		delete userset[username];
-		return res.send(await render(req, '사용자 이름 변경', `
+		return res.send(await render2(req, '사용자 이름 변경', `
 			<p><strong>${html.escape(newusername)}</strong>(으)로 이름을 변경하였습니다.</p>
 		`, {}, _, false, 'delete_account'));
 	}
 	
-	return res.send(await render(req, '사용자 이름 변경', content, {}, _, error, 'delete_account'));
+	return res.send(await render2(req, '사용자 이름 변경', content, {}, _, error, 'delete_account'));
 });

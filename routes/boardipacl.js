@@ -115,17 +115,17 @@ if(hostconfig.namuwiki_exclusive) router.all(/^\/admin\/boardipacl$/, async(req,
 	if(req.method == 'POST') {
 		var { ip, expire, note } = req.body;
 		for(var val of ['ip', 'note', 'expire']) {
-			if(!req.body[val]) return res.send(await render(req, '차소게 IPACL', (error = err('alert', { code: 'validator_required', tag: val })) + content, {}, '', error, 'boardipacl'));
+			if(!req.body[val]) return res.send(await render2(req, '차소게 IPACL', (error = err('alert', { code: 'validator_required', tag: val })) + content, {}, '', error, 'boardipacl'));
 		}
 		if(!ip.includes('/')) ip += '/32';
 		if(!ip.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/)) error = true, content = alertBalloon(fetchErrorString('invalid_cidr'), 'danger', true, 'fade in') + content;
 		else {
 			const date = getTime();
 			if(isNaN(Number(expire))) {
-				return res.send(await render(req, '차소게 IPACL', (error = err('alert', { code: 'invalid_type_number', tag: 'expire' })) + content, {}, '', error, 'boardipacl'));
+				return res.send(await render2(req, '차소게 IPACL', (error = err('alert', { code: 'invalid_type_number', tag: 'expire' })) + content, {}, '', error, 'boardipacl'));
 			}
 			if(Number(expire) > 29030400) {
-				return res.send(await render(req, '차소게 IPACL', (error = err('alert', { msg: 'expire의 값은 29030400 이하이어야 합니다.' })) + content, {}, '', error, 'boardipacl'));
+				return res.send(await render2(req, '차소게 IPACL', (error = err('alert', { msg: 'expire의 값은 29030400 이하이어야 합니다.' })) + content, {}, '', error, 'boardipacl'));
 			}
 			const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
 			var data = await curs.execute("select cidr from boardipacl where cidr = ? limit 1", [ip]);
@@ -138,6 +138,6 @@ if(hostconfig.namuwiki_exclusive) router.all(/^\/admin\/boardipacl$/, async(req,
 		}
 	}
 	
-	res.send(await render(req, '차소게 IPACL', content, {
+	res.send(await render2(req, '차소게 IPACL', content, {
 	}, '', error, 'boardipacl'));
 });

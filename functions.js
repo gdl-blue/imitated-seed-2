@@ -776,7 +776,7 @@ async function requireAsync(p) {
 }
 
 // 스킨 템플릿 렌더링
-async function render(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewName = '') {
+function render2(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewName = '') {
 	const currentSkin = getSkin(req);
 	const skinConfig = skincfgs[currentSkin];
 	const templatefn = `./skins/${currentSkin}/views/${skinConfig.override_views.includes(viewName) ? viewName : 'default'}.html`;
@@ -784,7 +784,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 	return new Promise((resolve, reject) => {
         swig.compileFile(templatefn, {}, async(err, template) => {
             if(err) {
-				print(`[오류!] ${e.stack}`);
+				print(`[오류!] ${err.stack}`);
 				return resolve(`<title>${title}(스킨 렌더링 오류!)</title><meta charset=utf-8 />${content}`);
 			}
 			
@@ -849,7 +849,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 				<link rel=stylesheet href="/css/katex.min.css" />
 				<link rel=stylesheet href="/css/wiki.css" />`}${adcss}
 			`;
-			for(var css of skinConfig.auto_css_targets['*'])
+			for(var css of (skinConfig.auto_css_targets['*'] || []))
 				header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
 			for(var css of (skinConfig.auto_css_targets[viewName] || []))
 				header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
@@ -867,7 +867,7 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 					<script type="text/javascript" src="/js/intersection-observer.js"></script>
 					<script type="text/javascript" src="/js/theseed.js"></script>`}${adjs}
 			`;
-			for(var js of skinConfig.auto_js_targets['*'])
+			for(var js of (skinConfig.auto_js_targets['*'] || []))
 				header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
 			for(var js of (skinConfig.auto_js_targets[viewName] || []))
 				header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
@@ -876,6 +876,125 @@ async function render(req, title = '', content = '', varlist = {}, subtitle = ''
 			var footer = '</body></html>';
 			
 			resolve(header + body + footer);
+		});
+	});
+}
+
+function render(req, title = '', viewName = '', varlist = {}, error = null) {
+	return new Promise((resolve, reject) => {
+		if(!viewName)
+			return reject('viewName이 없음');
+		
+		swig.compileFile(`./views/${viewName}.html`, {}, async(err, viewTemplate) => {
+			if(err) return reject(err);
+			
+			var _configData = await curs.execute("select key, value from config");
+			var configData = {};
+			for(var item of _configData)
+				configData[item.key] = item.value;
+			varlist['config'] = {
+				getString(key, def) {
+					if(configData[key] === undefined)
+						return def || '';
+					return configData[key];
+				}
+			};
+			var permData = ['any', 'ip'];
+			if(islogin(req))
+				permData = (await curs.execute("select perm from perms where username = ?", [req.session.username])).map(item => item.perm).concat(['any', 'member']);
+			varlist['perms'] = {
+				has(perm) {
+					return permData.includes(perm) || permData.includes('developer');
+				}
+			};
+			if(islogin(req)) {
+				var user_document_discuss = null;
+				var udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
+				if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
+				varlist['user_document_discuss'] = user_document_discuss;
+				varlist['member'] = {
+					username: req.session.username,
+				};
+			}
+			varlist['url'] = req.path;
+			varlist['error'] = error;
+			varlist['req_ip'] = ip_check(req, 1);
+			varlist['host_config'] = hostconfig;
+			varlist['current_session'] = ip_check(req);
+			varlist['version'] = {
+				higher: ver,
+				lower: verrev,
+			};
+			varlist['content'] = viewTemplate(varlist);  // 항상 마지막에 있어야 함
+			
+			const currentSkin = getSkin(req);
+			const skinConfig = skincfgs[currentSkin];
+			const templatefn = `./skins/${currentSkin}/views/${skinConfig.override_views.includes(viewName) ? viewName : 'default'}.html`;
+			
+			swig.compileFile(templatefn, {}, async(err, skinTemplate) => {
+				if(err) return reject(err);
+				
+				varlist['skinInfo'] = {
+					title,
+					viewName,
+				};
+				
+				// 헤드 부분 작성
+				var header = '<!DOCTYPE html><html><head>';
+				var adjs = '', adcss = '';
+				for(var js of (hostconfig.additional_js || []))
+					adjs += `<script type="text/javascript" src="/js/${js}"></script>`;
+				for(var css of (hostconfig.additional_css || []))
+					adcss += `<link rel=stylesheet href="/css/${css}" />`;
+				header += `\
+					<title>${title} - ${config.getString('wiki.site_name', '더 시드')}</title>
+					<meta charset=utf-8 />
+					<meta http-equiv=x-ua-compatible content="ie=edge" />
+					<meta http-equiv=x-pjax-version content="" />
+					<meta name=generator content="the seed" />
+					<meta name=application-name content="${config.getString('wiki.site_name', '더 시드')}" />
+					<meta name=mobile-web-app-capable content=yes />
+					<meta name=msapplication-tooltip content="${config.getString('wiki.site_name', '더 시드')}" />
+					<meta name=msapplication-starturl content="/w/${encodeURIComponent(config.getString('wiki.front_page', 'FrontPage'))}" />
+					<link rel=search type="application/opensearchdescription+xml" title="${config.getString('wiki.site_name', '더 시드')}" href="/opensearch.xml" />
+					<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
+				${hostconfig.use_external_css ? `\
+					<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
+					<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
+					<link rel=stylesheet href="https://theseed.io/css/wiki.css" />` : 
+				`\
+					<link rel=stylesheet href="/css/diffview.css" />
+					<link rel=stylesheet href="/css/katex.min.css" />
+					<link rel=stylesheet href="/css/wiki.css" />`}${adcss}
+				`;
+				for(var css of (skinConfig.auto_css_targets['*'] || []))
+					header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+				for(var css of (skinConfig.auto_css_targets[viewName] || []))
+					header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+				header += `\
+					${hostconfig.use_external_js ? `\
+						<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+						<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+						<script type="text/javascript" src="https://theseed.io/js/dateformatter.js"></script>
+						<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js"></script>
+						<script type="text/javascript" src="https://theseed.io/js/theseed.js"></script>` : 
+					`\
+						<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+						<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
+						<script type="text/javascript" src="/js/dateformatter.js"></script>
+						<script type="text/javascript" src="/js/intersection-observer.js"></script>
+						<script type="text/javascript" src="/js/theseed.js"></script>`}${adjs}
+				`;
+				for(var js of (skinConfig.auto_js_targets['*'] || []))
+					header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+				for(var js of (skinConfig.auto_js_targets[viewName] || []))
+					header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+				header += skinConfig.additional_heads;
+				header += `</head><body class="${skinConfig.body_classes.join(' ')}">`;
+				var footer = '</body></html>';
+				
+				resolve(header + skinTemplate(varlist) + footer);
+			});
 		});
 	});
 }
@@ -1008,7 +1127,9 @@ function err(type, obj) {
 
 // 오류화면 표시
 async function showError(req, code, ...params) {
-	return await render(req, ver('4.13.0') ? '오류' : '문제가 발생했습니다!', `${ver('4.13.0') ? '<div>' : '<h2>'}${typeof code == 'object' ? (code.msg || fetchErrorString(code.code, code.tag)) : fetchErrorString(code, ...params)}${ver('4.13.0') ? '</div>' : '</h2>'}`, {}, _, _, 'error');
+	return await render(req, ver('4.13.0') ? '오류' : '문제가 발생했습니다!', 'error', {
+		error_msg: (typeof code == 'object' ? (code.msg || fetchErrorString(code.code, code.tag)) : fetchErrorString(code, ...params)),
+	});
 }
 
 // 닉네임/아이피 파싱
@@ -1378,7 +1499,7 @@ async function getacl(req, title, namespace, type, getmsg, noeq) {
 
 // 앞뒤 페이지 이동 단추
 function navbtn(total, start, end, href) {
-	if(!href) return `
+	if(!href) return `\
 		<div class=btn-group role=group>
 			<a class="btn btn-secondary btn-sm disabled">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
@@ -1386,8 +1507,7 @@ function navbtn(total, start, end, href) {
 			<a class="btn btn-secondary btn-sm disabled">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
-		</div>
-	`;  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
+		</div>`;  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
 	href = href.split('?')[0];
 	start = parseInt(start);
 	end = parseInt(end);
@@ -1402,6 +1522,15 @@ function navbtn(total, start, end, href) {
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>`;
+}
+
+function navigation(total, start, end, url) {
+	return {
+		total: parseInt(total), 
+		start: parseInt(start), 
+		end: parseInt(end), 
+		url,
+	};
 }
 
 function navbtnr(total, start, end, href) {
@@ -1628,11 +1757,9 @@ function simplifyRequest(req) {
 		query: req.query, 
 		params: req.params, 
 		body: req.body, 
-		socket: {
-			remoteAddress: req.socket.remoteAddress },
+		socket: { remoteAddress: req.socket.remoteAddress },
 		headers: req.headers, 
-		connection: {
-			remoteAddress: req.connection.remoteAddress },
+		connection: { remoteAddress: req.connection.remoteAddress },
 	};
 }
 
@@ -1711,7 +1838,7 @@ module.exports = {
 	whtags,
 	whattr,
 	
-	config, getSkin, getperm, hasperm, readFile, exists, requireAsync, render, acltype, aclperms, exaclperms, fetchErrorString, fetchValue, alertBalloon, fetchNamespaces, err, showError, ip_pas, ipblocked, userblocked, getacl, navbtn, navbtnr, navbtnss, html, cacheSkinList, generateCaptcha, validateCaptcha,
+	config, getSkin, getperm, hasperm, readFile, exists, requireAsync, render, render2, acltype, aclperms, exaclperms, fetchErrorString, fetchValue, alertBalloon, fetchNamespaces, err, showError, ip_pas, ipblocked, userblocked, getacl, navbtn, navbtnr, navbtnss, navigation, html, cacheSkinList, generateCaptcha, validateCaptcha,
 	processTitle, totitle, edittype, expireopt,
 	
 	conn, curs, insert,

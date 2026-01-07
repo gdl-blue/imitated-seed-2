@@ -76,5 +76,5 @@ if(!ver('4.18.0')) router.all(/^\/admin\/suspend_account$/, async(req, res) => {
 		return res.redirect('/admin/suspend_account');
 	} while(0);
 	
-	return res.send(await render(req, '사용자 차단', content, {}, '', error, 'suspend_account'));
+	return res.send(await render2(req, '사용자 차단', content, {}, '', error, 'suspend_account'));
 });

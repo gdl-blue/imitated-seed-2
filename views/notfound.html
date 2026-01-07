@@ -1,0 +1,33 @@
+<div class="wiki-content clearfix">
+	<div class=wiki-inner-content>
+		<p>해당 문서를 찾을 수 없습니다.</p>
+		
+		<p>
+			<a rel=nofollow href="/edit/{{ document|encode_doc }}">[새 문서 만들기]</a>
+		</p>
+
+		{% if history %}
+		<h3>이 문서의 역사</h3>
+		<ul class=wiki-list>
+			{% for row in history %}
+			<li>{{ row.time | to_date | localdate('Y-m-d H:i:s') }} <strong>r{{ row.rev }}</strong> {% if row.advance != 'normal' %}<i>({{ row|render_edit_flag }})</i>{% endif %} (<span style="color: {% if row.changes > 0 %}green{% elseif row.changes < 0 %}red{% else %}gray{% endif %};">{{ row.changes }}</span>) {{ row|render_user }} (<span style="color: gray;{% if row.loghider %} text-decoration: line-through;{% endif %}">{% if row.loghider %}{{ row.loghider }}에 의해 편집 요약 숨겨짐{% else %}{{ row.log }}{% endif %}{% if perms.has('hide_document_history_log') && row.loghider %}(내용:{{ row.log }}){% endif %}</span>)</li>
+			{% endfor %}
+		</ul>
+		<a href="/history/{{ document|encode_doc }}">[더보기]</a>
+		{% endif %}
+
+		<script type="text/javascript">
+			if (!namu.userSettings['hide_character']) {
+				var n = random(0, 10);
+
+				if (n < 4) {
+					$(".senkawa .wiki-content").addClass("character sephi-notfound0");
+				} else if (n < 7) {
+					$(".senkawa .wiki-content").addClass("character sephi-notfound1");
+				} else {
+					$(".senkawa .wiki-content").addClass("character munya-notfound");
+				}
+			}
+		</script>
+	</div>
+</div>

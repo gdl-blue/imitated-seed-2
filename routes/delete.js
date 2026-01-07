@@ -65,7 +65,7 @@ router.all(/^\/delete\/(.*)/, async(req, res, next) => {
 		return res.redirect('/w/' + encodeURIComponent(doc + ''));
 	} while(0);
 	
-	res.send(await render(req, doc + ' (삭제)', content, {
+	res.send(await render2(req, doc + ' (삭제)', content, {
 		document: doc,
 	}, '', error, 'delete'));
 });

@@ -115,19 +115,19 @@ if(hostconfig.namuwiki_exclusive) router.all(/^\/admin\/boardsuspendaccount$/, a
 	if(req.method == 'POST') {
 		var { username, expire, note } = req.body;
 		for(var val of ['username', 'note', 'expire']) {
-			if(!req.body[val]) return res.send(await render(req, '차소게 사용자 차단', (error = err('alert', { code: 'validator_required', tag: val })) + content, {}, '', error, 'boardsuspendaccount'));
+			if(!req.body[val]) return res.send(await render2(req, '차소게 사용자 차단', (error = err('alert', { code: 'validator_required', tag: val })) + content, {}, '', error, 'boardsuspendaccount'));
 		}
 		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
 		if(!data.length) 
-			return res.send(await render(req, '차소게 사용자 차단', (error = err('alert', { code: 'invalid_username' })) + content, {}, '', error, 'boardsuspendaccount'));
+			return res.send(await render2(req, '차소게 사용자 차단', (error = err('alert', { code: 'invalid_username' })) + content, {}, '', error, 'boardsuspendaccount'));
 		username = data[0].username;
 		
 		const date = getTime();
 		if(isNaN(Number(expire))) {
-			return res.send(await render(req, '차소게 사용자 차단', (error = err('alert', { code: 'invalid_type_number', tag: 'expire' })) + content, {}, '', error, 'boardsuspendaccount'));
+			return res.send(await render2(req, '차소게 사용자 차단', (error = err('alert', { code: 'invalid_type_number', tag: 'expire' })) + content, {}, '', error, 'boardsuspendaccount'));
 		}
 		if(Number(expire) > 29030400) {
-			return res.send(await render(req, '차소게 사용자 차단', (error = err('alert', { msg: 'expire의 값은 29030400 이하이어야 합니다.' })) + content, {}, '', error, 'boardsuspendaccount'));
+			return res.send(await render2(req, '차소게 사용자 차단', (error = err('alert', { msg: 'expire의 값은 29030400 이하이어야 합니다.' })) + content, {}, '', error, 'boardsuspendaccount'));
 		}
 		const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
 		var data = await curs.execute("select username from boardsuspendaccount where username = ? limit 1", [username]);
@@ -139,6 +139,6 @@ if(hostconfig.namuwiki_exclusive) router.all(/^\/admin\/boardsuspendaccount$/, a
 		}
 	}
 	
-	res.send(await render(req, '차소게 사용자 차단', content, {
+	res.send(await render2(req, '차소게 사용자 차단', content, {
 	}, '', error, 'boardsuspendaccount'));
 });

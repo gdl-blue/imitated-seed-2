@@ -10,7 +10,7 @@ if(hostconfig.port === undefined)
 	hostconfig.port = process.env.PORT || '8000';
 
 if(hostconfig.disable_file_server === undefined)
-	hostconfig.disable_file_server = !!Number(process.env.DISABLE_FILE_SERVER);
+	hostconfig.disable_file_server = !!parseInt(process.env.DISABLE_FILE_SERVER);
 
 if(hostconfig.database_type === undefined)
 	hostconfig.database_type = (process.env.DATABASE_TYPE || '').toLowerCase() || 'sqlite';

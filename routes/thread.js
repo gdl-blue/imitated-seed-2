@@ -1,4 +1,4 @@
-const namumark = require('../namumark');
+const namumark = require('./namumark');
 
 router.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 	const title = req.params[0];
@@ -213,7 +213,7 @@ router.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 		viewname = 'thread_list';
 	}
 	
-	res.send(await render(req, totitle(doc.title, doc.namespace) + subtitle, content, {
+	res.send(await render2(req, totitle(doc.title, doc.namespace) + subtitle, content, {
 		document: doc,
 		deleteThread,
 		captcha,
@@ -425,7 +425,7 @@ router.get(ver('4.16.0') ? /^\/thread\/([a-zA-Z0-9]+)$/ : /^\/thread\/([a-zA-Z0-
 		</form>
 	`;
 	
-	res.send(await render(req, totitle(title, namespace) + ' (토론) - ' + topic, content, {
+	res.send(await render2(req, totitle(title, namespace) + ' (토론) - ' + topic, content, {
 		document: doc,
 	}, '', null, 'thread'));
 });

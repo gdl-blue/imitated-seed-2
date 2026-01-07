@@ -164,7 +164,7 @@ async function init() {
 if(!fs.existsSync('./config.json')) {
 	init();
 } else {
-const router = require('./routes/router.js');
+const router = require('./router.js');
 router.attachRoutes();
 const hostconfig = require('./hostconfig');
 const server = express();  // 서버
@@ -220,6 +220,16 @@ swig.setFilter('url_encode', function(input) {
 });
 swig.setFilter('to_date', toDate);
 swig.setFilter('localdate', generateTime);
+function render_user(input) {
+	return ip_pas(input.username, input.ismember);
+}
+render_user.safe = true;
+swig.setFilter('render_user', render_user);
+function render_edit_flag(input) {
+	return edittype(input.advance, ...(input.flags.split('\n')));
+}
+render_edit_flag.safe = true;
+swig.setFilter('render_edit_flag', render_edit_flag);
 
 // 아이피차단
 server.all('*', async function(req, res, next) {
@@ -266,12 +276,12 @@ server.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, re
 		return next();
 	}
 	
-	var skinconfig = skincfgs[skinname];
-	if(!skinconfig.static_files.includes(filepath))
+	var skinConfig = skincfgs[skinname];
+	if(!skinConfig.static_files.includes(filepath))
 		return next();
 	
 	try {
-		res.sendFile(filepath, { root: './skins/' + skinname + '/static' });
+		res.sendFile(filepath, { root: `./skins/${skinname}/static` });
 	} catch(e) {
 		next();
 	}

@@ -1,5 +1,5 @@
 const sqlite3 = require('sqlite3').verbose();
-const conn = new sqlite3.Database('./wikidata.db', () => 0);  // 데이타베이스
+const conn = new sqlite3.Database('./wikidata.db', () => {});  // 데이타베이스
 
 // 파이선 SQLite 모방
 const curs = {
@@ -37,4 +37,3 @@ function insert(table, obj) {
 module.exports = {
 	conn, curs, insert,
 };
-

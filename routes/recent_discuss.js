@@ -77,5 +77,5 @@ router.get(/^\/RecentDiscuss$/, async function recentDicsuss(req, res) {
 		</table>
 	`;
 	
-	res.send(await render(req, '최근 토론', content, {}));
+	res.send(await render2(req, '최근 토론', content, {}));
 });

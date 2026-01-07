@@ -66,7 +66,7 @@ router.get(/^\/admin\/config$/, async(req, res, next) => {
 		</form>
 	`;
 	
-	return res.send(await render(req, 'Config', content));
+	return res.send(await render2(req, 'Config', content));
 });
 
 router.post(/^\/admin\/config\/add$/, async(req, res, next) => {
@@ -391,5 +391,5 @@ router.all(/^\/admin\/config2$/, async(req, res, next) => {
 		return res.redirect('/admin/config');
 	}
 	
-	return res.send(await render(req, '환경설정', content));
+	return res.send(await render2(req, '환경설정', content));
 });

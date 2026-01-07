@@ -26,20 +26,15 @@ router.get(/^\/NeededPages$/, async(req, res) => {
 	var content = '';
 	
 	if(ver('4.5.3')) {
-		content += `
+		content += `\
 			<fieldset class=recent-option>
 				<form class=form-inline method=get>
 					<div class=form-group>
 						<label class=control-label>이름공간 :</label>
-						<select class=form-control id=namespace name=namespace>
-						
-		`;
-		for(var nsp of nslist) {
-			content += `
-				<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
-			`;
-		}
-		content += `
+						<select class=form-control id=namespace name=namespace>`;
+		for(var nsp of nslist)
+			content += `<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>`;
+		content += `\
 						</select>
 					</div>
 					
@@ -63,7 +58,7 @@ router.get(/^\/NeededPages$/, async(req, res) => {
 	}
 	content += '</ul>' + navbtns;
 	
-	res.send(await render(req, '작성이 필요한 문서', content, {}));
+	res.send(await render2(req, '작성이 필요한 문서', content, {}));
 });
 
 router.get(/^\/UncategorizedPages$/, async(req, res) => {
@@ -73,22 +68,17 @@ router.get(/^\/UncategorizedPages$/, async(req, res) => {
 	var content = '';
 	
 	if(ver('4.5.3')) {
-		content += `
+		content += `\
 			<fieldset class="recent-option">
 				<form class="form-inline" method=get>
 					<div class="form-group">
 						<label class=control-label>이름공간 :</label>
-						<select class=form-control id=namespace name=namespace>
-						
-		`;
+						<select class=form-control id=namespace name=namespace>`;
 		
-		for(var nsp of nslist) {
-			content += `
-				<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>
-			`;
-		}
+		for(var nsp of nslist)
+			content += `<option value="${nsp}"${nsp == ns ? ' selected' : ''}>${nsp == 'wiki' ? config.getString('wiki.site_name', '더 시드') : nsp}</option>`;
 		
-		content += `
+		content += `\
 						</select>
 					</div>
 					
@@ -99,9 +89,7 @@ router.get(/^\/UncategorizedPages$/, async(req, res) => {
 			</fieldset>`;
 	}
 	
-	content += `
-		<ul class=wiki-list>
-	`;
+	content += `<ul class=wiki-list>`;
 	
 	let data = await curs.execute("select title, content from documents where namespace = ? order by title asc limit 100", [ns]);
 	for(let i of data) {
@@ -112,7 +100,7 @@ router.get(/^\/UncategorizedPages$/, async(req, res) => {
 	}
 	content += '</ul>';
 	
-	res.send(await render(req, '분류가 되지 않은 문서', content, {}));
+	res.send(await render2(req, '분류가 되지 않은 문서', content, {}));
 });
 
 router.get(/^\/OldPages$/, async(req, res) => {
@@ -120,11 +108,10 @@ router.get(/^\/OldPages$/, async(req, res) => {
 	var ns = req.query['namespace'];
 	if(!ns || !nslist.includes(ns)) ns = '문서';
 	
-	var content = `
+	var content = `\
 		<p>편집된 지 오래된 문서의 목록입니다. (리다이렉트 제외)</p>
 		
-		<ul class=wiki-list>	
-	`;
+		<ul class=wiki-list>`;
 	
 	let data = await curs.execute("select title, time, content from documents where namespace = '문서' order by cast(time as integer) asc limit 100");
 	for(let i of data) {
@@ -133,7 +120,7 @@ router.get(/^\/OldPages$/, async(req, res) => {
 	}
 	content += '</ul>';
 	
-	res.send(await render(req, '편집된 지 오래된 문서', content, {}));
+	res.send(await render2(req, '편집된 지 오래된 문서', content, {}));
 });
 
 router.get(/^\/ShortestPages$/, async function shortestPages(req, res) {
@@ -148,13 +135,12 @@ router.get(/^\/ShortestPages$/, async function shortestPages(req, res) {
 	
 	var data = await curs.execute("select title, content from documents where namespace = '문서' order by length(content) limit ?, '122'", [sql_num]);
 	
-	var content = `
+	var content = `\
 		<p>내용이 짧은 문서 (문서 이름공간, 리다이렉트 제외)</p>
 		
 		${navbtn(0, 0, 0, 0)}
 		
-		<ul class=wiki-list>
-	`;
+		<ul class=wiki-list>`;
 	
 	for(var i of data) {
         if(i.content.match(/^[#]redirect\s(.*)\n$/)) continue;
@@ -163,7 +149,7 @@ router.get(/^\/ShortestPages$/, async function shortestPages(req, res) {
 	
 	content += '</ul>' + navbtn(0, 0, 0, 0);
 	
-	res.send(await render(req, '내용이 짧은 문서', content, {}));
+	res.send(await render2(req, '내용이 짧은 문서', content, {}));
 });
 
 router.get(/^\/LongestPages$/, async function longestPages(req, res) {
@@ -178,13 +164,12 @@ router.get(/^\/LongestPages$/, async function longestPages(req, res) {
 	
 	var data = await curs.execute("select title, content from documents where namespace = '문서' order by length(content) desc limit ?, '122'", [sql_num]);
 	
-	var content = `
+	var content = `\
 		<p>내용이 긴 문서 (문서 이름공간, 리다이렉트 제외)</p>
 		
 		${navbtn(0, 0, 0, 0)}
 		
-		<ul class=wiki-list>
-	`;
+		<ul class=wiki-list>`;
 	
 	for(var i of data) {
         if(i.content.match(/^[#]redirect\s(.*)\n$/)) continue;
@@ -193,5 +178,5 @@ router.get(/^\/LongestPages$/, async function longestPages(req, res) {
 	
 	content += '</ul>' + navbtn(0, 0, 0, 0);
 	
-	res.send(await render(req, '내용이 긴 문서', content, {}));
+	res.send(await render2(req, '내용이 긴 문서', content, {}));
 });

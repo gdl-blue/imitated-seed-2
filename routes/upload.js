@@ -117,13 +117,13 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 			var freq = request.post('http://' + hostconfig.file_host + ':' + hostconfig.file_port + '/upload', async function(e, resp, body) {
 				if(e) {
 					error = err('alert', { msg: '파일 서버가 사용가능하지 않습니다.' });
-					return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+					return res.send(await render2(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 				} else {
 					if(typeof body == 'string')
 						body = JSON.parse(body);
 					if(body.status != 'success') {
 						error = err('alert', { code: 'file_not_uploaded' });
-						return response.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+						return response.send(await render2(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 					}
 					
 					var baserev = 0;
@@ -156,7 +156,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 						if(e) {
 							console.log(e);
 							error = err('alert', { code: 'file_not_uploaded' });
-							return res.send(await render(req, '파일 올리기', error + content, {}, _, error, 'upload'));
+							return res.send(await render2(req, '파일 올리기', error + content, {}, _, error, 'upload'));
 						}
 						
 						var baserev = 0;
@@ -185,5 +185,5 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 		return;
 	} while(0);
 	
-	res.send(await render(req, '파일 올리기', content, {}, _, error, 'upload'));
+	res.send(await render2(req, '파일 올리기', content, {}, _, error, 'upload'));
 });

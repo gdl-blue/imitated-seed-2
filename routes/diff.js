@@ -1,4 +1,4 @@
-const diff = require('../cemerick-jsdifflib.js');
+const diff = require('./cemerick-jsdifflib.js');
 
 router.get(/^\/diff\/(.*)/, async (req, res) => {
 	const title  = req.params[0];
@@ -18,7 +18,7 @@ router.get(/^\/diff\/(.*)/, async (req, res) => {
 	const diffoutput = diff(oldrevdata.content, revdata.content, 'r' + oldrev, 'r' + rev);
 	var content = diffoutput;
 	
-	res.send(await render(req, doc + ' (비교)', content, {
+	res.send(await render2(req, doc + ' (비교)', content, {
 		rev,
 		oldrev,
 		diffoutput,

@@ -63,7 +63,7 @@ router.all(/^\/revert\/(.*)/, async (req, res, next) => {
 		return res.redirect('/w/' + encodeURIComponent(doc + ''));
 	}
 	
-	res.send(await render(req, doc + ' (r' + rev + '로 되돌리기)', content, {
+	res.send(await render2(req, doc + ' (r' + rev + '로 되돌리기)', content, {
 		rev,
 		text: revdata.content,
 		document: doc,

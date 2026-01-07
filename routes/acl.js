@@ -252,7 +252,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 				`;
 			}
 			
-			return res.send(await render(req, doc + ' (ACL)', content, {
+			return res.send(await render2(req, doc + ' (ACL)', content, {
 				document: doc,
 			}, '', false, 'acl'));
 		}
@@ -328,15 +328,15 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 		
 		if(req.method == 'POST') {
 			if(!['everyone', 'member', 'admin'].includes(req.body['read']))
-				return res.send(await render(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
+				return res.send(await render2(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
 			if(!['everyone', 'member', 'admin'].includes(req.body['edit']))
-				return res.send(await render(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
+				return res.send(await render2(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
 			if(!['everyone', 'member', 'admin'].includes(req.body['delete']))
-				return res.send(await render(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
+				return res.send(await render2(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
 			if(!['everyone', 'member', 'admin'].includes(req.body['discuss']))
-				return res.send(await render(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
+				return res.send(await render2(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
 			if(!['everyone', 'member', 'admin'].includes(req.body['move']))
-				return res.send(await render(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
+				return res.send(await render2(req, doc + ' (ACL)', (error = err('alert', { code: 'invalid_acl' })) + content, {}, '', error, 'acl'));
 			await curs.execute("delete from classic_acl where title = ? and namespace = ?", [doc.title, doc.namespace]);
 			await curs.execute("insert into classic_acl (title, namespace, read, edit, del, discuss, move, blockkorea, blockbot) values (?, ?, ?, ?, ?, ?, ?, '0', '0')", [doc.title, doc.namespace, req.body['read'], req.body['edit'], req.body['delete'], req.body['discuss'], req.body['move']]);
 			
@@ -359,7 +359,7 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 			return res.redirect('/acl/' + encodeURIComponent(doc + ''));
 		}
 		
-		return res.send(await render(req, doc + ' (ACL)', content, {
+		return res.send(await render2(req, doc + ' (ACL)', content, {
 			document: doc,
 		}, '', error, 'acl'));
 	}

@@ -68,10 +68,10 @@ if(hostconfig.allow_account_deletion) router.all(/^\/member\/delete_account$/, a
 		delete userset[username];
 		if(permlist[username]) permlist[username] = [];
 		res.cookie('honoka', '', { expires: new Date(Date.now() - 1) });
-		return res.send(await render(req, '계정 삭제', `
+		return res.send(await render2(req, '계정 삭제', `
 			<p><strong>${html.escape(username)}</strong>님 안녕히 가십시오.</p>
 		`, {}, _, false, 'delete_account'));
 	}
 	
-	return res.send(await render(req, '계정 삭제', content, {}, _, error, 'delete_account'));
+	return res.send(await render2(req, '계정 삭제', content, {}, _, error, 'delete_account'));
 });

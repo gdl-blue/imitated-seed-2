@@ -131,7 +131,7 @@ and limitations under the License.
 		licepage += await readFile('./skins/' + getSkin(req) + '/license.html')
 	}
 	
-	return res.send(await render(req, '라이선스', `
+	return res.send(await render2(req, '라이선스', `
 		<div class=wiki-content>
 			${licepage}
 	` + '</div>', {}, _, _, 'license'));

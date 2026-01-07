@@ -1,4 +1,4 @@
-const namumark = require('../namumark');
+const namumark = require('./namumark');
 
 // 역링크 초기화 (디버그 전용)
 if(hostconfig.debug) router.get('/ResetXref', function(req, res) {

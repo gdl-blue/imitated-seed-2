@@ -140,17 +140,17 @@ if(!ver('4.18.0')) router.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 	if(req.method == 'POST') {
 		var { ip, allow_login, expire, note } = req.body;
 		for(var val of ['ip', 'note', 'expire']) {
-			if(!req.body[val]) return res.send(await render(req, 'IPACL', (error = err('alert', { code: 'validator_required', tag: val })) + content, {}, '', error, 'ipacl'));
+			if(!req.body[val]) return res.send(await render2(req, 'IPACL', (error = err('alert', { code: 'validator_required', tag: val })) + content, {}, '', error, 'ipacl'));
 		}
 		if(!ip.includes('/')) ip += '/32';
 		if(!ip.match(/^([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])[.]([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\/([1-9]|[12][0-9]|3[0-2])$/)) error = true, content = alertBalloon(fetchErrorString('invalid_cidr'), 'danger', true, 'fade in') + content;
 		else {
 			const date = getTime();
 			if(isNaN(Number(expire))) {
-				return res.send(await render(req, 'IPACL', (error = err('alert', { code: 'invalid_type_number', tag: 'expire' })) + content, {}, '', error, 'ipacl'));
+				return res.send(await render2(req, 'IPACL', (error = err('alert', { code: 'invalid_type_number', tag: 'expire' })) + content, {}, '', error, 'ipacl'));
 			}
 			if(Number(expire) > 29030400) {
-				return res.send(await render(req, 'IPACL', (error = err('alert', { msg: 'expire의 값은 29030400 이하이어야 합니다.' })) + content, {}, '', error, 'ipacl'));
+				return res.send(await render2(req, 'IPACL', (error = err('alert', { msg: 'expire의 값은 29030400 이하이어야 합니다.' })) + content, {}, '', error, 'ipacl'));
 			}
 			const expiration = expire == '0' ? '0' : String(Number(date) + Number(expire) * 1000);
 			var data = await curs.execute("select cidr from ipacl where cidr = ? limit 1", [ip]);
@@ -176,6 +176,6 @@ if(!ver('4.18.0')) router.all(/^\/admin\/ipacl$/, async(req, res, next) => {
 		}
 	}
 	
-	res.send(await render(req, 'IPACL', content, {
+	res.send(await render2(req, 'IPACL', content, {
 	}, '', error, 'ipacl'));
 });

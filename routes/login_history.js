@@ -18,13 +18,13 @@ router.all(/^\/admin\/login_history$/, async(req, res, next) => {
 	
 	if(req.method == 'POST') {
 		var username = req.body['username'];
-		if(!username) return res.send(await render(req, '로그인 내역', (error = err('alert', { code: 'validator_required', tag: 'username' })) + content, {}, _, error, 'login_history'));
+		if(!username) return res.send(await render2(req, '로그인 내역', (error = err('alert', { code: 'validator_required', tag: 'username' })) + content, {}, _, error, 'login_history'));
 		var data = await curs.execute("select username from users where lower(username) = ?", [username.toLowerCase()]);
 		if(!data.length)
-			return res.send(await render(req, '로그인 내역', (error = err('alert', { code: 'invalid_username' })) + content, {}, _, error, 'login_history'));
+			return res.send(await render2(req, '로그인 내역', (error = err('alert', { code: 'invalid_username' })) + content, {}, _, error, 'login_history'));
 		username = data[0].username;
 		if(getperm('hideip', username))
-			return res.send(await render(req, '로그인 내역', (error = err('alert', { code: 'invalid_permission' })) + content, {}, _, error, 'login_history'));
+			return res.send(await render2(req, '로그인 내역', (error = err('alert', { code: 'invalid_permission' })) + content, {}, _, error, 'login_history'));
 		if((hostconfig.owners || []).includes(username) && hostconfig.protect_owners && username != ip_check(req))
 			return res.send(await showError(req, 'invalid_permission'));
 		
@@ -51,7 +51,7 @@ router.all(/^\/admin\/login_history$/, async(req, res, next) => {
 		return res.redirect('/admin/login_history/' + id);
 	}
 	
-	return res.send(await render(req, '로그인 내역', content, {}, _, _, 'login_history'));
+	return res.send(await render2(req, '로그인 내역', content, {}, _, _, 'login_history'));
 });
 
 router.get(/^\/admin\/login_history\/(.+)$/, async(req, res) => {
@@ -88,7 +88,7 @@ router.get(/^\/admin\/login_history\/(.+)$/, async(req, res) => {
 		${navbtn(0, 0, 0, 0)}
 	`;
 	
-	return res.send(await render(req, username + ' 로그인 내역', content, {}, _, _, 'login_history'));
+	return res.send(await render2(req, username + ' 로그인 내역', content, {}, _, _, 'login_history'));
 });
 
 }
