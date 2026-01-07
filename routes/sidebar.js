@@ -13,11 +13,10 @@ router.get(/^\/sidebar[.]json$/, (req, res) => {
 					date: Math.floor(Number(item.time) / 1000),
 				});
 				cnt++;
-				if(cnt > 20) break;
+				if(cnt > 15) break;
 			}
 			res.json(ret);
-		})
-		.catch(e => {
+		}).catch(e => {
 			print(e.stack);
 			res.json('[]');
 		});

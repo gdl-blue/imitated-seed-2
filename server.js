@@ -187,13 +187,13 @@ server.use(session({
 		expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
 		httpOnly: true,
 		// secure: hostconfig.sessionhttps, (이렇게 하면 HTTP에서 로그인 자체가 불가능)
-		samesite: "lax"
+		samesite: 'lax',
 	},
 	resave: false,
 	saveUninitialized: false,
 }));
 server.use(cookieParser());
-if(hostconfig.disable_file_server)
+if(fs.existsSync('./images'))
 	server.use('/images', express.static('images', { maxAge: 86400000 }));
 
 // 업데이트 수준

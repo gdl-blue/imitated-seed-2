@@ -43,11 +43,10 @@ router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async (req, res) => {
 	const doc = processTitle(title);
 	const rev = req.params[1];
 	const total = (await curs.execute("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))[0]['count(rev)'];
-	if(parseInt(rev) === total) {
-		if (rev === '1') {
+	if(parseInt(rev) == total) {
+		if(rev == '1') {
 			await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
-		}
-		else {
+		} else {
 			var dbdata = await curs.execute("select * from history where title = ? and namespace = ? order by cast(rev as integer) desc limit 2", [doc.title, doc.namespace]);
 			await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
 			if (dbdata.length === 2) {

@@ -775,7 +775,7 @@ async function requireAsync(p) {
     });
 }
 
-// 스킨 템플릿 렌더링
+// 스킨 템플릿 렌더링(구)
 function render2(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewName = '') {
 	const currentSkin = getSkin(req);
 	const skinConfig = skincfgs[currentSkin];
@@ -880,6 +880,7 @@ function render2(req, title = '', content = '', varlist = {}, subtitle = '', err
 	});
 }
 
+// 스킨 템플릿 렌더링
 function render(req, title = '', viewName = '', varlist = {}, error = null) {
 	return new Promise((resolve, reject) => {
 		if(!viewName)
@@ -921,6 +922,8 @@ function render(req, title = '', viewName = '', varlist = {}, error = null) {
 			varlist['req_ip'] = ip_check(req, 1);
 			varlist['host_config'] = hostconfig;
 			varlist['current_session'] = ip_check(req);
+			varlist['req_method'] = req.method;
+			varlist['req_body'] = req.body;
 			varlist['version'] = {
 				higher: ver,
 				lower: verrev,
@@ -1101,28 +1104,35 @@ function fetchNamespaces() {
 }
 
 function err(type, obj) {
-	if(typeof obj == 'string') obj = { code: obj };
-	if(!obj.msg) obj.msg = fetchErrorString(obj.code, fetchValue(obj.tag));
-	if(!obj.tag) obj.tag = null;
-	if(type == 'alert') {
-		obj.toString = function() {
+	var ret = null;
+	if(typeof obj == 'string')
+		obj = { code: obj };
+	if(!obj.msg)
+		obj.msg = fetchErrorString(obj.code, fetchValue(obj.tag));
+	if(!obj.tag)
+		obj.tag = null;
+	if(type == 'alert')
+		obj.toString = function toString() {
 			return alertBalloon(this.msg);
 		};
-	}
-	if(type == 'p') {
-		obj.toString = function() {
+	if(type == 'p')
+		obj.toString = function toString() {
 			return `<p class=error-desc>${html.escape(this.msg)}</p>`;
 		};
-	}
-	if(type == 'error' || type == 'raw') {
-		obj.toString = function() {
+	if(type == 'error')
+		obj.toString = function toString() {
 			return this.msg;
 		};
-	}
 	if(type == 'raw') {
-		return obj + '';
+		ret = new String(obj.msg);
+		ret.code = obj.code;
+		ret.msg = obj.msg;
+		ret.tag = obj.tag;
+	} else {
+		ret = obj;
 	}
-	return obj;
+	ret.type = type;
+	return ret;
 }
 
 // 오류화면 표시
@@ -1205,7 +1215,7 @@ async function userblocked(username) {
 }
 
 // 구 ACL 검사
-async function getacl2(req, title, namespace, type, getmsg) {
+async function getoldacl(req, title, namespace, type, getmsg) {
 	if(type == 'create_thread' || type == 'write_thread_comment')
 		type = 'discuss';
 	var acl = (await curs.execute("select read, edit, del, discuss, move from classic_acl where title = ? and namespace = ?", [title, namespace]))[0];
@@ -1271,7 +1281,7 @@ async function getacl2(req, title, namespace, type, getmsg) {
 // ACL 검사
 async function getacl(req, title, namespace, type, getmsg, noeq) {
 	if(!ver('4.2.0'))
-		return await getacl2(req, title, namespace, type, getmsg);
+		return await getoldacl(req, title, namespace, type, getmsg);
 	
 	var ns  = await curs.execute("select id, action, expiration, condition, conditiontype from acl where namespace = ? and type = ? and ns = '1' order by cast(id as integer) asc", [namespace, type]);
 	var doc = await curs.execute("select id, action, expiration, condition, conditiontype from acl where title = ? and namespace = ? and type = ? and ns = '0' order by cast(id as integer) asc", [title, namespace, type]);

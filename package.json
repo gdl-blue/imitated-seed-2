@@ -10,7 +10,7 @@
     "body-parser": "^1.20.4",
     "captchapng": "0.0.1",
     "cookie-parser": "^1.4.5",
-    "express": "^4.20.0",
+    "express": "^4.22.1",
     "express-fileupload": "^1.4.0",
     "express-session": "^1.17.2",
     "geoip-lite": "^1.4.5",

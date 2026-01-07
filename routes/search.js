@@ -1,4 +1,6 @@
 const http = require('http');
+const https = require('https');
+const chttp = hostconfig.search_use_https ? https : http;
 
 router.get(/^\/complete\/(.*)/, (req, res) => {
 	// 초성검색은 나중에
@@ -7,12 +9,10 @@ router.get(/^\/complete\/(.*)/, (req, res) => {
 	curs.execute("select title, namespace from documents where lower(title) like ? || '%' and lower(namespace) = ? limit 10", [doc.title.toLowerCase(), doc.namespace.toLowerCase()])
 		.then(data => {
 			var ret = [];
-			for(var i of data) {
+			for(var i of data)
 				ret.push(totitle(i.title, i.namespace) + '');
-			}
 			return res.json(ret);
-		})
-		.catch(e => {
+		}).catch(e => {
 			print(e.stack);
 			return res.status(500).json([]);
 		});
@@ -60,11 +60,10 @@ router.get(/^\/search\/(.*)/, async(req, res) => {
 	
 	var st = new Date().getTime() / 1000;
 	
-	if(!query.replace(/^(\s+)/, '').replace(/(\s+)$/, '')) {
+	if(!query.replace(/^(\s+)/, '').replace(/(\s+)$/, ''))
 		res.send(await render2(req, '"' + query + '" 검색 결과', content, {}, _, _, 'search'));
-	}
 	
-	http.request({
+	chttp.request({
 		host: hostconfig.search_host,
 		port: hostconfig.search_port,
 		path: '/search/' + encodeURIComponent(query) + '?page=' + (req.query['page'] || '1'),

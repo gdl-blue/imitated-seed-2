@@ -69,7 +69,8 @@ router.all(/^\/member\/login$/, async function loginScreen(req, res, next) {
 			
 			${generateCaptcha(req, req.session.captcha)}
 			
-			<a href="/member/signup" class="btn btn-secondary">계정 만들기</a><button type="submit" class="btn btn-primary">로그인</button>
+			<a href="/member/signup" class="btn btn-secondary">계정 만들기</a>
+			<button type="submit" class="btn btn-primary">로그인</button>
 		</form>`;
 	
 	if(req.method == 'POST' && !error) {

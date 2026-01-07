@@ -9,21 +9,18 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const fileUpload = require('express-fileupload');
-
 const { sha256 } = require('js-sha256');
 const sizeOf = require('image-size');
 
 const print = console.log;
 
 const server = express();
-
 server.use(bodyParser.json());
 server.use(bodyParser.urlencoded({ extended: true }));
 server.use(fileUpload({
 	limits: { fileSize: maxFileSize },
     abortOnLimit: true,
 })); 
-
 server.disable('x-powered-by');
 
 server.post('/upload', function(req, res) {
@@ -31,13 +28,17 @@ server.post('/upload', function(req, res) {
 		return res.status(400).send('');	
 	const file = req.files.file;
 	const hash = sha256(file.data);
-	file.mv(`./images/${hash.slice(0, 2)}/${hash}`, err => {
-		if(err)
-			return res.json({ status: 'error' });
-		var w = 0, h = 0;
-		sizeOf(`./images/${hash.slice(0, 2)}/${hash}`, function (err, dimensions) {
-			if(!err) w = dimensions.width, h = dimensions.height;
-			return res.json({ status: 'success', name: file.name, hash, size: file.data.length, width: w, height: h });
+	fs.mkdir('./images', function() {
+		fs.mkdir(`./images/${hash.slice(0, 2)}`, function() {
+			file.mv(`./images/${hash.slice(0, 2)}/${hash}`, err => {
+				if(err)
+					return res.json({ status: 'error' });
+				var w = 0, h = 0;
+				sizeOf(`./images/${hash.slice(0, 2)}/${hash}`, function (err, dimensions) {
+					if(!err) w = dimensions.width, h = dimensions.height;
+					return res.json({ status: 'success', name: file.name, hash, size: file.data.length, width: w, height: h });
+				});
+			});
 		});
 	});
 });
