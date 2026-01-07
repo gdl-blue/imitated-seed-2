@@ -265,27 +265,8 @@ server.all('*', async function(req, res, next) {
 	next();
 });
 
-server.get(/^\/skins\/((?:(?!\/).)+)\/(.+)/, async function sendSkinFile(req, res, next) {
-	const skinname = req.params[0];
-	const filepath = req.params[1];
-	
-	if(!skinList.includes(skinname))
-		return next();
-	
-	if(decodeURIComponent(filepath).includes('./') || decodeURIComponent(filepath).includes('..')) {
-		return next();
-	}
-	
-	var skinConfig = skincfgs[skinname];
-	if(!skinConfig.static_files.includes(filepath))
-		return next();
-	
-	try {
-		res.sendFile(filepath, { root: `./skins/${skinname}/static` });
-	} catch(e) {
-		next();
-	}
-});
+for(var skin of skinList)
+	server.use(`/skins/${skin}`, express.static(`skins/${skin}/static`));
 
 server.use('/js', express.static('js'));
 server.use('/css', express.static('css'));
