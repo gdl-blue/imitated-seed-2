@@ -2,8 +2,7 @@
 <div class=btn-group role=group>
 	<a {% if navigation.end != navigation.total %}href="{{ navigation.url + '?until=' + (navigation.end + 1) }}" {% endif %}class="btn btn-secondary btn-sm{% if navigation.end == navigation.total %} disabled{% endif %}">
 		<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
-	</a>
-	<a {% if navigation.start > 1 %}href="{{ navigation.url + '?from=' + (navigation.start - 1) }}" {% endif %}class="btn btn-secondary btn-sm{% if navigation.start <= 1 %} disabled{% endif %}">
+	</a><a {% if navigation.start > 1 %}href="{{ navigation.url + '?from=' + (navigation.start - 1) }}" {% endif %}class="btn btn-secondary btn-sm{% if navigation.start <= 1 %} disabled{% endif %}">
 		Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 	</a>
 </div>

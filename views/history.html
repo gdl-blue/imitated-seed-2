@@ -15,8 +15,8 @@
 			(<a rel=nofollow href="/w/{{ document|encode_doc }}?rev={{ row.rev }}">보기</a> | <a rel=nofollow href="/raw/{{ document|encode_doc }}?rev={{row.rev}}" data-npjax="true">RAW</a> | <a rel=nofollow href="/blame/{{ document|encode_doc }}?rev={{row.rev}}">Blame</a> | <a rel=nofollow href="/revert/{{ document|encode_doc }}?rev={% if row.advance == 'revert' %}{{ row.flags }}{% else %}{{ row.rev }}{% endif %}">이 {% if version.higher('4.13.0') %}리비전으로{% else %}리비젼으로{% endif %} 되돌리기</a>{% if parseInt(row.rev) > 1 %} | <a rel=nofollow href="/diff/{{ document|encode_doc }}?rev={{ row.rev }}&oldrev={{ parseInt(row.rev) - 1 }}">비교</a>{% endif %}{% if version.higher('4.22.4') && perms.has('hide_document_history_log') && row.log %} | <a rel=nofollow href="/admin/history/{{ document|encode_doc }}/{{ row.rev }}/${row.loghider ? 'show' : 'hide'}">[ADMIN] 편집요약 숨기기{% if row.loghider %} 해제{% endif %}</a>{% endif %}{% if (host_config.owners || []).includes(current_session) %} | <a rel=nofollow href="/admin/history/{{ document|encode_doc }}/{{ row.rev }}/delete" onclick="return confirm('Go?');">[ADMIN] 삭제</a>{% endif %})
 		</span> 
 		
-		<input type=radio name=oldrev value="${row.rev}" />
-		<input type=radio name=rev value="${row.rev}" />
+		<input type=radio name=oldrev value="{{ row.rev }}" />
+		<input type=radio name=rev value="{{ row.rev }}" />
 
 		{% if row.advance != 'normal' %}<i>({{ row|render_edit_flag }})</i>{% endif %}
 		

@@ -167,11 +167,11 @@ const curs = {
 			}
 			print('처리 중 - ' + totitle(title, namespace));
 			var rev = 1;
-			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [title, namespace, d.value.text]);
-			await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, d.value.text, rev++, 'External Importer', String(new Date().getTime()), '+' + d.value.text.length, 'fork', 'author', 'create']);
-			if(d.value.contributors) for(var item of d.value.contributors) {
-				await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, d.value.text, rev++, (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || item.includes(':') ? item : (prefix + item)), String(new Date().getTime()), '0', 'contributor', (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || (item.includes(':') && !item.match(/^.[:]/)) ? 'ip' : 'author'), 'normal']);
-			}
+			const content = d.value.text || d.value.content;
+			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [title, namespace, content]);
+			await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, content, rev++, 'External Importer', String(new Date().getTime()), '+' + content.length, 'fork', 'author', 'create']);
+			if(d.value.contributors) for(var item of d.value.contributors)
+				await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, content, rev++, (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || item.includes(':') ? item : (prefix + item)), String(new Date().getTime()), '0', 'contributor', (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || (item.includes(':') && !item.match(/^.[:]/)) ? 'ip' : 'author'), 'normal']);
 			pr++;
 		})();
 	});

@@ -1,4 +1,6 @@
-if(ver('4.9.0')) router.get(/^\/member\/star\/(.*)$/, async (req, res) => {
+if(!ver('4.9.0')) return;
+
+router.get(/^\/member\/star\/(.*)$/, async (req, res) => {
 	const title = req.params[0];
 	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
 	const doc = processTitle(title);
@@ -14,7 +16,7 @@ if(ver('4.9.0')) router.get(/^\/member\/star\/(.*)$/, async (req, res) => {
 	res.redirect('/w/' + encodeURIComponent(title));
 });
 
-if(ver('4.9.0')) router.get(/^\/member\/unstar\/(.*)$/, async (req, res) => {
+router.get(/^\/member\/unstar\/(.*)$/, async (req, res) => {
 	const title = req.params[0];
 	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/star/' + title));
 	const doc = processTitle(title);
@@ -31,8 +33,7 @@ if(ver('4.9.0')) router.get(/^\/member\/unstar\/(.*)$/, async (req, res) => {
 	res.redirect('/w/' + encodeURIComponent(title));
 });
 
-
-if(ver('4.9.0')) router.get(/^\/member\/starred_documents$/, async (req, res) => {
+router.get(/^\/member\/starred_documents$/, async (req, res) => {
 	if(!islogin(req)) return res.redirect('/member/login?redirect=' + encodeURIComponent('/member/starred_documents'));
 	
 	var dd = await curs.execute("select title, namespace, lastedit from stars where username = ? order by cast(lastedit as integer) desc", [ip_check(req)]);

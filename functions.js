@@ -1513,8 +1513,7 @@ function navbtn(total, start, end, href) {
 		<div class=btn-group role=group>
 			<a class="btn btn-secondary btn-sm disabled">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
-			</a>
-			<a class="btn btn-secondary btn-sm disabled">
+			</a><a class="btn btn-secondary btn-sm disabled">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>`;  // 미구현 당시 navbtn(0, 0, 0, 0)으로 다 채웠음.
@@ -1527,8 +1526,7 @@ function navbtn(total, start, end, href) {
 		<div class=btn-group role=group>
 			<a ${end == total ? '' : `href="${(href + '?until=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
-			</a>
-			<a ${start <= 1 ? '' : `href="${(href + '?from=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
+			</a><a ${start <= 1 ? '' : `href="${(href + '?from=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>`;
@@ -1553,8 +1551,7 @@ function navbtnr(total, start, end, href) {
 		<div class=btn-group role=group>
 			<a ${start <= 1 ? '' : `href="${(href + '?until=' + (start - 1))}" `}class="btn btn-secondary btn-sm${start <= 1 ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
-			</a>
-			<a ${end == total ? '' : `href="${(href + '?from=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
+			</a><a ${end == total ? '' : `href="${(href + '?from=' + (end + 1))}" `}class="btn btn-secondary btn-sm${end == total ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>`;
@@ -1568,8 +1565,7 @@ function navbtnss(ts, te, start, end, href) {
 		<div class=btn-group role=group>
 			<a ${start == ts ? '' : `href="${(href + '?until=' + encodeURIComponent(start))}" `}class="btn btn-secondary btn-sm${start == ts ? ' disabled' : ''}">
 				<span class="icon ion-chevron-left"></span>&nbsp;&nbsp;Past
-			</a>
-			<a ${end == te ? '' : `href="${(href + '?from=' + encodeURIComponent(end))}" `}class="btn btn-secondary btn-sm${end == te ? ' disabled' : ''}">
+			</a><a ${end == te ? '' : `href="${(href + '?from=' + encodeURIComponent(end))}" `}class="btn btn-secondary btn-sm${end == te ? ' disabled' : ''}">
 				Next&nbsp;&nbsp;<span class="icon ion-chevron-right"></span>
 			</a>
 		</div>`;
