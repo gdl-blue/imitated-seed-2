@@ -1,5 +1,4 @@
 const fs = require('fs');
-try { fs.writeFileSync('./node_modules/busboy/lib/utils.js', fs.readFileSync('./node_modules/busboy/lib/utils.js').toString().replace('} catch {', '} catch(e) {')); } catch(e) {}
 const http = require('http');
 const https = require('https');
 const inputReader = require('wait-console-input');
@@ -10,6 +9,9 @@ const swig = require('swig');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
+try {  // fileUpload 모듈을 불러오기 전에 있어야 함
+	fs.writeFileSync('./node_modules/busboy/lib/utils.js', fs.readFileSync('./node_modules/busboy/lib/utils.js').toString().replace('} catch {', '} catch(e) {'));
+} catch(e) {}
 const fileUpload = require('express-fileupload');
 
 const print = console.log;
@@ -171,36 +173,6 @@ const server = express();  // 서버
 
 const functions = require('./functions');
 for(var item in functions) global[item] = functions[item];
-cacheSkinList();
-
-// 모듈 사용
-server.use(bodyParser.json());
-server.use(bodyParser.urlencoded({ extended: true }));
-server.use(fileUpload({
-	limits: { fileSize: hostconfig.max_file_size || 2000000 },
-    abortOnLimit: true,
-}));
-server.use(session({
-	key: 'kotori',
-	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
-	cookie: {
-		expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
-		httpOnly: true,
-		// secure: hostconfig.sessionhttps, (이렇게 하면 HTTP에서 로그인 자체가 불가능)
-		samesite: 'lax',
-	},
-	resave: false,
-	saveUninitialized: false,
-}));
-server.use(cookieParser());
-if(fs.existsSync('./images'))
-	server.use('/images', express.static('images', { maxAge: 86400000 }));
-
-// 업데이트 수준
-const updatecode = '25';
-
-// 보안을 위해...
-server.disable('x-powered-by');
 
 // swig 필터
 swig.setFilter('encode_userdoc', function encodeUserdocURL(input) {
@@ -230,6 +202,38 @@ function render_edit_flag(input) {
 }
 render_edit_flag.safe = true;
 swig.setFilter('render_edit_flag', render_edit_flag);
+
+cacheSkinList();
+cacheViews();
+
+// 모듈 사용
+server.use(bodyParser.json());
+server.use(bodyParser.urlencoded({ extended: true }));
+server.use(fileUpload({
+	limits: { fileSize: hostconfig.max_file_size || 2000000 },
+    abortOnLimit: true,
+}));
+server.use(session({
+	key: 'kotori',
+	secret: rndval('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1024),
+	cookie: {
+		expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
+		httpOnly: true,
+		// secure: hostconfig.sessionhttps, (이렇게 하면 HTTP에서 로그인 자체가 불가능)
+		samesite: 'lax',
+	},
+	resave: false,
+	saveUninitialized: false,
+}));
+server.use(cookieParser());
+if(fs.existsSync('./images'))
+	server.use('/images', express.static('images', { maxAge: 86400000 }));
+
+// 업데이트 수준
+const updatecode = '25';
+
+// 보안을 위해...
+server.disable('x-powered-by');
 
 // 아이피차단
 server.all('*', async function(req, res, next) {

@@ -59,6 +59,8 @@ var permlist = {};  // 권한 캐시
 var userset = {};  // 사용자 설정 캐시
 var skinList = [];  // 스킨 목록 캐시
 var skincfgs = {};  // 스킨 구성설정 캐시
+var skinTemplates = {};  // 미리 컴파일된 스킨 템플릿
+var views = {};
 var apiTokens = {};  // API 편집 토큰
 
 var loginHistory = {};
@@ -779,226 +781,211 @@ async function requireAsync(p) {
 function render2(req, title = '', content = '', varlist = {}, subtitle = '', error = null, viewName = '') {
 	const currentSkin = getSkin(req);
 	const skinConfig = skincfgs[currentSkin];
-	const templatefn = `./skins/${currentSkin}/views/${skinConfig.override_views.includes(viewName) ? viewName : 'default'}.html`;
 
-	return new Promise((resolve, reject) => {
-        swig.compileFile(templatefn, {}, async(err, template) => {
-            if(err) {
-				print(`[오류!] ${err.stack}`);
-				return resolve(`<title>${title}(스킨 렌더링 오류!)</title><meta charset=utf-8 />${content}`);
-			}
-			
-			varlist['skinInfo'] = {
-				title: title + subtitle,
-				viewName,
-			};
-			varlist['config'] = config;
-			varlist['content'] = content;
-			varlist['perms'] = {
-				has(perm) {
-					try {
-						var pl = permlist[ip_check(req)];
-						return pl.includes(perm) || pl.includes('developer');
-					} catch(e) {
-						return false;
-					}
+	return new Promise(async (resolve, reject) => {
+		varlist['skinInfo'] = {
+			title: title + subtitle,
+			viewName,
+		};
+		varlist['config'] = config;
+		varlist['content'] = content;
+		varlist['perms'] = {
+			has(perm) {
+				try {
+					var pl = permlist[ip_check(req)];
+					return pl.includes(perm) || pl.includes('developer');
+				} catch(e) {
+					return false;
 				}
-			};
-			varlist['url'] = req.path;
-			varlist['error'] = error;
-			varlist['req_ip'] = ip_check(req, 1);
-			
-			if(islogin(req)) {
-				var user_document_discuss = null;
-				var udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
-				if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
-				
-				varlist['member'] = {
-					username: req.session.username,
-				};
-				varlist['user_document_discuss'] = user_document_discuss;
 			}
+		};
+		varlist['url'] = req.path;
+		varlist['error'] = error;
+		varlist['req_ip'] = ip_check(req, 1);
+		
+		if(islogin(req)) {
+			var user_document_discuss = null;
+			var udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
+			if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
 			
-			var body = template(varlist);
-			
-			// 헤드 부분 작성
-			var header = '<!DOCTYPE html><html><head>';
-			var adjs = '', adcss = '';
-			for(var js of (hostconfig.additional_js || []))
-				adjs += `<script type="text/javascript" src="/js/${js}"></script>`;
-			for(var css of (hostconfig.additional_css || []))
-				adcss += `<link rel=stylesheet href="/css/${css}" />`;
-			header += `\
-				<title>${title}${subtitle} - ${config.getString('wiki.site_name', '더 시드')}</title>
-				<meta charset=utf-8 />
-				<meta http-equiv=x-ua-compatible content="ie=edge" />
-				<meta http-equiv=x-pjax-version content="" />
-				<meta name=generator content="the seed" />
-				<meta name=application-name content="${config.getString('wiki.site_name', '더 시드')}" />
-				<meta name=mobile-web-app-capable content=yes />
-				<meta name=msapplication-tooltip content="${config.getString('wiki.site_name', '더 시드')}" />
-				<meta name=msapplication-starturl content="/w/${encodeURIComponent(config.getString('wiki.front_page', 'FrontPage'))}" />
-				<link rel=search type="application/opensearchdescription+xml" title="${config.getString('wiki.site_name', '더 시드')}" href="/opensearch.xml" />
-				<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
-			${hostconfig.use_external_css ? `\
-				<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
-				<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
-				<link rel=stylesheet href="https://theseed.io/css/wiki.css" />` : 
+			varlist['member'] = {
+				username: req.session.username,
+			};
+			varlist['user_document_discuss'] = user_document_discuss;
+		}
+		
+		var body = skinTemplates[currentSkin][skinConfig.override_views.includes(viewName) ? viewName.toLowerCase() : 'default'](varlist);
+		
+		// 헤드 부분 작성
+		var header = '<!DOCTYPE html><html><head>';
+		var adjs = '', adcss = '';
+		for(var js of (hostconfig.additional_js || []))
+			adjs += `<script type="text/javascript" src="/js/${js}"></script>`;
+		for(var css of (hostconfig.additional_css || []))
+			adcss += `<link rel=stylesheet href="/css/${css}" />`;
+		header += `\
+			<title>${title}${subtitle} - ${config.getString('wiki.site_name', '더 시드')}</title>
+			<meta charset=utf-8 />
+			<meta http-equiv=x-ua-compatible content="ie=edge" />
+			<meta http-equiv=x-pjax-version content="" />
+			<meta name=generator content="the seed" />
+			<meta name=application-name content="${config.getString('wiki.site_name', '더 시드')}" />
+			<meta name=mobile-web-app-capable content=yes />
+			<meta name=msapplication-tooltip content="${config.getString('wiki.site_name', '더 시드')}" />
+			<meta name=msapplication-starturl content="/w/${encodeURIComponent(config.getString('wiki.front_page', 'FrontPage'))}" />
+			<link rel=search type="application/opensearchdescription+xml" title="${config.getString('wiki.site_name', '더 시드')}" href="/opensearch.xml" />
+			<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
+		${hostconfig.use_external_css ? `\
+			<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
+			<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
+			<link rel=stylesheet href="https://theseed.io/css/wiki.css" />` : 
+		`\
+			<link rel=stylesheet href="/css/diffview.css" />
+			<link rel=stylesheet href="/css/katex.min.css" />
+			<link rel=stylesheet href="/css/wiki.css" />`}${adcss}
+		`;
+		for(var css of (skinConfig.auto_css_targets['*'] || []))
+			header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+		for(var css of (skinConfig.auto_css_targets[viewName] || []))
+			header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+		header += `\
+			${hostconfig.use_external_js ? `\
+				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+				<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+				<script type="text/javascript" src="https://theseed.io/js/dateformatter.js"></script>
+				<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js"></script>
+				<script type="text/javascript" src="https://theseed.io/js/theseed.js"></script>` : 
 			`\
-				<link rel=stylesheet href="/css/diffview.css" />
-				<link rel=stylesheet href="/css/katex.min.css" />
-				<link rel=stylesheet href="/css/wiki.css" />`}${adcss}
-			`;
-			for(var css of (skinConfig.auto_css_targets['*'] || []))
-				header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
-			for(var css of (skinConfig.auto_css_targets[viewName] || []))
-				header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
-			header += `\
-				${hostconfig.use_external_js ? `\
-					<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-					<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
-					<script type="text/javascript" src="https://theseed.io/js/dateformatter.js"></script>
-					<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js"></script>
-					<script type="text/javascript" src="https://theseed.io/js/theseed.js"></script>` : 
-				`\
-					<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-					<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
-					<script type="text/javascript" src="/js/dateformatter.js"></script>
-					<script type="text/javascript" src="/js/intersection-observer.js"></script>
-					<script type="text/javascript" src="/js/theseed.js"></script>`}${adjs}
-			`;
-			for(var js of (skinConfig.auto_js_targets['*'] || []))
-				header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
-			for(var js of (skinConfig.auto_js_targets[viewName] || []))
-				header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
-			header += skinConfig.additional_heads;
-			header += `</head><body class="${skinConfig.body_classes.join(' ')}">`;
-			var footer = '</body></html>';
-			
-			resolve(header + body + footer);
-		});
+				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+				<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
+				<script type="text/javascript" src="/js/dateformatter.js"></script>
+				<script type="text/javascript" src="/js/intersection-observer.js"></script>
+				<script type="text/javascript" src="/js/theseed.js"></script>`}${adjs}
+		`;
+		for(var js of (skinConfig.auto_js_targets['*'] || []))
+			header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+		for(var js of (skinConfig.auto_js_targets[viewName] || []))
+			header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+		header += skinConfig.additional_heads;
+		header += `</head><body class="${skinConfig.body_classes.join(' ')}">`;
+		var footer = '</body></html>';
+		
+		resolve(header + body + footer);
 	});
 }
 
 // 스킨 템플릿 렌더링
 function render(req, title = '', viewName = '', varlist = {}, error = null) {
-	return new Promise((resolve, reject) => {
+	return new Promise(async (resolve, reject) => {
 		if(!viewName)
 			return reject('viewName이 없음');
 		
-		swig.compileFile(`./views/${viewName}.html`, {}, async(err, viewTemplate) => {
-			if(err) return reject(err);
-			
-			var _configData = await curs.execute("select key, value from config");
-			var configData = {};
-			for(var item of _configData)
-				configData[item.key] = item.value;
-			varlist['config'] = {
-				getString(key, def) {
-					if(configData[key] === undefined)
-						return def || '';
-					return configData[key];
-				}
-			};
-			var permData = ['any', 'ip'];
-			if(islogin(req))
-				permData = (await curs.execute("select perm from perms where username = ?", [req.session.username])).map(item => item.perm).concat(['any', 'member']);
-			varlist['perms'] = {
-				has(perm) {
-					return permData.includes(perm) || permData.includes('developer');
-				}
-			};
-			if(islogin(req)) {
-				var user_document_discuss = null;
-				var udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
-				if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
-				varlist['user_document_discuss'] = user_document_discuss;
-				varlist['member'] = {
-					username: req.session.username,
-				};
+		var _configData = await curs.execute("select key, value from config");
+		var configData = {};
+		for(var item of _configData)
+			configData[item.key] = item.value;
+		varlist['config'] = {
+			getString(key, def) {
+				if(configData[key] === undefined)
+					return def || '';
+				return configData[key];
 			}
-			varlist['url'] = req.path;
-			varlist['error'] = error;
-			varlist['req_ip'] = ip_check(req, 1);
-			varlist['host_config'] = hostconfig;
-			varlist['current_session'] = ip_check(req);
-			varlist['req_method'] = req.method;
-			varlist['req_body'] = req.body;
-			varlist['version'] = {
-				higher: ver,
-				lower: verrev,
+		};
+		var permData = ['any', 'ip'];
+		if(islogin(req))
+			permData = (await curs.execute("select perm from perms where username = ?", [req.session.username])).map(item => item.perm).concat(['any', 'member']);
+		varlist['perms'] = {
+			has(perm) {
+				return permData.includes(perm) || permData.includes('developer');
+			}
+		};
+		if(islogin(req)) {
+			var user_document_discuss = null;
+			var udd = await curs.execute("select tnum, time from threads where namespace = '사용자' and title = ? and status = 'normal' and not deleted = '1'", [req.session.username]);
+			if(udd.length) user_document_discuss = Math.floor(Number(udd[0].time) / 1000);
+			varlist['user_document_discuss'] = user_document_discuss;
+			varlist['member'] = {
+				username: req.session.username,
 			};
-			varlist['content'] = viewTemplate(varlist);  // 항상 마지막에 있어야 함
-			
-			const currentSkin = getSkin(req);
-			const skinConfig = skincfgs[currentSkin];
-			const templatefn = `./skins/${currentSkin}/views/${skinConfig.override_views.includes(viewName) ? viewName : 'default'}.html`;
-			
-			swig.compileFile(templatefn, {}, async(err, skinTemplate) => {
-				if(err) return reject(err);
-				
-				varlist['skinInfo'] = {
-					title,
-					viewName,
-				};
-				
-				// 헤드 부분 작성
-				var header = '<!DOCTYPE html><html><head>';
-				var adjs = '', adcss = '';
-				for(var js of (hostconfig.additional_js || []))
-					adjs += `<script type="text/javascript" src="/js/${js}"></script>`;
-				for(var css of (hostconfig.additional_css || []))
-					adcss += `<link rel=stylesheet href="/css/${css}" />`;
-				header += `\
-					<title>${title} - ${config.getString('wiki.site_name', '더 시드')}</title>
-					<meta charset=utf-8 />
-					<meta http-equiv=x-ua-compatible content="ie=edge" />
-					<meta http-equiv=x-pjax-version content="" />
-					<meta name=generator content="the seed" />
-					<meta name=application-name content="${config.getString('wiki.site_name', '더 시드')}" />
-					<meta name=mobile-web-app-capable content=yes />
-					<meta name=msapplication-tooltip content="${config.getString('wiki.site_name', '더 시드')}" />
-					<meta name=msapplication-starturl content="/w/${encodeURIComponent(config.getString('wiki.front_page', 'FrontPage'))}" />
-					<link rel=search type="application/opensearchdescription+xml" title="${config.getString('wiki.site_name', '더 시드')}" href="/opensearch.xml" />
-					<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
-				${hostconfig.use_external_css ? `\
-					<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
-					<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
-					<link rel=stylesheet href="https://theseed.io/css/wiki.css" />` : 
-				`\
-					<link rel=stylesheet href="/css/diffview.css" />
-					<link rel=stylesheet href="/css/katex.min.css" />
-					<link rel=stylesheet href="/css/wiki.css" />`}${adcss}
-				`;
-				for(var css of (skinConfig.auto_css_targets['*'] || []))
-					header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
-				for(var css of (skinConfig.auto_css_targets[viewName] || []))
-					header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
-				header += `\
-					${hostconfig.use_external_js ? `\
-						<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-						<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
-						<script type="text/javascript" src="https://theseed.io/js/dateformatter.js"></script>
-						<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js"></script>
-						<script type="text/javascript" src="https://theseed.io/js/theseed.js"></script>` : 
-					`\
-						<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
-						<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
-						<script type="text/javascript" src="/js/dateformatter.js"></script>
-						<script type="text/javascript" src="/js/intersection-observer.js"></script>
-						<script type="text/javascript" src="/js/theseed.js"></script>`}${adjs}
-				`;
-				for(var js of (skinConfig.auto_js_targets['*'] || []))
-					header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
-				for(var js of (skinConfig.auto_js_targets[viewName] || []))
-					header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
-				header += skinConfig.additional_heads;
-				header += `</head><body class="${skinConfig.body_classes.join(' ')}">`;
-				var footer = '</body></html>';
-				
-				resolve(header + skinTemplate(varlist) + footer);
-			});
-		});
+		}
+		varlist['url'] = req.path;
+		varlist['error'] = error;
+		varlist['req_ip'] = ip_check(req, 1);
+		varlist['host_config'] = hostconfig;
+		varlist['current_session'] = ip_check(req);
+		varlist['req_method'] = req.method;
+		varlist['req_body'] = req.body;
+		varlist['version'] = {
+			higher: ver,
+			lower: verrev,
+		};
+		varlist['content'] = views[viewName](varlist);  // 항상 마지막에 있어야 함
+		
+		const currentSkin = getSkin(req);
+		const skinConfig = skincfgs[currentSkin];
+		
+		varlist['skinInfo'] = {
+			title,
+			viewName,
+		};
+		
+		var body = skinTemplates[currentSkin][skinConfig.override_views.includes(viewName) ? viewName.toLowerCase() : 'default'](varlist);
+		
+		// 헤드 부분 작성
+		var header = '<!DOCTYPE html><html><head>';
+		var adjs = '', adcss = '';
+		for(var js of (hostconfig.additional_js || []))
+			adjs += `<script type="text/javascript" src="/js/${js}"></script>`;
+		for(var css of (hostconfig.additional_css || []))
+			adcss += `<link rel=stylesheet href="/css/${css}" />`;
+		header += `\
+			<title>${title} - ${config.getString('wiki.site_name', '더 시드')}</title>
+			<meta charset=utf-8 />
+			<meta http-equiv=x-ua-compatible content="ie=edge" />
+			<meta http-equiv=x-pjax-version content="" />
+			<meta name=generator content="the seed" />
+			<meta name=application-name content="${config.getString('wiki.site_name', '더 시드')}" />
+			<meta name=mobile-web-app-capable content=yes />
+			<meta name=msapplication-tooltip content="${config.getString('wiki.site_name', '더 시드')}" />
+			<meta name=msapplication-starturl content="/w/${encodeURIComponent(config.getString('wiki.front_page', 'FrontPage'))}" />
+			<link rel=search type="application/opensearchdescription+xml" title="${config.getString('wiki.site_name', '더 시드')}" href="/opensearch.xml" />
+			<meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1" />
+		${hostconfig.use_external_css ? `\
+			<link rel=stylesheet href="https://theseed.io/css/diffview.css" />
+			<link rel=stylesheet href="https://theseed.io/css/katex.min.css" />
+			<link rel=stylesheet href="https://theseed.io/css/wiki.css" />` : 
+		`\
+			<link rel=stylesheet href="/css/diffview.css" />
+			<link rel=stylesheet href="/css/katex.min.css" />
+			<link rel=stylesheet href="/css/wiki.css" />`}${adcss}
+		`;
+		for(var css of (skinConfig.auto_css_targets['*'] || []))
+			header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+		for(var css of (skinConfig.auto_css_targets[viewName] || []))
+			header += `<link rel=stylesheet href="/skins/${currentSkin}/${css}" />`;
+		header += `\
+			${hostconfig.use_external_js ? `\
+				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="https://theseed.io/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+				<!--[if lt IE 9]><script type="text/javascript" src="https://theseed.io/js/jquery-1.11.3.min.js"></script><![endif]-->
+				<script type="text/javascript" src="https://theseed.io/js/dateformatter.js"></script>
+				<script type="text/javascript" src="https://theseed.io/js/intersection-observer.js"></script>
+				<script type="text/javascript" src="https://theseed.io/js/theseed.js"></script>` : 
+			`\
+				<!--[if (!IE)|(gt IE 8)]><!--><script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script><!--<![endif]-->
+				<!--[if lt IE 9]><script type="text/javascript" src="/js/jquery-1.11.3.min.js"></script><![endif]-->
+				<script type="text/javascript" src="/js/dateformatter.js"></script>
+				<script type="text/javascript" src="/js/intersection-observer.js"></script>
+				<script type="text/javascript" src="/js/theseed.js"></script>`}${adjs}
+		`;
+		for(var js of (skinConfig.auto_js_targets['*'] || []))
+			header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+		for(var js of (skinConfig.auto_js_targets[viewName] || []))
+			header += `<script type="text/javascript" src="/skins/${currentSkin}/${js.path}"></script>`;
+		header += skinConfig.additional_heads;
+		header += `</head><body class="${skinConfig.body_classes.join(' ')}">`;
+		var footer = '</body></html>';
+		
+		resolve(header + body + footer);
 	});
 }
 
@@ -1583,14 +1570,32 @@ const html = {
 	}
 };
 
+function readdir(dir, flag) {
+	if(dir.endsWith('/'))
+		dir = dir.slice(dir.length - 1);
+	var ret = fs.readdirSync(dir, { withFileTypes: true });
+	if(flag == 'directory')
+		ret = ret.filter(f => fs.statSync(dir + '/' + (f.name || f)).isDirectory());
+	else if(flag == 'file')
+		ret = ret.filter(f => !fs.statSync(dir + '/' + (f.name || f)).isDirectory());
+	ret = ret.map(dirent => dirent.name || dirent);
+	return ret;
+}
+
 function cacheSkinList() {
     skinList.length = 0;
-	for(var prop of Object.getOwnPropertyNames(skincfgs))
-		delete skincfgs[prop];
-    for(var dir of fs.readdirSync('./skins', { withFileTypes: true }).filter(f => fs.statSync('./skins/' + (f.name || f)).isDirectory()).map(dirent => dirent.name || dirent)) {
+    for(var dir of readdir('./skins', 'directory')) {
         skinList.push(dir);
-		skincfgs[dir] = require('./skins/' + dir + '/config.json');
+		skincfgs[dir] = require(`./skins/${dir}/config.json`);
+		skinTemplates[dir] = {};
+		for(var view of readdir(`./skins/${dir}/views`, 'file'))
+			skinTemplates[dir][path.parse(view).name.toLowerCase()] = swig.compileFile(`./skins/${dir}/views/${view}`);
     }
+}
+
+function cacheViews() {
+	for(var view of readdir('./views', 'file'))
+		views[path.parse(view).name.toLowerCase()] = swig.compileFile(`./views/${view}`);
 }
 
 function generateCaptcha(req, num, isEdit = false) {
@@ -1844,7 +1849,7 @@ module.exports = {
 	whtags,
 	whattr,
 	
-	config, getSkin, getperm, hasperm, readFile, exists, requireAsync, render, render2, acltype, aclperms, exaclperms, fetchErrorString, fetchValue, alertBalloon, fetchNamespaces, err, showError, ip_pas, ipblocked, userblocked, getacl, navbtn, navbtnr, navbtnss, navigation, html, cacheSkinList, generateCaptcha, validateCaptcha,
+	config, getSkin, getperm, hasperm, readFile, exists, requireAsync, render, render2, acltype, aclperms, exaclperms, fetchErrorString, fetchValue, alertBalloon, fetchNamespaces, err, showError, ip_pas, ipblocked, userblocked, getacl, navbtn, navbtnr, navbtnss, navigation, html, cacheSkinList, cacheViews, generateCaptcha, validateCaptcha,
 	processTitle, totitle, edittype, expireopt,
 	
 	conn, curs, insert,
@@ -1860,4 +1865,5 @@ module.exports = {
 	ranking,
 	
 	getDefaultGrantPermissions,
+	readdir,
 };
