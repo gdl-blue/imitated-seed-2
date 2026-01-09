@@ -13,8 +13,13 @@ const fs = require('fs');
 const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
-const captchapng = require('captchapng');
 const nodemailer = require('nodemailer');
+
+const svgCaptcha = require('svg-captcha-fixed');
+svgCaptcha.options.width = 120;
+svgCaptcha.options.height = 45;
+svgCaptcha.options.noise = 2;
+svgCaptcha.options.color = true;
 
 const database = require('./database');
 for(var item in database) global[item] = database[item];
@@ -1598,7 +1603,7 @@ function cacheViews() {
 		views[path.parse(view).name.toLowerCase()] = swig.compileFile(`./views/${view}`);
 }
 
-function generateCaptcha(req, num, isEdit = false) {
+function generateCaptcha(req, isEdit = false) {
     if(!hostconfig.enable_captcha) return '';
     if(hasperm(req, 'skip_captcha')) return '';
     if(!isEdit && hasperm(req, 'no_force_recaptcha')) return '';
@@ -1608,47 +1613,28 @@ function generateCaptcha(req, num, isEdit = false) {
     var fullnum = '';
     var caps = [];
     var retHTML = '';
+	var background;
     
-	if(num) {
-		numbers = [String(num).slice(0, 3), String(num).slice(3, 6)];
-	} else {
-		numbers.push(parseInt(Math.random() * 900 + 100));
-		numbers.push(parseInt(Math.random() * 900 + 100));
-    }
+	for(i=0; i<2; i++)
+		numbers.push(rndval('abcdefghijkmnprstuvwxyz123456789123456789123456789', 3));
 	
     for(i of numbers) {
         fullnum += i;
-        caps.push(new captchapng(120, 45, i));
+		background = random.choice(['aliceblue', 'azure', 'beige', 'blanchedalmond', 'cornsilk', 'ghostwhite', 'honeydew', 'ivory', 'lightcyan', 'linen', 'mintcream', 'oldlace', 'seashell', 'white']);
+		caps.push({
+			captcha: svgCaptcha(i, {
+				background,
+			}),
+			background,
+		});
     }
 	
 	var id = Math.round(Math.random() * 100000);
     
     req.session['captcha-' + id] = fullnum;
     
-    for(i of caps) {
-        switch(randint(1, 6)) {
-            case 1:
-                i.color(120, 200, 255, 255);
-                i.color(255, 255, 255, 255);
-            break; case 2:
-                i.color(46, 84, 84, 255);
-                i.color(52, 235, 195, 255);
-            break; case 3:
-                i.color(44, 56, 222, 255);
-                i.color(227, 43, 52, 255);
-            break; case 4:
-                i.color(31, 216, 220, 255);
-                i.color(255, 0, 0, 255);
-            break; case 5:
-                i.color(85, 170, 170, 255);
-                i.color(255, 255, 255, 255);
-            break; case 6:
-                i.color(225, 202, 48, 255);
-                i.color(9, 198, 122, 255);
-        }
-        const img = i.getBase64();
-        retHTML += `<img style="border-radius: 6px; border: 1px solid white; box-shadow: 3px 3px 20px 1px grey inset; display: inline-block; margin: 0 3px;" class=captcha-image src="data:image/png;base64,${Buffer.from(img, 'base64').toString('base64')}" />`;
-    }
+    for(i of caps)
+        retHTML += `<span style="width: 122px; height: 47px; background: ${background}; border-radius: 6px; border: 1px solid white; display: inline-block; margin: 0 3px;" class=captcha-image>${i.captcha}</span>`;
     
     return `\
         <div class=captcha-frame style="margin: 20px 0 20px 0; border-color: #000; border-width: 1px 1px 1px; border-style: solid; border-radius: 6px; display: table; padding: 10px; background: rgb(153, 208, 249); background: linear-gradient(rgb(153, 208, 249) 0%, rgb(13, 120, 200) 31%, rgb(43, 157, 242) 30%, rgb(202, 233, 255));">
@@ -1657,9 +1643,9 @@ function generateCaptcha(req, num, isEdit = false) {
             </div>
             
             <div class=captcha-input style="margin: 0 3px;">
-                <label style="color: white;">보이는 숫자 입력: </label><br />
+                <label style="color: white; display: block; margin: 0;">보이는 문자 입력: </label>
 				<input type=hidden name=captcha-id value=${id} />
-                <input type=text class=form-control name=captcha />
+                <input type=text class=form-control name=captcha style="margin: 0; width: 100%;" />
             </div>
         </div>`;
 }

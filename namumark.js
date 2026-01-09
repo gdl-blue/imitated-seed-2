@@ -11,7 +11,6 @@ const fs = require('fs');
 const diff = require('./cemerick-jsdifflib.js');
 const cookieParser = require('cookie-parser');
 const child_process = require('child_process');
-const captchapng = require('captchapng');
 const _jsdom = require('jsdom');
 function jsdom(content) {
 	if(_jsdom.JSDOM) {

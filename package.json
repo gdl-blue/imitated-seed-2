@@ -8,7 +8,6 @@
   "main": "server.js",
   "dependencies": {
     "body-parser": "^1.20.4",
-    "captchapng": "0.0.1",
     "cookie-parser": "^1.4.5",
     "express": "^4.22.1",
     "express-fileupload": "^1.4.0",
@@ -23,6 +22,7 @@
     "sha3": "^2.1.4",
     "sqlite3": "^4.2.0",
     "stream-json": "^1.8.0",
+    "svg-captcha-fixed": "^1.5.2",
     "swig": "^1.4.2",
     "wait-console-input": "^0.1.7"
   },
