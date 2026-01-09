@@ -1656,12 +1656,16 @@ function validateCaptcha(req, isEdit = false) {
     if(!isEdit && hasperm(req, 'no_force_recaptcha')) return true;
     
     try {
-        if(!req.body['captcha'] || !req.body['captcha-id'] || !req.session['captcha-' + req.body['captcha-id']] || req.body['captcha'].replace(/\s/g, '') != req.session['captcha-' + req.body['captcha-id']])
+        if(!req.body['captcha'] || !req.body['captcha-id'] || !req.session['captcha-' + req.body['captcha-id']] || req.body['captcha'].replace(/\s/g, '') != req.session['captcha-' + req.body['captcha-id']]) {
+			delete req.session['captcha-' + req.body['captcha-id']];
             return false;
+		}
     } catch(e) {
+		delete req.session['captcha-' + req.body['captcha-id']];
         return false;
     }
     
+	delete req.session['captcha-' + req.body['captcha-id']];
     return true;
 }
 
