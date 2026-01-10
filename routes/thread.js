@@ -188,7 +188,7 @@ router.get(/^\/discuss\/(.*)/, async function threadList(req, res) {
 				
 				${islogin(req) ? '' : `<p style="font-weight: bold; font-size: 1rem;">[알림] 비로그인 상태로 토론 주제를 생성합니다. 토론 내역에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 				
-				${generateCaptcha(req, req.session.captcha)}
+				${generateCaptcha(req)}
 				
 				<div class="btns">
 					<button id="createBtn" class="btn btn-primary" style="width: 8rem;">전송</button>
@@ -244,13 +244,11 @@ router.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	} while(1);
 	const newid = newID();
 	
-	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum, slug) values (?, ?, ?, ?, ?, ?, ?)",
+	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum, slug, deleted) values (?, ?, ?, ?, ?, ?, ?, '0')",
 					[doc.title, doc.namespace, req.body['topic'], 'normal', getTime(), tnum, newid]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, slug) values \
 					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					['1', req.body['text'], ip_check(req), getTime(), '0', '', '0', tnum, islogin(req) ? 'author' : 'ip', getperm('admin', ip_check(req), true) || getperm('developer', ip_check(req), true) || getperm('tribune', ip_check(req), true) || getperm('arbiter', ip_check(req), true) ? '1' : '0', newid]);
-	
-	delete req.session.captcha;
 	
 	res.redirect('/thread/' + tnum);
 });
@@ -493,7 +491,7 @@ router.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/raw$/, async function sendTh
 	
 	res.setHeader('content-type', 'text/plain');
 	if(!data.length || (data[0].hidden == '1' && !getperm('hide_thread_comment', ip_check(req)))) return res.send('');
-	res.send(data[0].content)
+	res.send(data[0].content);
 });
 
 router.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadData(req, res) {
@@ -510,96 +508,40 @@ router.get(/^\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)$/, async function sendThreadD
 	if(!rescount) return res.send(await showError(req, 'thread_not_found'));
 	
 	var data = await curs.execute("select username from res where tnum = ? and (id = '1')", [tnum]);
-	const fstusr = data[0]['username'];
+	const fstusr = data[0].username;
 	
-	var data = await curs.execute("select title, namespace, topic, status, slug from threads where tnum = ?", [tnum]);
-	const { title, topic, status, namespace } = data[0];
+	var data = await curs.execute("select title, namespace from threads where tnum = ?", [tnum]);
+	const { title, namespace } = data[0];
 	const doc = totitle(title, namespace);
 	
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
 	if(aclmsg) return res.send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 	
-	var content = ``;
 	var data = await curs.execute("select isadmin, type, id, content, username, time, hidden, hider, status, ismember from res where tnum = ? and (cast(id as integer) = 1 or (cast(id as integer) >= ? and cast(id as integer) < ?)) order by cast(id as integer) asc", [tnum, Number(tid), Number(tid) + 30]);
+	
+	const ipblock = {}, memberblock = {};
+	
 	for(var rs of data) {
-		var menu = '';
-		if(ver('4.19.0')) {
-			var _hidebtn = '';
-			if(getperm('hide_thread_comment', ip_check(req))) {
-				_hidebtn = `<a style="width: 100%;" class="btn btn-danger btn-sm" href="/admin/thread/${tnum}/${rs.id}/${rs.hidden == '1' ? 'show' : 'hide'}">[ADMIN] 숨기기${rs.hidden == '1' ? ' 해제' : ''}</a>`;
-			}
-			
-			if(rs.status != 1) menu = `
-				<span style="position: relative;">
-					<button onclick="$('.thread-popover:not(#popover-${rs.id})').hide(); $(this).next().fadeToggle('fast');" class="btn btn-secondary btn-sm" type=button style="background-color: transparent; padding: 8px 6px; line-height: 0px;">
-						<span style="border-left: .3em solid transparent; border-right: .3em solid transparent; border-top: .3em solid; display: inline-block; height: 0; vertical-align: middle; width: 0;"></span>
-					</button>
-					
-					<div class=thread-popover id=popover-${rs.id} class=wrapper style="z-index: 9999; display: none; position: absolute; top: 32px; right: -2px;">
-						<div class="tooltip-inner popover-inner" style="position: relative; background: #f9f9f9; border-radius: 5px; box-shadow: 0 5px 30px rgba(0, 0, 0, .2); color: #000; padding: 16px;">
-							<button data-state=wiki onclick="var btn = $(this); if(btn.attr('data-state') == 'wiki') window.rescontent${rs.id} = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(), $.ajax({ url: '/thread/${tnum}/${rs.id}/raw', dataType: 'html', success: function(d) { var obj = $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').text(d.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n')); obj.html(obj.html().replace(/\\n/g, '<br />')); btn.attr('data-state', 'raw'); btn.text('위키 보기'); if(!d) { alert('권한이 부족합니다.'); btn.click(); } } }); else $('div.res-wrapper[data-id=&quot;${rs.id}&quot;] > .res > .r-body').html(window.rescontent${rs.id}), btn.text('원문 보기'), btn.attr('data-state', 'wiki');" style="width: 100%;" class="btn btn-secondary btn-sm">원문 보기</button>
-							${_hidebtn}
-						</div>
-						<div class="tooltip-arrow popover-arrow" style="border-style: solid; height: 0; margin: 5px; position: absolute; width: 0; z-index: 1; border-width: 0 5px 5px; right: 5px; margin-bottom: 0; margin-top: 0; top: -5px; border-left-color: transparent !important; border-right-color: transparent !important; border-top-color: transparent !important; border-color: #f9f9f9;"></div>
-					</div>
-				</span>
-			`;
+		if(rs.ismember == 'author') {
+			if(memberblock[rs.username] === undefined)
+				memberblock[rs.username] = await userblocked(rs.username);
+			if(memberblock[rs.username])
+				rs.member_blocked = true;
+		} else if(rs.ismember == 'ip') {
+			if(ipblock[rs.username] === undefined)
+				ipblock[rs.username] = await ipblocked(rs.username);
+			if(ipblock[rs.username])
+				rs.ip_blocked = true;
 		}
-		
-		var rescontent = rs.status == 1
-			? (
-				rs.type == 'status'
-				? (ver('4.4.3') ? ('스레드 상태를 <strong>' + rs.content + '</strong>로 변경') : ('토픽 상태를 ' + rs.content + '로 변경'))
-				: (
-					rs.type == 'document'
-					? '스레드를 <strong>' + rs.content + '</strong> 문서로 이동'
-					: '스레드 주제를 <strong>' + rs.content + '</strong>로 변경'
-				)
-			) : await namumark(req, rs.content, 1);
-		
-		if(rs.hidden == '1') {
-			var rc = rescontent;
-			rescontent = '[' + rs.hider + '에 의해 숨겨진 글입니다.]';
-			if(getperm('hide_thread_comment', ip_check(req))) {
-				if(ver('4.13.0')) {
-					rescontent += '<a class="btn btn-danger btn-sm" onclick="$(this).parent().attr(\'class\', \'r-body\'); $(this).parent().html($(this).parent().children(\'.hidden-content\').html()); return false;">[ADMIN] SHOW</a><div class=hidden-content style="display:none">' + rc + '</div>';
-				} else {
-					rescontent += '<div class=text-line-break style="margin: 25px 0px 0px -10px; display:block"><a class=text onclick="$(this).parent().parent().children(\'.hidden-content\').show(); $(this).parent().css(\'margin\', \'15px 0 15px -10px\'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a><div class=line></div></div><div class=hidden-content style="display:none">' + rc + '</div>';
-				}
-			}
-		}
-		
-		content += `
-			<div class=res-wrapper data-id="${rs.id}">
-				<div class="res res-type-${rs.status == '1' ? 'status' : 'normal'}">
-					<div class="r-head${rs.username == fstusr ? ' first-author' : ''}">
-						<span class=num>
-							<a id="${rs.id}">#${rs.id}</a>&nbsp;
-						</span> ${ip_pas(rs.username, rs.ismember, 1).replace('<a h', rs.isadmin == '1' ? '<a style="font-weight: bold;" h' : '<a h').replace('<a style="', rs.isadmin == '1' ? '<a style="font-weight: bold; ' : '<a style="')}${rs['ismember'] == 'author' && await userblocked(rs.username) && !ver('4.13.0') ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 사용자'})</small>` : ''}${rs.ismember == 'ip' && await ipblocked(rs.username) ? ` <small>(${ver('4.11.3') ? '차단됨' : '차단된 아이피'})</small>` : ''}
-						<span class=pull-right>
-							${generateTime(toDate(rs.time), timeFormat)}
-							${menu}
-						</span>
-					</div>
-					
-					<div class="r-body${rs.hidden == '1' ? ' r-hidden-body' : ''}">
-						${rescontent}
-					</div>
-		`;
-		if(getperm('hide_thread_comment', ip_check(req)) && !ver('4.19.0')) {
-			content += `
-				<div class="combo admin-menu">
-					<a class="btn btn-danger btn-sm" href="/admin/thread/${tnum}/${rs.id}/${rs.hidden == '1' ? 'show' : 'hide'}">[ADMIN] 숨기기${rs.hidden == '1' ? ' 해제' : ''}</a>
-				</div>
-			`;
-		}
-		content += `
-				</div>
-			</div>
-		`;
+		if(rs.status != '1' || (rs.status == '1' && rs.type != 'status' && rs.type != 'document' && rs.type != 'topic'))
+			rs.rendered_content = await namumark(req, rs.content, 1);
 	}
 	
-	res.send(content);
+	res.send(await renderWithoutSkin(req, 'thread_res', {
+		res: data,
+		first_author: fstusr,
+		slug: (ver('4.16.0') ? slug : tnum),
+	}));
 });
 
 router.get(/^\/admin\/thread\/([a-zA-Z0-9]{18,24})\/(\d+)\/show$/, async function showHiddenComment(req, res) {

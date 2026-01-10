@@ -93,7 +93,7 @@ router.all(/^\/member\/signup$/, async function signupEmailScreen(req, res, next
 				<strong>가입후 탈퇴는 불가능합니다.</strong>
 			</p>
 			
-			${generateCaptcha(req, req.session.captcha)}
+			${generateCaptcha(req)}
 		
 			<div class=btns>
 				<button type=reset class="btn btn-secondary">초기화</button>
@@ -176,7 +176,7 @@ router.all(/^\/member\/signup\/(.*)$/, async function signupScreen(req, res, nex
 			break;
 		}
 		
-		var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [id.toLowerCase()]);
+		var data = await curs.execute("select username from users where lower(username) = ?", [id.toLowerCase()]);
 		if(data.length) {
 			var duplicate = 1;
 			break;

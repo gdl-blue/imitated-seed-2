@@ -1,35 +1,22 @@
-const path = require('path');
-const geoip = require('geoip-lite');
-const inputReader = require('wait-console-input');
-const { SHA3 } = require('sha3');
-const md5 = require('md5');
-const session = require('express-session');
-const swig = require('swig');
-const ipRangeCheck = require('ip-range-check');
-const bodyParser = require('body-parser');
-const fs = require('fs');
-const diff = require('./cemerick-jsdifflib.js');
-const cookieParser = require('cookie-parser');
-const child_process = require('child_process');
-const _jsdom = require('jsdom');
-function jsdom(content) {
-	if(_jsdom.JSDOM) {
-		// JSDOM 신버전용 코드
-		return (new _jsdom.JSDOM(content)).window.document;
-	} else {
-		// JSDOM 9.12.0 버전용 코드
-		return _jsdom.jsdom(content);
-	}
-}
-
 const hostconfig = require('./hostconfig');
 const functions = require('./functions');
 for(var item in functions) global[item] = functions[item];
+const database = require('./database');
+for(var item in database) global[item] = database[item];
+const jdm = require('jsdom');
+function jsdom(content) {
+	if(jdm.JSDOM) {
+		// JSDOM 신버전용 코드
+		return (new jdm.JSDOM(content)).window.document;
+	} else {
+		// JSDOM 9.12.0 버전용 코드
+		return jdm.jsdom(content);
+	}
+}
 
-const rHeadings = 
-	ver('4.7.2') 
-		? /^(=\s(((?!\s=).)*)\s=|==\s(((?!\s==).)*)\s==|===\s(((?!\s===).)*)\s===|====\s(((?!\s====).)*)\s====|=====\s(((?!\s=====).)*)\s=====|======\s(((?!\s======).)*)\s======|=[#]\s(((?!\s[#]=).)*)\s[#]=|==[#]\s(((?!\s[#]==).)*)\s[#]==|===[#]\s(((?!\s[#]===).)*)\s[#]===|====[#]\s(((?!\s[#]====).)*)\s[#]====|=====[#]\s(((?!\s[#]=====).)*)\s[#]=====|======[#]\s(((?!\s[#]======).)*)\s[#]======)$/gm
-		: /^(=\s(((?!\s=).)*)\s=|==\s(((?!\s==).)*)\s==|===\s(((?!\s===).)*)\s===|====\s(((?!\s====).)*)\s====|=====\s(((?!\s=====).)*)\s=====|======\s(((?!\s======).)*)\s======)$/gm ;
+const rHeadings = ver('4.7.2') 
+	? /^(=\s(((?!\s=).)*)\s=|==\s(((?!\s==).)*)\s==|===\s(((?!\s===).)*)\s===|====\s(((?!\s====).)*)\s====|=====\s(((?!\s=====).)*)\s=====|======\s(((?!\s======).)*)\s======|=[#]\s(((?!\s[#]=).)*)\s[#]=|==[#]\s(((?!\s[#]==).)*)\s[#]==|===[#]\s(((?!\s[#]===).)*)\s[#]===|====[#]\s(((?!\s[#]====).)*)\s[#]====|=====[#]\s(((?!\s[#]=====).)*)\s[#]=====|======[#]\s(((?!\s[#]======).)*)\s[#]======)$/gm
+	: /^(=\s(((?!\s=).)*)\s=|==\s(((?!\s==).)*)\s==|===\s(((?!\s===).)*)\s===|====\s(((?!\s====).)*)\s====|=====\s(((?!\s=====).)*)\s=====|======\s(((?!\s======).)*)\s======)$/gm ;
 
 const rHeading = [, ];
 for(var i=1; i<=6; i++) {
@@ -516,6 +503,7 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 	// 역링크 초기화
 	if(xref)
 		await curs.execute("delete from backlink where title = ? and namespace = ?", [doc.title, doc.namespace]);
+	
 	const xrefl = [];
 	
 	if(!data.includes('\n') && data.includes('\r')) data = data.replace(/\r/g, '\n');
@@ -1073,7 +1061,7 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 			}
 			let itd = processTitle(itf);
 			let d = await curs.execute("select content from documents where title = ? and namespace = ?", [itd.title, itd.namespace]);
-			let acl = await getacl(req, itd.title, itd.namespace, 'read', 1);
+			let acl = flags.includes('ignoreincludeacl') ? false : (await getacl(req, itd.title, itd.namespace, 'read', 1));
 			if(!d.length || acl) {
 				data = data.replace(finc, '');
 				continue;
@@ -1086,7 +1074,7 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 				let def = pd[1] ? item.replace(param + '=', '') : '';
 				d = d.replace(itema, params[param] || def);
 			}
-			d = await namumark(req, d, 0, itf, 'include noframe', title);
+			d = await namumark(req, d, 0, itf, 'include noframe' + (flags.includes('ignoreincludeacl') ? ' ignoreincludeacl' : ''), title);
 			d = d.replace(/\[include[(](((?![)]).)+)[)]\]/gi, '');
 			
 			data = data.replace(finc, d);
@@ -1229,25 +1217,22 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 				}
 			}
 			
-			content += `
+			content += `\
 				<h2 class=wiki-heading>${ns == '분류' ? '하위 분류' : ('"' + doc.title + '" 분류에 속하는 ' + ns)}</h2>
-				<div>전체 ${cnt}개 문서</div>
-			`;
+				<div>전체 ${cnt}개 문서</div>`;
 			
 			let listc = '<div class=wiki-category-container>';
 			let list = '';
 			for(let idx of Object.keys(indexes).sort()) {
-				list += `
+				list += `\
 					<div>
 						<h3 class=wiki-heading>${html.escape(idx)}</h3>
-						<ul class=wiki-list>
-				`;
+						<ul class=wiki-list>`;
 				for(let item of indexes[idx])
-					list += `
+					list += `\
 						<li>
 							<a href="/w/${encodeURIComponent(totitle(item.title, item.namespace))}">${html.escape(item.title)}</a>
-						</li>
-					`;
+						</li>`;
 				list += '</ul></div>';
 			}
 			listc += list + '</div>';
@@ -1257,23 +1242,23 @@ module.exports = async function namumark(req, content, discussion = 0, title = '
 		data += content;
 	}
 	
-	if(!discussion && !flags.includes('noframe') && !flags.includes('include')) data = '<div class="wiki-content clearfix">' + data + '</div>';
+	if(!discussion && !flags.includes('noframe') && !flags.includes('include'))
+		data = '<div class="wiki-content clearfix">' + data + '</div>';
 	
 	// 분류
 	if(!flags.includes('noframe') && !flags.includes('include')) {
 		if(cates) {
-			data = `
+			data = `\
 				<div class=wiki-category>
 					<h2>분류</h2>
 					<ul>${cates}</ul>
-				</div>
-			` + data;
+				</div>` + data;
 		} else if(doc.namespace != '사용자' && !discussion && !flags.includes('preview')) {
 			data = alertBalloon('이 문서는 분류가 되어 있지 않습니다. <a href="/w/분류:분류">분류:분류</a>에서 적절한 분류를 찾아 문서를 분류해주세요!', 'info', true, undefined, undefined, 'wikiNoCategoryAlert') + data;
 		}
 	}
 	
-	// 리터럴블록 복구
+	// 리터럴 블록 복구
 	for(var item in nwblocks) {
 		var nwdata = nwblocks[item];
 		

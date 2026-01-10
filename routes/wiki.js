@@ -68,10 +68,10 @@ router.get(/^\/w\/(.*)/, async function viewDocument(req, res) {
 	
 	var star_count = 0, starred = false;
 	if(rawContent.length) {
-		var dbdata = await curs.execute("select title, namespace from stars where username = ? and title = ? and namespace = ?", [ip_check(req), doc.title, doc.namespace]);
-		if(dbdata.length) starred = true;
-		var dd = await curs.execute("select count(title) from stars where title = ? and namespace = ?", [doc.title, doc.namespace]);
-		star_count = dd[0]['count(title)'];
+		var dbdata = await db.get("select title, namespace from stars where username = ? and title = ? and namespace = ?", [islogin(req) ? ip_check(req) : '', doc.title, doc.namespace]);
+		if(dbdata) starred = true;
+		var dd = await db.get("select count(title) from stars where title = ? and namespace = ?", [doc.title, doc.namespace]);
+		star_count = dd['count(title)'];
 	}
 
 	res.status(httpstat).send(await render2(req, totitle(doc.title, doc.namespace) + (rev ? (' (r' + rev + ' 판)') : ''), content, {

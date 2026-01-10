@@ -18,13 +18,13 @@
     "js-sha256": "^0.11.1",
     "jsdom": "^11.12.0",
     "md5": "^2.3.0",
+    "mysql": "^2.18.1",
     "nodemailer": "6.9.1",
     "sha3": "^2.1.4",
     "sqlite3": "^4.2.0",
     "stream-json": "^1.8.0",
     "svg-captcha-fixed": "^1.5.2",
-    "swig": "^1.4.2",
-    "wait-console-input": "^0.1.7"
+    "swig": "^1.4.2"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

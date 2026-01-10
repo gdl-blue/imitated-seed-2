@@ -14,9 +14,7 @@ router.get(/^\/blame\/(.*)/, async (req, res) => {
 	if(!dbdata.length) return res.send(await showError(req, 'revision_not_found'));
 	const revdata = dbdata[0];
 	
-	var content = `
-		미구현
-	`;
+	var content = `미구현`;
 	
 	res.send(await render2(req, doc + ' (Blame)', content, {
 		rev,

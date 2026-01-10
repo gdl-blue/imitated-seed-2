@@ -1,31 +1,8 @@
-const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
 const server = express();
-const conn = new sqlite3.Database('./wikidata.db', () => 1);
+const database = require('./database');
+for(var item in database) global[item] = database[item];
 const print = console.log;
-conn.commit = function() {};
-conn.sd = [];
-const curs = {
-	execute: function executeSQL(sql = '', params = []) {
-		return new Promise((resolve, reject) => {
-			if(sql.toUpperCase().startsWith("SELECT")) {
-				conn.all(sql, params, (err, retval) => {
-					if(err) return reject(err);
-					conn.sd = retval;
-					resolve(retval);
-				});
-			} else {
-				conn.run(sql, params, err => {
-					if(err) return reject(err);
-					resolve(0);
-				});
-			}
-		});
-	},
-	fetchall: function fetchSQLData() {
-		return conn.sd;
-	},
-};
 const html = {
 	escape(content = '') {
 		content = content.replace(/[&]/gi, '&amp;');
@@ -57,9 +34,9 @@ server.get(/^\/search\/(.*)/, async(req, res) => {
 	const page = Number(req.query['page'] || '1');
 	var limit = 0;
     if(page * 10 > 0) limit = page * 10 - 10;
-	var fdata = await curs.execute("select title, namespace, content from documents where (title like '%' || ? || '%' or content like '%' || ? || '%') order by title COLLATE NOCASE asc", [query, query]);
-	var data = await curs.execute("select title, namespace, content from documents where (title like '%' || ? || '%' or content like '%' || ? || '%') order by title asc limit ?, 10 COLLATE NOCASE", [query, query, limit]);
-	const ret = { page, lastpage: Math.ceil(fdata.length / 10), total: fdata.length, result: [] };
+	var fdata = await db.get("select count(title) from documents where (lower(title) like '%' || ? || '%' or lower(content) like '%' || ? || '%') order by title asc", [query.toLowerCase(), query.toLowerCase()]);
+	var data = await db.all("select title, namespace, content from documents where (lower(title) like '%' || ? || '%' or lower(content) like '%' || ? || '%') order by title asc limit ?, 10", [query.toLowerCase(), query.toLowerCase(), limit]);
+	const ret = { page, lastpage: Math.ceil(fdata['count(title)'] / 10), total: fdata['count(title)'], result: [] };
 	for(var item of data) {
 		ret.result.push({
 			title: item.title, 
@@ -75,5 +52,5 @@ server.get(/^\/api\/ranking$/, (req, res) => {
 });
 
 server.listen(25005, '127.5.5.5', e => {
-	print('실행 중.');
+	print('127.5.5.5:25005에서 실행 중. . . ');
 });

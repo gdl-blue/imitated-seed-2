@@ -1,0 +1,45 @@
+<ol class="breadcrumb link-nav">
+	<li><a href="?logtype=normal_thread">[열린 토론]</a></li>
+	<li><a href="?logtype=old_thread">[오래된 토론]</a></li>
+	<li><a href="?logtype=closed_thread">[닫힌 토론]</a></li>
+
+	<li><a href="?logtype=open_editrequest">[열린 편집 요청]</a></li>
+	<li><a href="?logtype=accepted_editrequest">[승인된 편집 요청]</a></li>
+	<li><a href="?logtype=closed_editrequest">[닫힌 편집 요청]</a></li>
+</ol>
+
+<table class="table table-hover">
+	<colgroup />
+		<col>
+		<col style="width: 22%; min-width: 100px;" />
+	</colgroup>
+	
+	<thead>
+		<tr>
+			<th>항목</th>
+			<th>수정 시간</th>
+		</tr>
+	</thead>
+	
+	<tbody>
+		{% for trd in recent_discuss %}
+		<tr>
+			<td>
+				{% if trd.state %}
+				<a href="/edit_request/{% if version.higher('4.16.0') %}{{ trd.slug }}{% else %}{{ trd.id }}{% endif %}">편집 요청 {% if version.higher('4.16.0') %}{{ trd.slug }}{% else %}{{ trd.id }}{% endif %}</a> (<a href="/discuss/{{ trd | to_title | url_encode }}">{{ trd|to_title }}</a>)
+				{% else %}
+				<a href="/thread/{% if version.higher('4.16.0') %}{{ trd.slug }}{% else %}{{ trd.tnum }}{% endif %}">{{ trd.topic }}</a> (<a href="/discuss/{{ trd | to_title | url_encode }}">{{ trd|to_title }}</a>)
+				{% endif %}
+			</td>
+			
+			<td>
+				{% if trd.state %}
+				{{ trd.date | to_date | localdate('Y-m-d H:i:s') }}
+				{% else %}
+				{{ trd.time | to_date | localdate('Y-m-d H:i:s') }}
+				{% endif %}
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>

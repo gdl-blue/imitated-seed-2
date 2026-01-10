@@ -1,29 +1,23 @@
 const path = require('path');
 const geoip = require('geoip-lite');
-const inputReader = require('wait-console-input');
 const { SHA3 } = require('sha3');
 const { sha256 } = require('js-sha256');
 const md5 = require('md5');
-const express = require('express');
-const session = require('express-session');
 const swig = require('swig');
 const ipRangeCheck = require('ip-range-check');
-const bodyParser = require('body-parser');
 const fs = require('fs');
 const diff = require('./cemerick-jsdifflib.js');
-const cookieParser = require('cookie-parser');
-const child_process = require('child_process');
 const nodemailer = require('nodemailer');
-
 const svgCaptcha = require('svg-captcha-fixed');
-svgCaptcha.options.width = 120;
+
+svgCaptcha.options.width = 130;
 svgCaptcha.options.height = 45;
-svgCaptcha.options.noise = 2;
+svgCaptcha.options.noise = 6;
 svgCaptcha.options.color = true;
 
+const hostconfig = require('./hostconfig');
 const database = require('./database');
 for(var item in database) global[item] = database[item];
-const hostconfig = require('./hostconfig');
 
 const timeFormat = 'Y-m-d H:i:s';  // 날짜 및 시간 기본 형식
 const _ = undefined;
@@ -84,11 +78,6 @@ function rndval(chars, length) {
 	return result;
 }
 
-function nullCoalesce(x, y) {
-	if(x == null) return y;
-	return x;
-}
-
 const cssColors = ['Black', 'Gray', 'Grey', 'Silver', 'White', 'Red', 'Maroon', 'Yellow', 'Olive', 'Lime', 'Green', 'Aqua', 'Cyan', 'Teal', 'Blue', 'Navy', 'Magenta', 'Fuchsia', 'Purple', 'DimGray', 'DimGrey', 'DarkGray', 'DarkGrey', 'LightGray', 'LightGrey', 'Gainsboro', 'WhiteSmoke', 'Brown', 'DarkRed', 'FireBrick', 'IndianRed', 'LightCoral', 'RosyBrown', 'Snow', 'MistyRose', 'Salmon', 'Tomato', 'DarkSalmon', 'Coral', 'OrangeRed', 'LightSalmon', 'Sienna', 'Seashell', 'Chocolate', 'SaddleBrown', 'SandyBrown', 'PeachPuff', 'Peru', 'Linen', 'Bisque', 'DarkOrange', 'BurlyWood', 'AntiqueWhite', 'Tan', 'NavajoWhite', 'BlanchedAlmond', 'PapayaWhip', 'Moccasin', 'Orange', 'Wheat', 'OldLace', 'FloralWhite', 'DarkGoldenRod', 'GoldenRod', 'CornSilk', 'Gold', 'Khaki', 'LemonChiffon', 'PaleGoldenRod', 'DarkKhaki', 'Beige', 'Ivory', 'LightGoldenRodYellow', 'LightYellow', 'OliveDrab', 'YellowGreen', 'DarkOliveGreen', 'GreenYellow', 'Chartreuse', 'LawnGreen', 'DarkGreen', 'DarkSeaGreen', 'ForestGreen', 'HoneyDew', 'LightGreen', 'LimeGreen', 'PaleGreen', 'SeaGreen', 'MediumSeaGreen', 'SpringGreen', 'MintCream', 'MediumSpringGreen', 'MediumAquaMarine', 'Aquamarine', 'Turquoise', 'LightSeaGreen', 'MediumTurquoise', 'Azure', 'DarkCyan', 'DarkSlateGray', 'DarkSlateGrey', 'LightCyan', 'PaleTurquoise', 'DarkTurquoise', 'CadetBlue', 'PowderBlue', 'LightBlue', 'DeepSkyBlue', 'SkyBlue', 'LightSkyBlue', 'SteelBlue', 'AliceBlue', 'DodgerBlue', 'LightSlateGray', 'LightSlateGrey', 'SlateGray', 'SlateGrey', 'LightSteelBlue', 'CornFlowerBlue', 'RoyalBlue', 'DarkBlue', 'GhostWhite', 'Lavender', 'MediumBlue', 'MidnightBlue', 'SlateBlue', 'DarkSlateBlue', 'MediumSlateBlue', 'MediumPurple', 'RebeccaPurple', 'BlueViolet', 'Indigo', 'DarkOrchid', 'DarkViolet', 'MediumOrchid', 'DarkMagenta', 'Plum', 'Thistle', 'Violet', 'Orchid', 'MediumVioletRed', 'DeepPink', 'HotPink', 'LavenderBlush', 'PaleVioletRed', 'Crimson', 'Pink', 'LightPink'];
 const cssColorMatches = cssColors.map(item => '#' + item.toLowerCase() + ' ');
 const whtags = ['br', 'hr', 'div', 'span', 'ul', 'a', 'b', 'strong', 'del', 's', 'ins', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'font', 'dl', 'dt', 'dd', 'label', 'sup', 'sub'];
@@ -132,16 +121,10 @@ function getDefaultGrantPermissions() {
 	return ret.join(',');
 }
 
-// 삐
+// 비프음
 function beep(cnt = 1) { // 경고음 재생
 	for(var i=1; i<=cnt; i++)
 		process.stdout.write('');
-}
-
-// 입력받기
-function input(prpt) {
-	process.stdout.write(prpt); // 일부러 이렇게. 바로하면 한글 깨짐.
-	return inputReader.readLine('');
 }
 
 // SHA-3 암호화
@@ -278,8 +261,10 @@ function ip_check(req, forceIP) {
 		else if(req.socket && req.socket.remoteAddress) ip = req.socket.remoteAddress;
 		else if(req.connection && req.connection.socket && req.connection.socket.remoteAddress) ip = req.connection.socket.remoteAddress;
 		else if(req.headers['x-forwarded-for']) ip = req.headers['x-forwarded-for'];
-		if(ip) return ip.replace(/\s/g, '').split(',')[0].replace(/^[:][:]ffff[:]/, '');
-		else return '127.0.0.1';
+		if(ip)
+			return ip.replace(/\s/g, '').split(',')[0].replace(/^[:][:]ffff[:]/, '');
+		else
+			return '127.0.0.1';
 	}
 }
 
@@ -885,6 +870,12 @@ function render(req, title = '', viewName = '', varlist = {}, error = null) {
 		if(!viewName)
 			return reject('viewName이 없음');
 		
+		var skipSkin = false;
+		if(varlist.__no_render_skin) {
+			skipSkin = true;
+			delete varlist.__no_render_skin;
+		}
+		
 		var _configData = await curs.execute("select key, value from config");
 		var configData = {};
 		for(var item of _configData)
@@ -924,7 +915,11 @@ function render(req, title = '', viewName = '', varlist = {}, error = null) {
 			higher: ver,
 			lower: verrev,
 		};
-		varlist['content'] = views[viewName](varlist);  // 항상 마지막에 있어야 함
+		
+		var rendered = views[viewName](varlist);
+		
+		if(skipSkin)
+			return resolve(rendered);
 		
 		const currentSkin = getSkin(req);
 		const skinConfig = skincfgs[currentSkin];
@@ -933,6 +928,7 @@ function render(req, title = '', viewName = '', varlist = {}, error = null) {
 			title,
 			viewName,
 		};
+		varlist['content'] = rendered;
 		
 		var body = skinTemplates[currentSkin][skinConfig.override_views.includes(viewName) ? viewName.toLowerCase() : 'default'](varlist);
 		
@@ -992,6 +988,11 @@ function render(req, title = '', viewName = '', varlist = {}, error = null) {
 		
 		resolve(header + body + footer);
 	});
+}
+
+function renderWithoutSkin(req, viewName = '', varlist = {}, error = null) {
+	varlist.__no_render_skin = true;
+	return render(req, null, viewName, varlist, error);
 }
 
 // ACL 종류
@@ -1603,6 +1604,30 @@ function cacheViews() {
 		views[path.parse(view).name.toLowerCase()] = swig.compileFile(`./views/${view}`);
 }
 
+function generateCaptchaData() {
+	var numbers = [];
+    var fullnum = '';
+    var i;
+	var caps = [];
+	var background;
+	
+	for(i=0; i<2; i++)
+		numbers.push(rndval('abcdefhijkmnprstuvwxyz123456789123456789123456789', randint(3, 4)));
+	
+    for(i of numbers) {
+        fullnum += i;
+		background = random.choice(['aliceblue', 'azure', 'beige', 'blanchedalmond', 'cornsilk', 'ghostwhite', 'honeydew', 'ivory', 'lightcyan', 'linen', 'mintcream', 'oldlace', 'seashell', 'white']);
+		caps.push(svgCaptcha(i, {
+			background,
+		}));
+    }
+	
+	return {
+		data: caps,
+		answer: fullnum,
+	};
+}
+
 function generateCaptcha(req, isEdit = false) {
     if(!hostconfig.enable_captcha) return '';
     if(hasperm(req, 'skip_captcha')) return '';
@@ -1613,28 +1638,15 @@ function generateCaptcha(req, isEdit = false) {
     var fullnum = '';
     var caps = [];
     var retHTML = '';
-	var background;
-    
-	for(i=0; i<2; i++)
-		numbers.push(rndval('abcdefghijkmnprstuvwxyz123456789123456789123456789', 3));
 	
-    for(i of numbers) {
-        fullnum += i;
-		background = random.choice(['aliceblue', 'azure', 'beige', 'blanchedalmond', 'cornsilk', 'ghostwhite', 'honeydew', 'ivory', 'lightcyan', 'linen', 'mintcream', 'oldlace', 'seashell', 'white']);
-		caps.push({
-			captcha: svgCaptcha(i, {
-				background,
-			}),
-			background,
-		});
-    }
+	const captchaData = generateCaptchaData();
 	
-	var id = Math.round(Math.random() * 100000);
+	var id = Math.random() * 100000000000000000;
+    req.session['captcha-' + id] = captchaData.answer;
     
-    req.session['captcha-' + id] = fullnum;
-    
-    for(i of caps)
-        retHTML += `<span style="width: 122px; height: 47px; background: ${background}; border-radius: 6px; border: 1px solid white; display: inline-block; margin: 0 3px;" class=captcha-image>${i.captcha}</span>`;
+	var cid = 1;
+    for(i of captchaData.data)
+        retHTML += `<span style="width: 132px; height: 47px; background: white; border-radius: 6px; border: 1px solid white; display: inline-block; margin: 0 3px;" class=captcha-image id=captcha-image-${cid++}>${i}</span>`;
     
     return `\
         <div class=captcha-frame style="margin: 20px 0 20px 0; border-color: #000; border-width: 1px 1px 1px; border-style: solid; border-radius: 6px; display: table; padding: 10px; background: rgb(153, 208, 249); background: linear-gradient(rgb(153, 208, 249) 0%, rgb(13, 120, 200) 31%, rgb(43, 157, 242) 30%, rgb(202, 233, 255));">
@@ -1645,7 +1657,32 @@ function generateCaptcha(req, isEdit = false) {
             <div class=captcha-input style="margin: 0 3px;">
                 <label style="color: white; display: block; margin: 0;">보이는 문자 입력: </label>
 				<input type=hidden name=captcha-id value=${id} />
-                <input type=text class=form-control name=captcha style="margin: 0; width: 100%;" />
+                <input type=text id=captchaInput name=captcha style="margin: 0; width: 180px;" />
+				<script>
+				document.write('<button id=refreshCaptchaBtn type=button>새로고침</button>');
+				$('#refreshCaptchaBtn').click(function() {
+					var btn = $(this);
+					var input = $('#captchaInput');
+					btn.attr('disabled', 'disabled');
+					input.attr('disabled', 'disabled');
+					$.ajax({
+						type: 'POST',
+						url: '/RegenerateCaptcha?id=${id}',
+						dataType: 'json',
+						success: function(data) {
+							for(var item in data)
+								$('#captcha-image-' + item).html(data[item]);
+							input.val('');
+							input.removeAttr('disabled');
+							btn.removeAttr('disabled');
+						},
+						error: function() {
+							btn.removeAttr('disabled');
+							alert('새로고침 실패!');
+						}
+					});
+				});
+				</script>
             </div>
         </div>`;
 }
@@ -1819,7 +1856,6 @@ module.exports = {
 	
 	rndval,
 	beep, 
-	input, 
 	sha3, 
 	sha256,
 	random, 
@@ -1839,10 +1875,8 @@ module.exports = {
 	whtags,
 	whattr,
 	
-	config, getSkin, getperm, hasperm, readFile, exists, requireAsync, render, render2, acltype, aclperms, exaclperms, fetchErrorString, fetchValue, alertBalloon, fetchNamespaces, err, showError, ip_pas, ipblocked, userblocked, getacl, navbtn, navbtnr, navbtnss, navigation, html, cacheSkinList, cacheViews, generateCaptcha, validateCaptcha,
+	config, getSkin, getperm, hasperm, readFile, exists, requireAsync, render, render2, renderWithoutSkin, acltype, aclperms, exaclperms, fetchErrorString, fetchValue, alertBalloon, fetchNamespaces, err, showError, ip_pas, ipblocked, userblocked, getacl, navbtn, navbtnr, navbtnss, navigation, html, cacheSkinList, cacheViews, generateCaptcha, validateCaptcha, generateCaptchaData,
 	processTitle, totitle, edittype, expireopt,
-	
-	conn, curs, insert,
 	
 	timeFormat, _, floorof, randint,
 	

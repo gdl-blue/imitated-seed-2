@@ -21,18 +21,17 @@ router.all(/^\/admin\/grant$/, async(req, res, next) => {
 		return res.send(await render2(req, '권한 부여', (error = err('alert', { code: 'invalid_username' })) + content, {}, _, error, 'grant'));
 	username = data[0].username;
 	if((hostconfig.owners || []).includes(username) && hostconfig.protect_owners && username != ip_check(req))
-		return res.send(await showError(req, 'permission'));
+		return res.send(await showError(req, 'invalid_permission'));
 	
-	var grantPermissions = config.getString('wiki.grant_permissions', getDefaultGrantPermissions()).replace(/\s/g, '').split(',').map(item => item);
+	var me = ip_check(req);
+	var grantPermissions = config.getString('wiki.grant_permissions', getDefaultGrantPermissions()).replace(/\s/g, '').split(',').map(item => item).filter(item => item != 'developer');
+	if(getperm('developer', me)) grantPermissions.push('developer');
 	
 	var chkbxs = '';
 	for(var prm of perms) {
-		if(!getperm('developer', ip_check(req)) && 'developer' == prm) continue;
-		if(!grantPermissions.includes(prm) && !getperm('developer', ip_check(req))) continue;
+		if(!grantPermissions.includes(prm) && !(getperm('developer', me) || (me == username && getperm(prm, me)))) continue;
 		if(ver('4.20.0') && prm == 'no_force_recaptcha') prm = 'no_force_captcha';
-		chkbxs += `
-			${prm} <input type=checkbox ${getperm(prm, username, true) ? 'checked' : ''} name=permissions value="${prm}" /><br />
-		`;
+		chkbxs += `${prm} <input type=checkbox ${getperm(prm, username, true) ? 'checked' : ''} name=permissions value="${prm}" /><br />`;
 	}
 	
 	content += `
@@ -60,8 +59,7 @@ router.all(/^\/admin\/grant$/, async(req, res, next) => {
 		
 		var logstring = '';
 		for(var prm of perms) {
-			if(!getperm('developer', ip_check(req)) && 'developer' == prm) continue;
-			if(!grantPermissions.includes(prm) && !getperm('developer', ip_check(req))) continue;
+			if(!grantPermissions.includes(prm) && !(getperm('developer', me) || (me == username && getperm(prm, me)))) continue;
 			if(getperm(prm, username, true) && (typeof(prmval.find(item => item == prm)) == 'undefined')) {
 				logstring += '-' + (ver('4.20.0') && item == 'no_force_recaptcha' ? 'no_force_captcha' : prm) + ' ';
 				if(permlist[username]) permlist[username].splice(permlist[username].findIndex(item => item == prm), 1);

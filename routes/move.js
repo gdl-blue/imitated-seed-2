@@ -13,45 +13,15 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 	const o_o = await curs.execute("select title from history where title = ? and namespace = ?", [doc.title, doc.namespace]);
 	if(!o_o.length) return res.send(await showError(req, 'document_not_found'));
 	
-	// 원래 이랬나...?
-	var content = `
-		<form method=post id=moveForm>
-			<div>
-				<label>변경할 문서 제목 : </label><br />
-				<input name=title type=text style="width: 250px;" id=titleInput />
-			</div>
-			
-			<div>
-				<label>요약 : </label><br />
-				<input style="width: 600px;" name=log type=text id=logInput />
-			</div>
-			
-			${ver('4.2.4') ? `
-			<div>
-				<label>문서를 서로 맞바꾸기 : </label><br />
-				<input type=checkbox name=mode value=swap />
-			</div>
-			` : ''
-			}
-			
-			${generateCaptcha(req, req.session.captcha)}
-			
-			<div>
-				<button type=submit>이동</button>
-			</div>
-		</form>
-	`;
+	const captcha = generateCaptcha(req);
 	
 	var error = null;
 	
 	if(req.method == 'POST') do {
-		if(!validateCaptcha(req)) { content = (error = err('alert', { code: 'captcha_validation_failed' })) + content; break; }
+		if(!validateCaptcha(req)) { error = err('alert', { code: 'captcha_validation_failed' }); break; }
 		
 		if(doc.namespace == '사용자')
-			if((ver('4.11.0') && !doc.title.includes('/')) || !ver('4.11.0')) {
-				content = (error = err('alert', 'disable_user_document')) + content;
-				break;
-			}
+			if((ver('4.11.0') && !doc.title.includes('/')) || !ver('4.11.0')) { error = err('alert', 'disable_user_document'); break; }
 		
 		var doccontent = '';
 		const o_o = await curs.execute("select content from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
@@ -61,7 +31,7 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 		const recentRev = _recentRev[0];
 		
 		if(!req.body['title']) {
-			content = (error = err('alert', { code: 'validator_required', tag: 'title' })) + content;
+			error = err('alert', { code: 'validator_required', tag: 'title' });
 			break;
 		}
 		
@@ -103,7 +73,8 @@ router.all(/^\/move\/(.*)/, async(req, res, next) => {
 		return res.redirect('/w/' + encodeURIComponent(newdoc + ''));
 	} while(0);
 	
-	res.send(await render2(req, doc + ' (이동)', content, {
+	res.send(await render(req, doc + ' (이동)', 'move', {
 		document: doc,
-	}, '', error, 'move'));
+		captcha,
+	}, error));
 });

@@ -204,7 +204,7 @@ if(ver('4.18.6')) {
 		var error = null;
 		
 		if(req.method == 'POST') {
-			var data = await curs.execute("select username, password from users where lower(username) = ? and password = ? COLLATE NOCASE", [ip_check(req).toLowerCase(), sha3(req.body['old_password'] || '')]);
+			var data = await curs.execute("select username, password from users where lower(username) = ? and password = ?", [ip_check(req).toLowerCase(), sha3(req.body['old_password'] || '')]);
 			var invalidpw = !data.length;
 		}
 		
@@ -250,7 +250,7 @@ if(ver('4.18.6')) {
 		if(!islogin(req)) return res.redirect('/member/login?redirect=%2Fmember%2Fmypage');
 		
 		if(req.method == 'POST') {
-			var data = await curs.execute("select username, password from users where lower(username) = ? and password = ? COLLATE NOCASE", [ip_check(req).toLowerCase(), sha3(req.body['password'] || '')]);
+			var data = await curs.execute("select username, password from users where lower(username) = ? and password = ?", [ip_check(req).toLowerCase(), sha3(req.body['password'] || '')]);
 			var invalidpw = !data.length
 		}
 		

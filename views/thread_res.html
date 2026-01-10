@@ -1,0 +1,53 @@
+{% for rs in res %}
+<div class=res-wrapper data-id="{{ rs.id }}">
+	<div class="res res-type-{% if rs.status == '1' %}status{% else %}normal{% endif %}">
+		<div class="r-head{% if rs.username == first_author %} first-author{% endif %}">
+			<span class=num>
+				<a id="{{ rs.id }}">#{{ rs.id }}</a>&nbsp;
+			</span> {{ rs | render_user(true) | res_admin(rs) }}{% if rs.member_blocked %} <small>({% if version.higher('4.11.3') %}차단됨{% else %}차단된 사용자{% endif %})</small>{% endif %}{% if rs.ip_blocked %} <small>({% if version.higher('4.11.3') %}차단됨{% else %}차단된 아이피{% endif %})</small>{% endif %}
+			<span class=pull-right>
+				{{ rs.time | to_date | localdate('Y-m-d H:i:s') }}
+			</span>
+		</div>
+		
+		<div class="r-body{% if rs.hidden == '1' %} r-hidden-body{% endif %}">
+			{% if rs.hidden == '1' %}
+				[{{ rs.hider }}에 의해 숨겨진 글입니다.]
+				{% if perms.has('hide_thread_comment') %}
+				<div class=text-line-break style="margin: 25px 0px 0px -10px; display:block">
+					<a class=text onclick="$(this).parent().parent().children('.hidden-content').show(); $(this).parent().css('margin', '15px 0 15px -10px'); $(this).hide(); return false;" style="display: block; color: #fff;">[ADMIN] Show hidden content</a>
+					<div class=line></div>
+				</div>
+				<div class=hidden-content style="display:none">
+				{% endif %}
+			{% endif %}
+			
+			{% if (rs.hidden == '1' && perms.has('hide_thread_comment')) || rs.hidden != '1' %}
+				{% if rs.status == '1' %}
+					{% if rs.type == 'status' %}
+						{% if version.higher('4.4.3') %}스레드{% else %}토픽{% endif %} 상태를 <strong>{{ rs.content }}</strong>로 변경
+					{% elseif rs.type == 'document' %}
+						스레드를 <strong>{{ rs.content }}</strong> 문서로 이동
+					{% elseif rs.type == 'topic' %}
+						스레드 주제를 <strong>{{ rs.content }}</strong>로 변경
+					{% else %}
+					{{ rs.rendered_content|safe }}
+					{% endif %}
+				{% else %}
+					{{ rs.rendered_content|safe }}
+				{% endif %}
+			{% endif %}
+			
+			{% if rs.hidden == '1' && perms.has('hide_thread_comment') %}
+				</div>
+			{% endif %}
+		</div>
+		
+		{% if perms.has('hide_thread_comment') && !version.higher('4.19.0') %}
+		<div class="combo admin-menu">
+			<a class="btn btn-danger btn-sm" href="/admin/thread/{{ slug }}/{{ rs.id }}/{% if rs.hidden == '1' %}show{% else %}hide{% endif %}">[ADMIN] 숨기기{% if rs.hidden == '1' %} 해제{% endif %}</a>
+		</div>
+		{% endif %}
+	</div>
+</div>
+{% endfor %}

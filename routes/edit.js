@@ -82,7 +82,7 @@ router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
-			${((islogin(req) && req.session.edit_count % 20 == 0) || req.session.edit_count % 10 == 0) ? generateCaptcha(req, req.session.captcha, true) : ''}
+			${((islogin(req) && req.session.edit_count % 20 == 0) || req.session.edit_count % 10 == 0) ? generateCaptcha(req, true) : ''}
 			
 			<div class=btns>
 				<button id=editBtn class="btn btn-primary" style="width: 100px;">저장</button>
@@ -199,7 +199,6 @@ router.all(/^\/edit\/(.*)/, async function editDocument(req, res, next) {
 			await curs.execute("update documents set content = ? where title = ? and namespace = ?", [text, doc.title, doc.namespace]);
 			curs.execute("update stars set lastedit = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);
 		}
-		delete req.session.captcha;
 		res.cookie('agree', '1', { expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 360) });
 		
 		curs.execute("update documents set time = ? where title = ? and namespace = ?", [getTime(), doc.title, doc.namespace]);

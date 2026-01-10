@@ -1,0 +1,26 @@
+{% if error && error.type == 'alert' %}{{ error }}{% endif %}
+
+<form method=post id=moveForm>
+	<div>
+		<label>변경할 문서 제목 : </label><br />
+		<input name=title type=text style="width: 250px;" id=titleInput{% if req_method == 'POST' %} value="{{ req_body['title'] }}"{% endif %} />
+	</div>
+	
+	<div>
+		<label>요약 : </label><br />
+		<input style="width: 600px;" name=log type=text id=logInput{% if req_method == 'POST' %} value="{{ req_body['log'] }}"{% endif %} />
+	</div>
+	
+	{% if version.higher('4.2.4') %}
+	<div>
+		<label>문서를 서로 맞바꾸기 : </label><br />
+		<input type=checkbox name=mode value=swap{% if req_method == 'POST' && req_body['mode'] == 'swap' %} checked=checked{% endif %} />
+	</div>
+	{% endif %}
+	
+	{{ captcha }}
+	
+	<div>
+		<button type=submit>이동</button>
+	</div>
+</form>

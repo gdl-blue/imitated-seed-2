@@ -24,7 +24,7 @@ router.get(/^\/BlockHistory$/, async(req, res) => {
 			pa = [query, query];
 		}
 	}
-	var total = (await curs.execute("select count(logid) from block_history"))[0]['count(logid)'];
+	var total = (await db.get("select count(logid) from block_history"))['count(logid)'];
 	
 	const from = req.query['from'];
 	const until = req.query['until'];

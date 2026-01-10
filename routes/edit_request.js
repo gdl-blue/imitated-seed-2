@@ -232,6 +232,7 @@ router.get(ver('4.16.0') ? /^\/edit_request\/([a-zA-Z]+)$/ : /^\/edit_request\/(
 	
 	return res.send(await render2(req, doc + ' (편집 요청 ' + id + ')', content, {
 		document: doc,
+		edit_request_id: id,
 	}, _, error, 'edit_request'));
 });
 
@@ -378,7 +379,7 @@ router.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 			
 			${islogin(req) ? '' : `<p style="font-weight: bold;">비로그인 상태로 편집합니다. 편집 역사에 IP(${ip_check(req)})가 영구히 기록됩니다.</p>`}
 			
-			${generateCaptcha(req, req.session.captcha)}
+			${generateCaptcha(req)}
 			
 			<div class="btns">
 				<button id="editBtn" class="btn btn-primary" style="width: 100px;">저장</button>
@@ -404,8 +405,6 @@ router.all(/^\/new_edit_request\/(.*)$/, async(req, res, next) => {
 		const slug = newID();
 		await curs.execute("insert into edit_requests (title, namespace, id, state, content, baserev, username, ismember, log, date, processor, processortype, lastupdate, slug) values (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, '', '', ?, ?)", 
 														[doc.title, doc.namespace, id, req.body['text'] || '', baserev, ip_check(req), islogin(req) ? 'author' : 'ip', req.body['log'] || '', getTime(), getTime(), slug]);
-		
-		delete req.session.captcha;
 		
 		return res.redirect('/edit_request/' + (ver('4.16.0') ? slug : id));
 	} while(0);

@@ -1,73 +1,27 @@
-const sqlite3 = require('sqlite3').verbose();
-const inputReader = require('wait-console-input');
-const conn = new sqlite3.Database('./wikidata.db', () => 1);
 const fs = require('fs');
-const StreamArray = require( 'stream-json/streamers/StreamArray');
-
-function Split(str, del) { return str.split(del); }; const split = Split;
-function UCase(s) { return s.toUpperCase(); }; const ucase = UCase;
-function LCase(s) { return s.toUpperCase(); }; const lcase = LCase;
+const StreamArray = require('stream-json/streamers/StreamArray');
+const database = require('./database');
+for(var item in database) global[item] = database[item];
 
 const print = console.log;
 
-function input(prpt) {
-	process.stdout.write(prpt);
-	return inputReader.readLine('');
-}
-
 const noderl = require('readline');
-function readline(prompt, hide) {
+function readline(prompt) {
 	const rl = noderl.createInterface(process.stdin, process.stdout);
-	var pwchar = '';
-	rl._writeToOutput = function(s) {
-		if (rl.x)
-			rl.output.write('*'), pwchar += '*';
-		else
-			rl.output.write(s);
-	};
-	
-	return new Promise(r => {
+	return new Promise((resolve, reject) => {
 		rl.question(prompt, ret => {
 			rl.close();
-			if(hide) process.stdout.write('\r' + prompt + pwchar.replace(/[*]$/, '') + ' \n'), rl.history = rl.history.slice(1);;
-			r(ret);
+			resolve(ret);
 		});
-		
-		if(hide) rl.x = 1;
 	});
 }
 
 print('---- 나무위키 & 알파위키 데이타베이스 변환기 ----');
 
-conn.commit = function() {};
-conn.sd = [];
-
-const curs = {
-	execute: function executeSQL(sql = '', params = []) {
-		return new Promise((resolve, reject) => {
-			if(UCase(sql).startsWith("SELECT")) {
-				conn.all(sql, params, (err, retval) => {
-					if(err) return reject(err);
-					conn.sd = retval;
-					resolve(retval);
-				});
-			} else {
-				conn.run(sql, params, err => {
-					if(err) return reject(err);
-					resolve(0);
-				});
-			}
-		});
-	},
-	fetchall: function fetchSQLData() {
-		return conn.sd;
-	},
-};
-
 (async() => {
-	var dbdata = await curs.execute("select value from config where key = 'wiki.site_name' limit 1");
-	if(!dbdata.length) return print('위키가 초기화되지 않았습니다');
-	const wikiname = dbdata[0].value;
+	var dbdata = await db.get("select value from config where key = 'wiki.site_name' limit 1");
+	if(!dbdata) return print('위키가 초기화되지 않았습니다');
+	const wikiname = dbdata.value;
 	const namespaces = ['문서', '틀', '분류', '파일', '사용자', '특수기능', wikiname, '토론', '휴지통', '투표'];
 	
 	function processTitle(d) {
@@ -121,7 +75,7 @@ const curs = {
 	print('\n문서가 위키에 이미 존재하면 어떻게 하시겠습니까?');
 	print('1) 건너뛰기');
 	print('2) 덮어쓰기');
-	const overwrite = Number(input(' => ')) - 1;
+	const overwrite = parseInt(await readline(' => ')) - 1;
 	if(![0, 1].includes(overwrite)) return print('입력이 잘못되었습니다');
 	
 	print('\n일부 문서만 가져오고 싶다면 제목을 입력해 주십시오');
@@ -136,7 +90,7 @@ const curs = {
 	print('\n어떤 위키에서 가져오고 계십니까?');
 	print('1) 나무위키');
 	print('2) 알파위키');
-	const prefix = [, 'N:', 'A:'][input(' => ')];
+	const prefix = [, 'N:', 'A:'][await readline(' => ')];
 	if(!prefix) return print('입력이 잘못되었습니다');
 	
 	var jsonname = await readline('\nJSON 파일 이름: ');
@@ -148,17 +102,17 @@ const curs = {
 	var pr = 0;
 	var iv = null;
 	
-	jsonStream.on('data', (d) => {
+	jsonStream.on('data', d => {
 		count++;
 		const title = d.value.title;
 		const namespace = namespaces[d.value.namespace];
 		if(docs.length && !docs.includes(totitle(title, namespace) + '')) return;
 		(async() => {
-			var dbdata = await curs.execute("select title from documents where title = ? and namespace = ?", [title, namespace]);
-			if(dbdata.length) {
+			var dbdata = await db.get("select title from documents where title = ? and namespace = ?", [title, namespace]);
+			if(dbdata) {
 				if(overwrite) {
-					await curs.execute("delete from documents where title = ? and namespace = ?", [title, namespace]);
-					await curs.execute("delete from history where title = ? and namespace = ?", [title, namespace]);
+					await db.run("delete from documents where title = ? and namespace = ?", [title, namespace]);
+					await db.run("delete from history where title = ? and namespace = ?", [title, namespace]);
 				} else {
 					print(totitle(title, namespace) + '이(가) 중복되어 건너뜁니다');
 					pr++;
@@ -168,10 +122,10 @@ const curs = {
 			print('처리 중 - ' + totitle(title, namespace));
 			var rev = 1;
 			const content = d.value.text || d.value.content;
-			await curs.execute("insert into documents (title, namespace, content) values (?, ?, ?)", [title, namespace, content]);
-			await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, content, rev++, 'External Importer', String(new Date().getTime()), '+' + content.length, 'fork', 'author', 'create']);
+			await db.run("insert into documents (title, namespace, content) values (?, ?, ?)", [title, namespace, content]);
+			await db.run("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, content, rev++, 'External Importer', String(new Date().getTime()), '+' + content.length, 'fork', 'author', 'create']);
 			if(d.value.contributors) for(var item of d.value.contributors)
-				await curs.execute("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, content, rev++, (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || item.includes(':') ? item : (prefix + item)), String(new Date().getTime()), '0', 'contributor', (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || (item.includes(':') && !item.match(/^.[:]/)) ? 'ip' : 'author'), 'normal']);
+				await db.run("insert into history (title, namespace, content, rev, username, time, changes, log, ismember, advance) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [title, namespace, content, rev++, (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || item.includes(':') ? item : (prefix + item)), String(new Date().getTime()), '0', 'contributor', (item.match(/(\d+)[.](\d+)[.](\d+)[.](\d+)/) || (item.includes(':') && !item.match(/^.[:]/)) ? 'ip' : 'author'), 'normal']);
 			pr++;
 		})();
 	});

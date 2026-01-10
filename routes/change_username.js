@@ -10,7 +10,7 @@ if(hostconfig.allow_account_rename) router.all(/^\/member\/change_username$/, as
 		if(!req.body['new_username'])
 			var nonewusername = 1;
 		
-		var data = await curs.execute("select username from users where lower(username) = ? COLLATE NOCASE", [req.body['new_username'].toLowerCase()]);
+		var data = await curs.execute("select username from users where lower(username) = ?", [req.body['new_username'].toLowerCase()]);
 		if(data.length)
 			var duplicate = 1;
 		

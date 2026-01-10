@@ -39,7 +39,7 @@ router.all(/^\/Upload$/, async(req, res, next) => {
 	for(var cate of catelst)
 		categories.push(cate.title.replace('파일/', ''));
 
-	const captcha = generateCaptcha(req, req.session.captcha);
+	const captcha = generateCaptcha(req);
 	const identifier = `${islogin(req) ? 'm' : 'i'}:${ip_check(req)}`;
 	
 	var error = null;

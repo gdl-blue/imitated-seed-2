@@ -6,7 +6,7 @@ router.get(/^\/history\/(.*)/, async function viewHistory(req, res) {
 	var aclmsg = await getacl(req, doc.title, doc.namespace, 'read', 1);
 	if(aclmsg) return res.status(403).send(await showError(req, { code: 'permission_read', msg: aclmsg }));
 	
-	var total = (await curs.execute("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))[0]['count(rev)'];
+	var total = (await db.get("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))['count(rev)'];
 	var data;
 	const from = req.query['from'];
 	const until = req.query['until'];
@@ -42,7 +42,7 @@ router.get(/^\/admin\/history\/(.*)\/(\d+)\/delete$/, async (req, res) => {
 	var title = req.params[0];
 	const doc = processTitle(title);
 	const rev = req.params[1];
-	const total = (await curs.execute("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))[0]['count(rev)'];
+	const total = (await db.get("select count(rev) from history where title = ? and namespace = ?", [doc.title, doc.namespace]))['count(rev)'];
 	if(parseInt(rev) == total) {
 		if(rev == '1') {
 			await curs.execute("delete from documents where title = ? and namespace = ?", [doc.title, doc.namespace]);
