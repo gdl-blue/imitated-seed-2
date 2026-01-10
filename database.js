@@ -26,7 +26,9 @@ switch(hostconfig.database_type || 'sqlite') {
 		db._get = db.get;
 		db._all = db.all;
 
-		db.run = function run(query, params = []) {
+		db.run = function run(query, params = [], replaceEnum = false) {
+			if(replaceEnum)
+				query = query.replace(/ENUM\([\'a-zA-Z0-9_\s,-]+\)/g, 'TEXT');
 			return new Promise((resolve, reject) => {
 				db._run(query, params, (err, result) => {
 					if(err) return reject(err);
