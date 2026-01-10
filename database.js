@@ -2,14 +2,14 @@ const hostconfig = require('./hostconfig.js');
 var db = null, curs = null;
 
 function adapt(sql) {
-	const keywords = new Set(['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'GROUP', 'BY', 'ORDER', 'LIMIT', 'JOIN', 'ON', 'AS', 'IS', 'NULL', 'NOT', 'LIKE', 'ASC', 'DESC', 'CREATE', 'TABLE', 'TEXT', 'DEFAULT', 'DISTINCT', 'CAST', 'LOWER', 'UPPER', 'COLLATE', 'ALTER', 'ADD', 'COUNT']);
+	const keywords = new Set(['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'GROUP', 'BY', 'ORDER', 'LIMIT', 'JOIN', 'ON', 'AS', 'IS', 'NULL', 'NOT', 'LIKE', 'ASC', 'DESC', 'CREATE', 'TABLE', 'TEXT', 'DEFAULT', 'DISTINCT', 'CAST', 'LOWER', 'UPPER', 'COLLATE', 'ALTER', 'ADD', 'COUNT', 'REFERENCES', 'FOREIGN', 'UNIQUE', 'PRIMARY', 'KEY', 'CONSTRAINT', 'REFERENCES', 'CASCADE']);
 	const regex = /'[^']*'|\b([a-z_][a-z0-9_]*)\b/gi;
 	return sql.replace(regex, (match, group) => {
 		if(!group) 
 			return match;
 		if(group.toUpperCase() == 'INTEGER') 
 			return 'SIGNED';
-		if(keywords.has(group.toUpperCase())) 
+		if(keywords.has(group.toUpperCase()) && group != 'key') 
 			return group;
 		if(group.startsWith('"') && group.endsWith('"')) 
 			return group;

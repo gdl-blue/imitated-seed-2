@@ -1,0 +1,265 @@
+CREATE TABLE documents (
+	title TEXT DEFAULT '' NOT NULL,
+	content TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	time TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE history (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	content TEXT DEFAULT '' NOT NULL,
+	rev TEXT DEFAULT '' NOT NULL,
+	time TEXT DEFAULT '' NOT NULL,
+	username TEXT DEFAULT '' NOT NULL,
+	changes TEXT DEFAULT '' NOT NULL,
+	log TEXT DEFAULT '' NOT NULL,
+	iserq TEXT DEFAULT '' NOT NULL,
+	erqnum TEXT DEFAULT '' NOT NULL,
+	advance TEXT DEFAULT '' NOT NULL,
+	ismember TEXT DEFAULT '' NOT NULL,
+	edit_request_id TEXT DEFAULT '' NOT NULL,
+	flags TEXT DEFAULT '' NOT NULL,
+	isapi TEXT DEFAULT '' NOT NULL,
+	loghider TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE namespaces (
+	namespace TEXT DEFAULT '' NOT NULL,
+	locked TEXT DEFAULT '' NOT NULL,
+	norecent TEXT DEFAULT '' NOT NULL,
+	file TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE users (
+	username TEXT DEFAULT '' NOT NULL,
+	password TEXT DEFAULT '' NOT NULL,
+	email TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE user_settings (
+	username TEXT DEFAULT '' NOT NULL,
+	key TEXT DEFAULT '' NOT NULL,
+	value TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE nsacl (
+	namespace TEXT DEFAULT '' NOT NULL,
+	no TEXT DEFAULT '' NOT NULL,
+	type TEXT DEFAULT '' NOT NULL,
+	content TEXT DEFAULT '' NOT NULL,
+	action TEXT DEFAULT '' NOT NULL,
+	expire TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE config (
+	key TEXT DEFAULT '' NOT NULL,
+	value TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE email_filters (
+	address TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE stars (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	username TEXT DEFAULT '' NOT NULL,
+	lastedit TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE perms (
+	perm TEXT DEFAULT '' NOT NULL,
+	username TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE threads (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	topic TEXT DEFAULT '' NOT NULL,
+	status TEXT DEFAULT '' NOT NULL,
+	time TEXT DEFAULT '' NOT NULL,
+	tnum TEXT DEFAULT '' NOT NULL,
+	deleted TEXT DEFAULT '' NOT NULL,
+	num TEXT DEFAULT '' NOT NULL,
+	slug TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE res (
+	id TEXT DEFAULT '' NOT NULL,
+	content TEXT DEFAULT '' NOT NULL,
+	username TEXT DEFAULT '' NOT NULL,
+	time TEXT DEFAULT '' NOT NULL,
+	hidden TEXT DEFAULT '' NOT NULL,
+	hider TEXT DEFAULT '' NOT NULL,
+	status TEXT DEFAULT '' NOT NULL,
+	tnum TEXT DEFAULT '' NOT NULL,
+	ismember TEXT DEFAULT '' NOT NULL,
+	isadmin TEXT DEFAULT '' NOT NULL,
+	type TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE useragents (
+	username TEXT DEFAULT '' NOT NULL,
+	string TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE login_history (
+	username TEXT DEFAULT '' NOT NULL,
+	ip TEXT DEFAULT '' NOT NULL,
+	time TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE account_creation (
+	key TEXT DEFAULT '' NOT NULL,
+	email TEXT DEFAULT '' NOT NULL,
+	time TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE acl (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	id TEXT DEFAULT '' NOT NULL,
+	type TEXT DEFAULT '' NOT NULL,
+	action TEXT DEFAULT '' NOT NULL,
+	expiration TEXT DEFAULT '' NOT NULL,
+	conditiontype TEXT DEFAULT '' NOT NULL,
+	condition TEXT DEFAULT '' NOT NULL,
+	ns TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE ipacl (
+	cidr TEXT DEFAULT '' NOT NULL,
+	al TEXT DEFAULT '' NOT NULL,
+	expiration TEXT DEFAULT '' NOT NULL,
+	note TEXT DEFAULT '' NOT NULL,
+	date TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE suspend_account (
+	username TEXT DEFAULT '' NOT NULL,
+	date TEXT DEFAULT '' NOT NULL,
+	expiration TEXT DEFAULT '' NOT NULL,
+	note TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE aclgroup_groups (
+	name TEXT DEFAULT '' NOT NULL,
+	admin TEXT DEFAULT '' NOT NULL,
+	date TEXT DEFAULT '' NOT NULL,
+	lastupdate TEXT DEFAULT '' NOT NULL,
+	css TEXT DEFAULT '' NOT NULL,
+	warning_description TEXT DEFAULT '' NOT NULL,
+	disallow_signup TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE aclgroup (
+	aclgroup TEXT DEFAULT '' NOT NULL,
+	type TEXT DEFAULT '' NOT NULL,
+	username TEXT DEFAULT '' NOT NULL,
+	note TEXT DEFAULT '' NOT NULL,
+	date TEXT DEFAULT '' NOT NULL,
+	expiration TEXT DEFAULT '' NOT NULL,
+	id TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE block_history (
+	date TEXT DEFAULT '' NOT NULL,
+	type TEXT DEFAULT '' NOT NULL,
+	aclgroup TEXT DEFAULT '' NOT NULL,
+	id TEXT DEFAULT '' NOT NULL,
+	duration TEXT DEFAULT '' NOT NULL,
+	note TEXT DEFAULT '' NOT NULL,
+	executer TEXT DEFAULT '' NOT NULL,
+	target TEXT DEFAULT '' NOT NULL,
+	ismember TEXT DEFAULT '' NOT NULL,
+	logid TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE edit_requests (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	id TEXT DEFAULT '' NOT NULL,
+	deleted TEXT DEFAULT '' NOT NULL,
+	state TEXT DEFAULT '' NOT NULL,
+	content TEXT DEFAULT '' NOT NULL,
+	baserev TEXT DEFAULT '' NOT NULL,
+	username TEXT DEFAULT '' NOT NULL,
+	ismember TEXT DEFAULT '' NOT NULL,
+	log TEXT DEFAULT '' NOT NULL,
+	date TEXT DEFAULT '' NOT NULL,
+	processor TEXT DEFAULT '' NOT NULL,
+	processortype TEXT DEFAULT '' NOT NULL,
+	lastupdate TEXT DEFAULT '' NOT NULL,
+	processtime TEXT DEFAULT '' NOT NULL,
+	reason TEXT DEFAULT '' NOT NULL,
+	rev TEXT DEFAULT '' NOT NULL,
+	slug TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE files (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	hash TEXT DEFAULT '' NOT NULL,
+	url TEXT DEFAULT '' NOT NULL,
+	size TEXT DEFAULT '' NOT NULL,
+	width TEXT DEFAULT '' NOT NULL,
+	height TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE backlink (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	link TEXT DEFAULT '' NOT NULL,
+	linkns TEXT DEFAULT '' NOT NULL,
+	type TEXT DEFAULT '' NOT NULL,
+	exist TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE classic_acl (
+	title TEXT DEFAULT '' NOT NULL,
+	namespace TEXT DEFAULT '' NOT NULL,
+	blockkorea TEXT DEFAULT '' NOT NULL,
+	blockbot TEXT DEFAULT '' NOT NULL,
+	read TEXT DEFAULT '' NOT NULL,
+	edit TEXT DEFAULT '' NOT NULL,
+	del TEXT DEFAULT '' NOT NULL,
+	discuss TEXT DEFAULT '' NOT NULL,
+	move TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE autologin_tokens (
+	username TEXT DEFAULT '' NOT NULL,
+	token TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE trusted_devices (
+	username TEXT DEFAULT '' NOT NULL,
+	id TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE api_tokens (
+	username TEXT DEFAULT '' NOT NULL,
+	token TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE recover_account (
+	key TEXT DEFAULT '' NOT NULL,
+	username TEXT DEFAULT '' NOT NULL,
+	email TEXT DEFAULT '' NOT NULL,
+	time TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE boardipacl (
+	cidr TEXT DEFAULT '' NOT NULL,
+	expiration TEXT DEFAULT '' NOT NULL,
+	note TEXT DEFAULT '' NOT NULL,
+	date TEXT DEFAULT '' NOT NULL
+);
+
+CREATE TABLE boardsuspendaccount (
+	username TEXT DEFAULT '' NOT NULL,
+	expiration TEXT DEFAULT '' NOT NULL,
+	note TEXT DEFAULT '' NOT NULL,
+	date TEXT DEFAULT '' NOT NULL
+);

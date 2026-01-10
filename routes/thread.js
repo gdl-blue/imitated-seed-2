@@ -244,7 +244,7 @@ router.post(/^\/discuss\/(.*)/, async function createThread(req, res) {
 	} while(1);
 	const newid = newID();
 	
-	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum, slug, deleted) values (?, ?, ?, ?, ?, ?, ?, '0')",
+	await curs.execute("insert into threads (title, namespace, topic, status, time, tnum, slug) values (?, ?, ?, ?, ?, ?, ?)",
 					[doc.title, doc.namespace, req.body['topic'], 'normal', getTime(), tnum, newid]);
 	await curs.execute("insert into res (id, content, username, time, hidden, hider, status, tnum, ismember, isadmin, slug) values \
 					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

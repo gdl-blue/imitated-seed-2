@@ -166,8 +166,8 @@ router.all(/^\/acl\/(.*)$/, async(req, res, next) => {
 					if(!isns && ver('4.16.0') && type == 'read') continue;
 					const edit = nseditable || (isns ? nseditable : editable);
 					content += `
-						<h4 class="wiki-heading">${acltype[type]}</h4>
-						<div class="seed-acl-div" data-type="${type}" data-editable="${edit}" data-isns="${isns}">
+						<h4 class=wiki-heading>${acltype[type]}</h4>
+						<div class=seed-acl-div data-type="${type}" data-editable="${edit}" data-isns="${isns}">
 							<div class=table-wrap${scrollable ? ' style="overflow-x: auto;"' : ''}>
 								<table class="table" style="width:100%">
 									<colgroup>

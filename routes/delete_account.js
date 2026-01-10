@@ -35,13 +35,12 @@ if(hostconfig.allow_account_deletion) router.all(/^\/member\/delete_account$/, a
 	`;
 	
 	if(req.method == 'POST' && !error) {
-		curs.execute("delete from users where username = ?", [username]);
-		curs.execute("delete from perms where username = ?", [username]);
-		curs.execute("delete from suspend_account where username = ?", [username]);
-		curs.execute("delete from user_settings where username = ?", [username]);
-		curs.execute("delete from acl where title = ? and namespace = '사용자'", [username]);
-		curs.execute("delete from classic_acl where title = ? and namespace = '사용자'", [username]);
-		curs.execute("delete from documents where title = ? and namespace = '사용자'", [username]);
+		await curs.execute("delete from perms where username = ?", [username]);
+		await curs.execute("delete from suspend_account where username = ?", [username]);
+		await curs.execute("delete from user_settings where username = ?", [username]);
+		await curs.execute("delete from acl where title = ? and namespace = '사용자'", [username]);
+		await curs.execute("delete from classic_acl where title = ? and namespace = '사용자'", [username]);
+		await curs.execute("delete from documents where title = ? and namespace = '사용자'", [username]);
 		/*
 		curs.execute("delete from history where title = ? and namespace = '사용자'", [username]);
 		*/
@@ -52,9 +51,9 @@ if(hostconfig.allow_account_deletion) router.all(/^\/member\/delete_account$/, a
 						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 			username, '사용자', '', String(Number(recentRev.rev) + 1), username, getTime(), '' + rawChanges, '', '0', '-1', 'author', 'delete'
 		]);
-		curs.execute("delete from login_history where username = ?", [username]);
-		curs.execute("delete from stars where username = ?", [username]);
-		curs.execute("delete from useragents where username = ?", [username]);
+		await curs.execute("delete from login_history where username = ?", [username]);
+		await curs.execute("delete from stars where username = ?", [username]);
+		await curs.execute("delete from useragents where username = ?", [username]);
 		/*
 		curs.execute("update history set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
 		curs.execute("update res set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
@@ -64,6 +63,7 @@ if(hostconfig.allow_account_deletion) router.all(/^\/member\/delete_account$/, a
 		curs.execute("update edit_requests set processor = '탈퇴한 사용자', ismember = 'ip' where processor = ? and ismember = 'author'", [username]);
 		curs.execute("update edit_requests set username = '탈퇴한 사용자', ismember = 'ip' where username = ? and ismember = 'author'", [username]);
 		*/
+		curs.execute("delete from users where username = ?", [username]);
 		delete req.session.username;
 		delete userset[username];
 		if(permlist[username]) permlist[username] = [];

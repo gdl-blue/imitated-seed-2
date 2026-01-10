@@ -24,7 +24,7 @@
 		
 		(<span style="color: {% if row.changes > 0 %}green{% elseif row.changes < 0 %}red{% else %}gray{% endif %};">{{ row.changes }}</span>)
 		
-		{% if row.edit_request_id %}<i><a href="/edit_request/{{ row.edit_request_id }}">(편집 요청)</a></i>{% endif %} {{ row|render_user }}
+		{% if row.edit_request_id && row.edit_request_id != -1 %}<i><a href="/edit_request/{{ row.edit_request_id }}">(편집 요청)</a></i>{% endif %} {{ row|render_user }}
 		
 		(<span style="color: gray;{% if row.loghider %} text-decoration: line-through;{% endif %}">{% if row.loghider %}{{ row.loghider }}에 의해 편집 요약 숨겨짐{% else %}{{ row.log }}{% endif %}{% if version.higher('4.22.4') && perms.has('hide_document_history_log') && row.loghider %}(내용:{{ row.log }}){% endif %}</span>)
 	</li>
