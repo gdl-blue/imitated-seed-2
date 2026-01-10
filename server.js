@@ -127,7 +127,7 @@ async function init() {
 	if(hostconfig.database_type != 'sqlite') {
 		print('\n경고! MySQL 지원은 아직 실험적입니다. 버그가 있을 수 있습니다 \n');
 		while(true) {
-			hostconfig.database_host = (await readline('데이타베이스 호스트(0.0.0.0): ')) || '0.0.0.0';
+			hostconfig.database_host = (await readline('데이타베이스 호스트(127.0.0.1): ')) || '127.0.0.1';
 			hostconfig.database_user = (await readline('데이타베이스 사용자(root): ')) || 'root';
 			hostconfig.database_password = (await readlineMasked('데이타베이스 비밀번호: ', true));
 			hostconfig.database_name = (await readline('데이타베이스 이름(theseedwiki): ')) || 'theseedwiki';
