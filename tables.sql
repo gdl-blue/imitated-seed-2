@@ -1,6 +1,6 @@
 CREATE TABLE documents (
-	title VARCHAR(255), 
-	namespace VARCHAR(32) DEFAULT '문서', 
+	title VARCHAR(255) NOT NULL, 
+	namespace VARCHAR(32) DEFAULT '문서' NOT NULL, 
 	content TEXT DEFAULT '' NOT NULL, 
 	time INTEGER DEFAULT 0,
 	
@@ -8,7 +8,7 @@ CREATE TABLE documents (
 );
 
 CREATE TABLE history (
-	title VARCHAR(255) DEFAULT '' NOT NULL, 
+	title VARCHAR(255) NOT NULL, 
 	namespace VARCHAR(32) DEFAULT '문서' NOT NULL, 
 	content TEXT DEFAULT '' NOT NULL, 
 	rev INTEGER NOT NULL, 
@@ -21,28 +21,43 @@ CREATE TABLE history (
 	edit_request_id INTEGER, 
 	flags TEXT DEFAULT '' NOT NULL, 
 	api BOOLEAN DEFAULT 0 NOT NULL, 
-	log_hider VARCHAR(32) DEFAULT '' NOT NULL,
+	log_hider VARCHAR(32), 
+	user_uuid VARCHAR(36) NOT NULL,
+	log_hider_uuid VARCHAR(36),
 	
-	-- FOREIGN KEY(author) REFERENCES users(username) ON UPDATE CASCADE,
-	-- FOREIGN KEY(log_hider) REFERENCES users(username) ON UPDATE CASCADE,
+	FOREIGN KEY(user_uuid) REFERENCES uuid(uuid),
+	FOREIGN KEY(log_hider_uuid) REFERENCES uuid(uuid),
+	FOREIGN KEY(author) REFERENCES users(username) ON UPDATE CASCADE ON DELETE SET NULL,
+	FOREIGN KEY(log_hider) REFERENCES users(username) ON UPDATE CASCADE ON DELETE SET NULL,
 	CONSTRAINT unique_item UNIQUE(title, namespace, rev)
+);
+
+CREATE TABLE uuid (
+	uuid VARCHAR(36),
+	
+	PRIMARY KEY(uuid)
 );
 
 CREATE TABLE users (
 	username VARCHAR(32), 
 	password VARCHAR(128) NOT NULL,  -- 현재 64자로 해시되나 나중에 512비트로 고도화를 대비
 	password_hash_type ENUM('sha3-256', 'sha3-512') DEFAULT 'sha3-512' NOT NULL,
+	uuid VARCHAR(36),
 	
-	PRIMARY KEY(username)
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
+	CONSTRAINT unique_username UNIQUE(username),
+	PRIMARY KEY(uuid)
 );
 
 CREATE TABLE user_settings (
 	username VARCHAR(32), 
 	key VARCHAR(32) NOT NULL, 
 	value TEXT DEFAULT '' NOT NULL,
+	uuid VARCHAR(36),
 	
-	PRIMARY KEY(username, key),
-	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+	PRIMARY KEY(uuid, key),
+	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid)
 );
 
 CREATE TABLE config (
@@ -60,24 +75,28 @@ CREATE TABLE stars (
 	title VARCHAR(255) NOT NULL, 
 	namespace VARCHAR(32) DEFAULT '문서' NOT NULL, 
 	username VARCHAR(32) NOT NULL, 
+	uuid VARCHAR(36) NOT NULL,
 	
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT unique_item UNIQUE(title, namespace, username)
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
+	CONSTRAINT unique_item UNIQUE(title, namespace, uuid)
 );
 
 CREATE TABLE perms (
 	perm VARCHAR(32) NOT NULL, 
 	username VARCHAR(32) NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT unique_item UNIQUE(perm, username)
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
+	CONSTRAINT unique_item UNIQUE(perm, uuid)
 );
 
 CREATE TABLE threads (
 	title VARCHAR(255) NOT NULL, 
 	namespace VARCHAR(32) DEFAULT '문서' NOT NULL, 
 	topic TEXT NOT NULL, 
-	status ENUM('close', 'normal', 'pause') DEFAULT 'normal' NOT NULL, 
+	status ENUM('normal', 'close', 'pause') DEFAULT 'normal' NOT NULL, 
 	time INTEGER NOT NULL, 
 	slug VARCHAR(22), 
 	id INTEGER,
@@ -98,10 +117,14 @@ CREATE TABLE res (
 	status BOOLEAN DEFAULT 0 NOT NULL, 
 	slug VARCHAR(22) NOT NULL, 
 	admin BOOLEAN DEFAULT 0 NOT NULL, 
-	status_type ENUM('status', 'document', 'topic'),
+	status_type ENUM('status', 'document', 'topic'), 
+	user_uuid VARCHAR(36) NOT NULL,
+	hider_uuid VARCHAR(36),
 	
-	-- FOREIGN KEY(author) REFERENCES users(username) ON UPDATE CASCADE,
-	-- FOREIGN KEY(hider) REFERENCES users(username) ON UPDATE CASCADE,
+	FOREIGN KEY(user_uuid) REFERENCES uuid(uuid),
+	FOREIGN KEY(hider_uuid) REFERENCES uuid(uuid),
+	FOREIGN KEY(author) REFERENCES users(username) ON UPDATE CASCADE ON DELETE SET NULL,
+	FOREIGN KEY(hider) REFERENCES users(username) ON UPDATE CASCADE ON DELETE SET NULL,
 	PRIMARY KEY(id, slug),
 	FOREIGN KEY(slug) REFERENCES threads(slug) ON UPDATE CASCADE ON DELETE CASCADE
 );
@@ -109,15 +132,20 @@ CREATE TABLE res (
 CREATE TABLE useragents (
 	username VARCHAR(32) NOT NULL, 
 	useragents TEXT DEFAULT '' NOT NULL,
+	uuid VARCHAR(36),
 	
-	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
+	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
+	PRIMARY KEY(uuid)
 );
 
 CREATE TABLE login_history (
 	username VARCHAR(32) NOT NULL, 
 	ip VARCHAR(39) DEFAULT '127.0.0.1' NOT NULL, 
 	time INTEGER NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
@@ -156,9 +184,11 @@ CREATE TABLE suspend_account (
 	date INTEGER NOT NULL, 
 	expiration INTEGER DEFAULT 0 NOT NULL, 
 	note TEXT DEFAULT '' NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	PRIMARY KEY(username)
+	PRIMARY KEY(uuid)
 );
 
 CREATE TABLE aclgroup_groups (
@@ -181,7 +211,9 @@ CREATE TABLE aclgroup (
 	date INTEGER DEFAULT 0 NOT NULL, 
 	expiration INTEGER DEFAULT 0 NOT NULL, 
 	id INTEGER NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(aclgroup) REFERENCES aclgroup_groups(name) ON DELETE CASCADE,
 	FOREIGN KEY(username) REFERENCES users(username) ON DELETE CASCADE,
 	PRIMARY KEY(id, aclgroup)
@@ -194,12 +226,14 @@ CREATE TABLE block_history (
 	aclgroup_id INTEGER, 
 	duration INTEGER, 
 	note TEXT, 
-	executer_author VARCHAR(32), 
-	executer_ip VARCHAR(39), 
+	executor_author VARCHAR(32), 
+	executor_ip VARCHAR(39), 
 	target TEXT NOT NULL, 
 	id INTEGER,
+	executor_uuid VARCHAR(36) NOT NULL,
 	
-	-- FOREIGN KEY(executer_author) REFERENCES users(username) ON UPDATE CASCADE,
+	FOREIGN KEY(executor_uuid) REFERENCES uuid(uuid),
+	FOREIGN KEY(executor_author) REFERENCES users(username) ON UPDATE CASCADE ON DELETE SET NULL,
 	PRIMARY KEY(id)
 );
 
@@ -222,10 +256,14 @@ CREATE TABLE edit_requests (
 	close_reason TEXT, 
 	accepted_rev INTEGER,
 	slug VARCHAR(100),  -- the seed 4.16.0 이상 주소
+	uuid VARCHAR(36) NOT NULL,
+	processor_uuid VARCHAR(36),
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
+	FOREIGN KEY(processor_uuid) REFERENCES uuid(uuid),
 	PRIMARY KEY(id),
-	-- FOREIGN KEY(author) REFERENCES users(username) ON UPDATE CASCADE,
-	-- FOREIGN KEY(processor_author) REFERENCES users(username) ON UPDATE CASCADE,
+	FOREIGN KEY(author) REFERENCES users(username) ON UPDATE CASCADE ON DELETE SET NULL,
+	FOREIGN KEY(processor_author) REFERENCES users(username) ON UPDATE CASCADE ON DELETE SET NULL,
 	FOREIGN KEY(title, namespace, accepted_rev) REFERENCES history(title, namespace, rev) ON UPDATE CASCADE,
 	FOREIGN KEY(title, namespace, baserev) REFERENCES history(title, namespace, rev) ON UPDATE CASCADE
 );
@@ -266,25 +304,32 @@ CREATE TABLE classic_acl (
 CREATE TABLE autologin_tokens (
 	username VARCHAR(32) NOT NULL, 
 	token VARCHAR(128) NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT unique_item UNIQUE(token)
+	PRIMARY KEY(token)
 );
 
 CREATE TABLE trusted_devices (
 	username VARCHAR(32) NOT NULL, 
 	id VARCHAR(32) NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT unique_item UNIQUE(username, id)
+	CONSTRAINT unique_item UNIQUE(uuid, id)
 );
 
 CREATE TABLE api_tokens (
 	username VARCHAR(32) NOT NULL, 
 	token VARCHAR(128) NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT unique_item UNIQUE(username, token)
+	CONSTRAINT unique_item UNIQUE(uuid, token),
+	PRIMARY KEY(token)
 );
 
 CREATE TABLE recover_account (
@@ -292,9 +337,12 @@ CREATE TABLE recover_account (
 	username VARCHAR(32) NOT NULL, 
 	email TEXT NOT NULL, 
 	time INTEGER NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT unique_item UNIQUE(username, key)
+	CONSTRAINT unique_item UNIQUE(uuid, key),
+	PRIMARY KEY(key)
 );
 
 CREATE TABLE boardipacl (
@@ -311,7 +359,9 @@ CREATE TABLE boardsuspendaccount (
 	expiration INTEGER DEFAULT 0 NOT NULL, 
 	note TEXT DEFAULT '' NOT NULL, 
 	date INTEGER NOT NULL,
+	uuid VARCHAR(36) NOT NULL,
 	
+	FOREIGN KEY(uuid) REFERENCES uuid(uuid),
 	FOREIGN KEY(username) REFERENCES users(username) ON UPDATE CASCADE ON DELETE CASCADE,
-	PRIMARY KEY(username)
+	PRIMARY KEY(uuid)
 );
