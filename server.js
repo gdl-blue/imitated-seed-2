@@ -172,10 +172,10 @@ async function init() {
 		
 		// 테이블 만들기
 		process.stdout.write('\n데이타베이스 테이블을 만드는 중... ');
-		const sql = fs.readFileSync('./tables_old.sql').toString().split(';').map(item => item.replace(/[-][-].*/gm, '')).map(item => item.replace(/\n/g, '')).filter(item => item);
+		const sql = fs.readFileSync('./tables_old.sql').toString().split(';').map(item => item.replace(/[-][-].*/gm, '')).map(item => item.replace(/\n/g, '')).map(item => item.replace(/\t/g, '')).filter(item => item);
 		for(var query of sql) {
 			try {
-				await db.run(query);
+				await db.run(query, [], true);
 			} catch(e) {
 				var table = query.match(/CREATE TABLE ([a-zA-Z0-9_]+) \(/);
 				if(table) table = table[1];

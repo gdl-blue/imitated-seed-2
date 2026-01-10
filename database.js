@@ -1,13 +1,13 @@
 const hostconfig = require('./hostconfig.js');
 var db = null, curs = null;
 
-function adapt(sql) {
-	const keywords = new Set(['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'GROUP', 'BY', 'ORDER', 'LIMIT', 'JOIN', 'ON', 'AS', 'IS', 'NULL', 'NOT', 'LIKE', 'ASC', 'DESC', 'CREATE', 'TABLE', 'TEXT', 'DEFAULT', 'DISTINCT', 'CAST', 'LOWER', 'UPPER', 'COLLATE', 'ALTER', 'ADD', 'COUNT', 'REFERENCES', 'FOREIGN', 'UNIQUE', 'PRIMARY', 'KEY', 'CONSTRAINT', 'REFERENCES', 'CASCADE']);
+function adapt(sql, noint = false) {
+	const keywords = new Set(['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'GROUP', 'BY', 'ORDER', 'LIMIT', 'JOIN', 'ON', 'AS', 'IS', 'NULL', 'NOT', 'LIKE', 'ASC', 'DESC', 'CREATE', 'TABLE', 'TEXT', 'DEFAULT', 'DISTINCT', 'CAST', 'LOWER', 'UPPER', 'COLLATE', 'ALTER', 'ADD', 'COUNT', 'REFERENCES', 'FOREIGN', 'UNIQUE', 'PRIMARY', 'KEY', 'CONSTRAINT', 'REFERENCES', 'CASCADE', 'VARCHAR', 'INTEGER', 'ENUM', 'BOOLEAN']);
 	const regex = /'[^']*'|\b([a-z_][a-z0-9_]*)\b/gi;
 	return sql.replace(regex, (match, group) => {
 		if(!group) 
 			return match;
-		if(group.toUpperCase() == 'INTEGER') 
+		if(group.toUpperCase() == 'INTEGER' && !noint) 
 			return 'SIGNED';
 		if(keywords.has(group.toUpperCase()) && group != 'key') 
 			return group;
@@ -81,9 +81,9 @@ switch(hostconfig.database_type || 'sqlite') {
 		});
 		db.query("SET sql_mode='ANSI'", () => {});
 		
-		db.run = db.all = function run(query, params = []) {
+		db.run = db.all = function run(query, params = [], noint = false) {
 			return new Promise((resolve, reject) => {
-				db.query(adapt(query), params, (err, result) => {
+				db.query(adapt(query, noint), params, (err, result) => {
 					if(err) return reject(err);
 					resolve(result);
 				});
